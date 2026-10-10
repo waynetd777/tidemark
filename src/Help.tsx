@@ -6,6 +6,7 @@
 // It stays open while you use the map beside it; Esc or × closes it.
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import type { Screen } from "./types";
 import { GUIDE, type HelpSection, helpHtml, searchHelp } from "./guides";
 
 const CHEVRON = (
@@ -67,11 +68,35 @@ function Section({
   );
 }
 
+/// The guide's sections for each screen, in the order the help shows them. Search still covers
+/// the whole guide, and "The whole guide" at the foot shows every section.
+const FOR_SCREEN: Record<Screen, string[]> = {
+  now: ["Now", "Ask", "Menu bar", "Keyboard shortcuts"],
+  disk: [
+    "Disk",
+    "The map",
+    "Getting around",
+    "Finder and the right-click menu",
+    "Files in a folder",
+    "Free space",
+    "Cloud folders",
+    "Scanning",
+    "Full Disk Access",
+    "Keyboard shortcuts",
+  ],
+  performance: ["Performance", "History", "Ask", "Keyboard shortcuts"],
+  trends: ["Trends", "History", "Keyboard shortcuts"],
+  settings: ["Settings", "History", "Menu bar", "Full Disk Access"],
+};
+
 export default function HelpDrawer({
+  screen,
   open,
   onClose,
   onAsk,
 }: {
+  /** The screen on show: the help opens on its sections. */
+  screen: Screen;
   open: boolean;
   onClose: () => void;
   /** Opens Ask with a question typed in, for what the guide doesn't answer. */
@@ -79,6 +104,19 @@ export default function HelpDrawer({
 }) {
   const [q, setQ] = useState("");
   const [at, setAt] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+  // A new screen opens its own sections again.
+  const [seenScreen, setSeenScreen] = useState(screen);
+  if (screen !== seenScreen) {
+    setSeenScreen(screen);
+    setAll(false);
+    setAt(null);
+  }
+  const sections = all
+    ? GUIDE.sections
+    : FOR_SCREEN[screen]
+        .map((t) => GUIDE.sections.find((s) => s.title === t))
+        .filter((s): s is (typeof GUIDE.sections)[number] => !!s);
   const box = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -94,6 +132,7 @@ export default function HelpDrawer({
   const goTo = (anchor: string) => {
     setQ("");
     setAt(anchor);
+    if (!sections.some((s) => s.anchor === anchor)) setAll(true);
   };
   const query = q.trim();
 
@@ -108,9 +147,9 @@ export default function HelpDrawer({
   } else {
     body = (
       <>
-        {GUIDE.intro && <HelpText md={GUIDE.intro} onLink={goTo} />}
+        {all && GUIDE.intro && <HelpText md={GUIDE.intro} onLink={goTo} />}
         <div>
-          {GUIDE.sections.map((s, i) => (
+          {sections.map((s, i) => (
             <Section
               key={s.anchor}
               s={s}
@@ -120,6 +159,13 @@ export default function HelpDrawer({
             />
           ))}
         </div>
+        <button
+          className="link help-all"
+          onClick={() => setAll(!all)}
+          title={all ? "Show only the help for this screen" : "Show every section of the guide"}
+        >
+          {all ? "Just this screen" : "The whole guide"}
+        </button>
       </>
     );
   }

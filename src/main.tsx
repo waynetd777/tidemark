@@ -4,7 +4,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import Tray from "./Tray";
 import "./styles.css";
+import { followTheme } from "./theme";
+
+followTheme();
 
 /// How long the splash stays up at minimum, so a fast start reads as a deliberate opening
 /// rather than a blink.
@@ -23,8 +27,9 @@ export function hideSplash() {
   }, wait);
 }
 
+/// The menu-bar window loads the same page with ?view=tray (tauri.conf.json).
+const tray = new URLSearchParams(location.search).get("view") === "tray";
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  <React.StrictMode>{tray ? <Tray /> : <App />}</React.StrictMode>,
 );

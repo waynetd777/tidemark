@@ -1,0 +1,849 @@
+// Copyright (c) 2026 Wayne Davies
+// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+
+//! The performance recorder. A thread samples the Mac every few seconds (2 s while a window is
+//! open, 5 s otherwise), keeps the last 15 minutes in memory for the live charts, writes one row
+//! a minute (averages and maxima) with the busiest apps of that minute to the history, and opens
+//! an incident when something crosses a line: CPU above 90% for 30 s, memory pressure critical,
+//! or swap growing by 1 GB within 10 minutes. Each incident keeps what every app was doing at
+//! its peak.
+//!
+//! Processes are grouped by the app they belong to (the outermost .app in the executable's
+//! path), so Chrome's dozens of helpers count as Google Chrome. CPU is a share of the whole
+//! machine, not of one core.
+
+use crate::history::{self, AppUse, Minute};
+use serde::Serialize;
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use sysinfo::{Networks, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+
+/// How much of the recent past the live charts get.
+const LIVE_SECS: i64 = 15 * 60;
+/// Apps kept per minute, by CPU and by memory (the union is stored).
+const APPS_PER_MINUTE: usize = 8;
+
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct Sample {
+    /// Unix milliseconds.
+    pub t: i64,
+    pub cpu: f64,
+    pub mem: f64,
+    pub swap: f64,
+    pub pressure: i64,
+    pub disk_r: f64,
+    pub disk_w: f64,
+    pub net_in: f64,
+    pub net_out: f64,
+    pub thermal: i64,
+}
+
+#[derive(Default)]
+struct Live {
+    samples: VecDeque<Sample>,
+    /// Every app at the latest sample, busiest CPU first.
+    apps: Vec<AppUse>,
+    processes: usize,
+    mem_total: f64,
+    /// Recording is paused until then (unix seconds).
+    paused_until: Option<i64>,
+    /// Incidents going on now: kind -> (id, started, peak).
+    open: HashMap<&'static str, (i64, i64, f64)>,
+}
+
+static LIVE: Mutex<Option<Live>> = Mutex::new(None);
+/// A window is on screen: sample faster so the live charts move.
+pub static FAST: AtomicBool = AtomicBool::new(true);
+
+fn live<T>(f: impl FnOnce(&mut Live) -> T) -> T {
+    let mut g = LIVE.lock().unwrap();
+    f(g.get_or_insert_with(Live::default))
+}
+
+/// Names macOS gives its own helper processes, as people would say them.
+const FRIENDLY: [(&str, &str); 6] = [
+    (
+        "com.apple.Virtualization.VirtualMachine",
+        "Virtual machine (Virtualization)",
+    ),
+    ("com.apple.WebKit.WebContent", "Web content (WebKit)"),
+    ("com.apple.WebKit.GPU", "Web graphics (WebKit)"),
+    ("com.apple.WebKit.Networking", "Web networking (WebKit)"),
+    ("mds_stores", "Spotlight (mds_stores)"),
+    ("mdworker_shared", "Spotlight (mdworker)"),
+];
+
+/// The app a process belongs to: the outermost bundle in its path, else its own name.
+fn app_of(exe: Option<&std::path::Path>, name: &str) -> String {
+    if let Some((_, f)) = FRIENDLY.iter().find(|(n, _)| *n == name) {
+        return f.to_string();
+    }
+    if let Some(p) = exe.and_then(|p| p.to_str()) {
+        if let Some(i) = p.find(".app/") {
+            let start = p[..i].rfind('/').map_or(0, |j| j + 1);
+            return p[start..i].to_string();
+        }
+    }
+    name.to_string()
+}
+
+/// macOS memory pressure: 1 normal, 2 warning, 4 critical.
+fn pressure() -> i64 {
+    let mut v: libc::c_int = 1;
+    let mut sz = std::mem::size_of::<libc::c_int>();
+    let ok = unsafe {
+        libc::sysctlbyname(
+            c"kern.memorystatus_vm_pressure_level".as_ptr(),
+            &mut v as *mut _ as *mut libc::c_void,
+            &mut sz,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if ok == 0 {
+        v as i64
+    } else {
+        1
+    }
+}
+
+/// 0 nominal, 1 fair, 2 serious, 3 critical.
+fn thermal() -> i64 {
+    #[cfg(target_os = "macos")]
+    {
+        objc2_foundation::NSProcessInfo::processInfo()
+            .thermalState()
+            .0 as i64
+    }
+    #[cfg(not(target_os = "macos"))]
+    0
+}
+
+fn sysctl_string(name: &std::ffi::CStr) -> Option<String> {
+    let mut sz = 0usize;
+    unsafe {
+        if libc::sysctlbyname(
+            name.as_ptr(),
+            std::ptr::null_mut(),
+            &mut sz,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
+            return None;
+        }
+        let mut buf = vec![0u8; sz];
+        if libc::sysctlbyname(
+            name.as_ptr(),
+            buf.as_mut_ptr() as *mut _,
+            &mut sz,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
+            return None;
+        }
+        buf.truncate(sz.saturating_sub(1));
+        String::from_utf8(buf).ok()
+    }
+}
+
+/// One condition watched for incidents.
+struct Watch {
+    kind: &'static str,
+    /// How long the condition must hold before it is an incident, and must be off before it ends.
+    on_for: i64,
+    off_for: i64,
+    /// Sort the snapshot by memory rather than CPU.
+    by_mem: bool,
+    since_on: Option<i64>,
+    since_off: Option<i64>,
+}
+
+impl Watch {
+    fn new(kind: &'static str, on_for: i64, off_for: i64, by_mem: bool) -> Self {
+        Watch {
+            kind,
+            on_for,
+            off_for,
+            by_mem,
+            since_on: None,
+            since_off: None,
+        }
+    }
+
+    /// `on`: the condition holds; `off`: it has clearly stopped (a lower line, so it doesn't
+    /// flicker). `value` is what the peak is measured in.
+    fn step(&mut self, now: i64, on: bool, off: bool, value: f64, apps: &[AppUse]) {
+        let open = live(|l| l.open.get(self.kind).copied());
+        let snapshot = || {
+            let mut a = apps.to_vec();
+            if self.by_mem {
+                a.sort_by(|x, y| y.mem.total_cmp(&x.mem));
+            }
+            a.truncate(12);
+            a
+        };
+        match open {
+            None => {
+                if on {
+                    let since = *self.since_on.get_or_insert(now);
+                    if now - since >= self.on_for {
+                        let id = history::open_incident(self.kind, since, value, &snapshot());
+                        live(|l| l.open.insert(self.kind, (id, since, value)));
+                        self.since_off = None;
+                    }
+                } else {
+                    self.since_on = None;
+                }
+            }
+            Some((id, started, peak)) => {
+                if value > peak {
+                    history::update_incident(id, value, now, Some(&snapshot()));
+                    live(|l| l.open.insert(self.kind, (id, started, value)));
+                }
+                if off {
+                    let since = *self.since_off.get_or_insert(now);
+                    if now - since >= self.off_for {
+                        history::close_incident(id, since);
+                        live(|l| l.open.remove(self.kind));
+                        self.since_on = None;
+                    }
+                } else {
+                    self.since_off = None;
+                }
+            }
+        }
+    }
+}
+
+/// The minute being gathered.
+#[derive(Default)]
+struct Acc {
+    minute: i64,
+    n: f64,
+    m: Minute,
+    apps: HashMap<String, (f64, f64)>,
+}
+
+impl Acc {
+    fn add(&mut self, s: &Sample, mem_total: f64, apps: &[AppUse]) {
+        let m = &mut self.m;
+        m.cpu += s.cpu;
+        m.cpu_max = m.cpu_max.max(s.cpu);
+        m.mem += s.mem;
+        m.mem_max = m.mem_max.max(s.mem);
+        m.mem_total = mem_total;
+        m.swap += s.swap;
+        m.swap_max = m.swap_max.max(s.swap);
+        m.pressure = m.pressure.max(s.pressure);
+        m.disk_r += s.disk_r;
+        m.disk_w += s.disk_w;
+        m.disk_max = m.disk_max.max(s.disk_r + s.disk_w);
+        m.net_in += s.net_in;
+        m.net_out += s.net_out;
+        m.net_max = m.net_max.max(s.net_in + s.net_out);
+        m.thermal = m.thermal.max(s.thermal);
+        for a in apps {
+            let e = self.apps.entry(a.app.clone()).or_default();
+            e.0 += a.cpu;
+            e.1 += a.mem;
+        }
+        self.n += 1.0;
+    }
+
+    fn flush(&mut self) {
+        if self.n == 0.0 {
+            return;
+        }
+        let n = self.n;
+        let mut m = std::mem::take(&mut self.m);
+        m.ts = self.minute * 60;
+        for v in [
+            &mut m.cpu,
+            &mut m.mem,
+            &mut m.swap,
+            &mut m.disk_r,
+            &mut m.disk_w,
+            &mut m.net_in,
+            &mut m.net_out,
+        ] {
+            *v /= n;
+        }
+        let mut apps: Vec<AppUse> = self
+            .apps
+            .drain()
+            .map(|(app, (c, mm))| AppUse {
+                app,
+                cpu: c / n,
+                mem: mm / n,
+            })
+            .collect();
+        apps.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
+        let mut keep: Vec<AppUse> = apps.iter().take(APPS_PER_MINUTE).cloned().collect();
+        apps.sort_by(|a, b| b.mem.total_cmp(&a.mem));
+        for a in apps.into_iter().take(APPS_PER_MINUTE) {
+            if !keep.iter().any(|k| k.app == a.app) {
+                keep.push(a);
+            }
+        }
+        history::add_minute(&m, &keep);
+        self.n = 0.0;
+    }
+}
+
+pub fn start() {
+    history::close_dangling();
+    std::thread::Builder::new()
+        .name("monitor".into())
+        .spawn(run)
+        .expect("the monitor thread starts");
+}
+
+fn run() {
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get()) as f64;
+    let mut sys = System::new();
+    let mut nets = Networks::new_with_refreshed_list();
+    let kind = ProcessRefreshKind::nothing()
+        .with_cpu()
+        .with_memory()
+        .with_disk_usage()
+        .with_exe(UpdateKind::OnlyIfNotSet);
+    let refresh = |sys: &mut System, nets: &mut Networks| {
+        sys.refresh_cpu_usage();
+        sys.refresh_memory();
+        sys.refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
+        nets.refresh(true);
+    };
+    refresh(&mut sys, &mut nets);
+    let mut last = Instant::now();
+    let mut acc = Acc::default();
+    let mut watches = [
+        Watch::new("cpu", 30, 30, false),
+        Watch::new("pressure", 5, 30, true),
+        Watch::new("swap", 0, 0, true),
+    ];
+    loop {
+        let every = if FAST.load(Ordering::Relaxed) { 2 } else { 5 };
+        std::thread::sleep(Duration::from_secs(every));
+        let now = history::now();
+        if live(|l| l.paused_until.is_some_and(|p| p > now)) {
+            // Keep the counters current so the first sample after the pause covers 2-5 s, not
+            // the whole pause.
+            refresh(&mut sys, &mut nets);
+            last = Instant::now();
+            acc.flush();
+            continue;
+        }
+        let dt = last.elapsed().as_secs_f64();
+        last = Instant::now();
+        refresh(&mut sys, &mut nets);
+        // Asleep in between: the counters span the sleep, so this sample says nothing about
+        // any moment. The gap stays a gap.
+        if dt > every as f64 * 3.0 + 5.0 {
+            acc.flush();
+            continue;
+        }
+
+        let mut by_app: HashMap<String, AppUse> = HashMap::new();
+        let (mut rd, mut wr) = (0u64, 0u64);
+        for p in sys.processes().values() {
+            let d = p.disk_usage();
+            rd += d.read_bytes;
+            wr += d.written_bytes;
+            let name = app_of(p.exe(), &p.name().to_string_lossy());
+            let e = by_app.entry(name.clone()).or_insert_with(|| AppUse {
+                app: name,
+                ..Default::default()
+            });
+            e.cpu += p.cpu_usage() as f64 / cores;
+            e.mem += p.memory() as f64;
+        }
+        let mut apps: Vec<AppUse> = by_app.into_values().collect();
+        apps.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
+        let (mut nin, mut nout) = (0u64, 0u64);
+        for (name, n) in nets.iter() {
+            if name != "lo0" {
+                nin += n.received();
+                nout += n.transmitted();
+            }
+        }
+        let mem_total = sys.total_memory() as f64;
+        let s = Sample {
+            t: now * 1000 + (chrono::Local::now().timestamp_subsec_millis() as i64),
+            cpu: (sys.global_cpu_usage() as f64).clamp(0.0, 100.0),
+            mem: sys.used_memory() as f64,
+            swap: sys.used_swap() as f64,
+            pressure: pressure(),
+            disk_r: rd as f64 / dt,
+            disk_w: wr as f64 / dt,
+            net_in: nin as f64 / dt,
+            net_out: nout as f64 / dt,
+            thermal: thermal(),
+        };
+
+        let minute = now / 60;
+        if minute != acc.minute {
+            acc.flush();
+            acc.minute = minute;
+        }
+        acc.add(&s, mem_total, &apps);
+
+        // Swap grown by 1 GB from its lowest in the last 10 minutes.
+        let swap_low = live(|l| {
+            l.samples
+                .iter()
+                .filter(|x| x.t >= (now - 600) * 1000)
+                .map(|x| x.swap)
+                .fold(f64::MAX, f64::min)
+        })
+        .min(s.swap);
+        let swap_rising = s.swap - swap_low >= 1e9;
+        let swap_settled = live(|l| {
+            l.samples
+                .iter()
+                .rev()
+                .take_while(|x| x.t >= (now - 300) * 1000)
+                .all(|x| x.swap >= s.swap - 1e6)
+        });
+        watches[0].step(now, s.cpu >= 90.0, s.cpu < 80.0, s.cpu, &apps);
+        watches[1].step(now, s.pressure >= 4, s.pressure < 4, s.mem, &apps);
+        watches[2].step(
+            now,
+            swap_rising,
+            swap_settled && !swap_rising,
+            s.swap,
+            &apps,
+        );
+
+        live(|l| {
+            l.samples.push_back(s);
+            while l
+                .samples
+                .front()
+                .is_some_and(|x| x.t < (now - LIVE_SECS) * 1000)
+            {
+                l.samples.pop_front();
+            }
+            l.processes = sys.processes().len();
+            l.mem_total = mem_total;
+            l.apps = apps;
+        });
+    }
+}
+
+// ---- what the UI asks ----
+
+#[derive(Serialize, Clone, Debug)]
+pub struct Status {
+    /// "calm" or "attention".
+    pub level: &'static str,
+    /// Which metric the attention is about: "cpu", "memory", "swap", "disk" or "".
+    pub about: &'static str,
+    pub headline: String,
+    pub sub: String,
+}
+
+fn gb(b: f64) -> String {
+    if b >= 100e9 {
+        format!("{:.0} GB", b / 1e9)
+    } else if b >= 1e9 {
+        format!("{:.1} GB", b / 1e9)
+    } else {
+        format!("{:.0} MB", b / 1e6)
+    }
+}
+
+/// How things stand, in a sentence: the tray's and the Now page's headline.
+pub fn status() -> Status {
+    let (latest, open, mem_total, top) = live(|l| {
+        (
+            l.samples.back().cloned(),
+            l.open.clone(),
+            l.mem_total,
+            l.apps.first().map(|a| a.app.clone()),
+        )
+    });
+    let vol = crate::volume::info("/");
+    let attention = |about, headline: String, sub: String| Status {
+        level: "attention",
+        about,
+        headline,
+        sub,
+    };
+    if let Some(s) = &latest {
+        if open.contains_key("pressure") || s.pressure >= 4 {
+            return attention(
+                "memory",
+                "Memory is running high".into(),
+                format!(
+                    "{} of {} in use, {} in swap.",
+                    gb(s.mem),
+                    gb(mem_total),
+                    gb(s.swap)
+                ),
+            );
+        }
+        if let Some((_, started, _)) = open.get("cpu") {
+            let mins = ((history::now() - started) / 60).max(1);
+            return attention(
+                "cpu",
+                "The CPU is busy".into(),
+                format!(
+                    "{:.0}% for {mins} min{}.",
+                    s.cpu,
+                    top.map(|t| format!(", mostly {t}")).unwrap_or_default()
+                ),
+            );
+        }
+        if open.contains_key("swap") {
+            return attention(
+                "swap",
+                "Swap is growing".into(),
+                format!("{} in swap: memory is short.", gb(s.swap)),
+            );
+        }
+    }
+    if vol.total > 0 && (vol.free as f64) < vol.total as f64 * 0.1 {
+        return attention(
+            "disk",
+            "The disk is nearly full".into(),
+            format!("{} free of {}.", gb(vol.free as f64), gb(vol.total as f64)),
+        );
+    }
+    if latest.as_ref().is_some_and(|s| s.pressure == 2) {
+        return attention(
+            "memory",
+            "Memory is getting tight".into(),
+            "macOS has started compressing memory.".into(),
+        );
+    }
+    let week = history::now() - 7 * 86_400;
+    let today = chrono::Local::now()
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .and_then(|d| d.and_local_timezone(chrono::Local).single())
+        .map_or(history::now() - 86_400, |d| d.timestamp());
+    let near = [("cpu_max", "CPU"), ("mem_max", "memory")]
+        .into_iter()
+        .find(|(col, _)| {
+            matches!((history::high(col, today), history::high(col, week)),
+                (Some((t, _)), Some((w, _))) if w > 0.0 && t >= 0.9 * w)
+        });
+    Status {
+        level: "calm",
+        about: "",
+        headline: if latest.is_some() {
+            "Your Mac is calm".into()
+        } else {
+            "Starting to record".into()
+        },
+        sub: match near {
+            _ if latest.is_none() => "The first readings arrive in a few seconds.".into(),
+            Some((_, what)) => format!("Today reached this week's {what} tidemark."),
+            None => "Nothing today is near this week's tidemarks.".into(),
+        },
+    }
+}
+
+#[derive(Serialize)]
+pub struct LiveInfo {
+    pub samples: Vec<Sample>,
+    pub apps_cpu: Vec<AppUse>,
+    pub apps_mem: Vec<AppUse>,
+    pub processes: usize,
+    pub cores: usize,
+    pub mem_total: f64,
+    pub paused_until: Option<i64>,
+    pub status: Status,
+}
+
+#[tauri::command]
+pub async fn perf_live() -> LiveInfo {
+    let status = status();
+    live(|l| {
+        let mut by_mem = l.apps.clone();
+        by_mem.sort_by(|a, b| b.mem.total_cmp(&a.mem));
+        by_mem.truncate(8);
+        LiveInfo {
+            samples: l.samples.iter().cloned().collect(),
+            apps_cpu: l.apps.iter().take(8).cloned().collect(),
+            apps_mem: by_mem,
+            processes: l.processes,
+            cores: std::thread::available_parallelism().map_or(1, |n| n.get()),
+            mem_total: l.mem_total,
+            paused_until: l.paused_until,
+            status,
+        }
+    })
+}
+
+#[derive(Serialize)]
+pub struct Mark {
+    pub value: f64,
+    pub at: i64,
+}
+
+#[derive(Serialize)]
+pub struct PerfHistory {
+    pub points: Vec<Minute>,
+    /// The highest of each metric over the last `mark_days` days (7 by default): the tidemarks.
+    pub tidemarks: HashMap<&'static str, Mark>,
+    /// When the record starts, so a chart can say "recording since".
+    pub since: Option<i64>,
+}
+
+/// Minutes over the last `secs` seconds, as at most `points` points, and the tidemarks of the
+/// last `mark_days` days (the week by default).
+#[tauri::command]
+pub async fn perf_history(secs: i64, points: Option<i64>, mark_days: Option<i64>) -> PerfHistory {
+    let to = history::now();
+    let week = to - mark_days.unwrap_or(7) * 86_400;
+    let mut tidemarks = HashMap::new();
+    for (k, col) in [
+        ("cpu", "cpu_max"),
+        ("mem", "mem_max"),
+        ("swap", "swap_max"),
+        ("disk", "disk_max"),
+        ("net", "net_max"),
+    ] {
+        if let Some((value, at)) = history::high(col, week) {
+            tidemarks.insert(k, Mark { value, at });
+        }
+    }
+    PerfHistory {
+        points: history::perf_range(to - secs, to, points.unwrap_or(480)),
+        tidemarks,
+        since: history::first_minute(),
+    }
+}
+
+#[derive(Serialize)]
+pub struct AppsAt {
+    pub by_cpu: Vec<AppUse>,
+    pub by_mem: Vec<AppUse>,
+}
+
+/// The busiest apps between two times (a peak's minute, or a whole range).
+#[tauri::command]
+pub async fn perf_apps(from: i64, to: i64) -> AppsAt {
+    AppsAt {
+        by_cpu: history::top_apps(from, to, false, 8),
+        by_mem: history::top_apps(from, to, true, 8),
+    }
+}
+
+#[tauri::command]
+pub async fn incidents(days: i64) -> Vec<history::Incident> {
+    history::incidents(history::now() - days * 86_400)
+}
+
+/// Stops recording for `minutes` (0 resumes).
+#[tauri::command]
+pub fn pause_recording(minutes: i64) -> Option<i64> {
+    let until = (minutes > 0).then(|| history::now() + minutes * 60);
+    live(|l| l.paused_until = until);
+    until
+}
+
+fn when(ts: i64) -> String {
+    chrono::DateTime::from_timestamp(ts, 0)
+        .map(|d| {
+            d.with_timezone(&chrono::Local)
+                .format("%a %-d %b %H:%M")
+                .to_string()
+        })
+        .unwrap_or_default()
+}
+
+fn apps_line(apps: &[AppUse], by_mem: bool) -> String {
+    apps.iter()
+        .take(6)
+        .map(|a| {
+            if by_mem {
+                format!("{} {}", a.app, gb(a.mem))
+            } else {
+                format!("{} {:.0}% CPU", a.app, a.cpu)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// The performance record as text, for Ask: now, today, the week's tidemarks, incidents and
+/// the apps that used the most.
+#[tauri::command]
+pub async fn perf_brief() -> String {
+    let now = history::now();
+    let mut out = Vec::new();
+    let st = status();
+    out.push(format!("Performance now: {} — {}", st.headline, st.sub));
+    live(|l| {
+        if let Some(s) = l.samples.back() {
+            let p = match s.pressure {
+                4 => "critical",
+                2 => "warning",
+                _ => "normal",
+            };
+            out.push(format!(
+                "CPU {:.0}% of {} cores; memory {} used of {}, pressure {p}; swap {}; {} processes.",
+                s.cpu,
+                std::thread::available_parallelism().map_or(1, |n| n.get()),
+                gb(s.mem),
+                gb(l.mem_total),
+                gb(s.swap),
+                l.processes
+            ));
+        }
+        if !l.apps.is_empty() {
+            out.push(format!(
+                "Busiest apps now by CPU: {}.",
+                apps_line(&l.apps, false)
+            ));
+            let mut m = l.apps.clone();
+            m.sort_by(|a, b| b.mem.total_cmp(&a.mem));
+            out.push(format!(
+                "Biggest apps now by memory: {}.",
+                apps_line(&m, true)
+            ));
+        }
+    });
+    let day = now - 86_400;
+    let week = now - 7 * 86_400;
+    for (label, col, is_mem) in [
+        ("CPU", "cpu_max", false),
+        ("Memory", "mem_max", true),
+        ("Swap", "swap_max", true),
+    ] {
+        let fmt = |(v, t): (f64, i64)| {
+            if is_mem {
+                format!("{} at {}", gb(v), when(t))
+            } else {
+                format!("{v:.0}% at {}", when(t))
+            }
+        };
+        let d = history::high(col, day)
+            .map(fmt)
+            .unwrap_or_else(|| "no record".into());
+        let w = history::high(col, week)
+            .map(fmt)
+            .unwrap_or_else(|| "no record".into());
+        out.push(format!(
+            "{label}: highest in the last 24 h {d}; this week's high-water mark {w}."
+        ));
+    }
+    let day_pts = history::perf_range(day, now, 1);
+    if let Some(d) = day_pts.first() {
+        let secs = d.minutes as f64 * 60.0;
+        let rate = |b: f64| {
+            if b >= 1e6 {
+                format!("{:.1} MB/s", b / 1e6)
+            } else {
+                format!("{:.0} KB/s", b / 1e3)
+            }
+        };
+        let now_net = live(|l| l.samples.back().map(|s| (s.net_in, s.net_out)));
+        out.push(format!(
+            "Network: {}over the last 24 h {} downloaded and {} uploaded; busiest minute {} (both ways).",
+            now_net
+                .map(|(i, o)| format!("now {} down and {} up; ", rate(i), rate(o)))
+                .unwrap_or_default(),
+            gb(d.net_in * secs),
+            gb(d.net_out * secs),
+            rate(d.net_max)
+        ));
+    }
+    let inc = history::incidents(week);
+    if inc.is_empty() {
+        out.push("No incidents in the last 7 days.".into());
+    } else {
+        out.push("Incidents in the last 7 days:".into());
+        for i in inc.iter().take(12) {
+            let what = match i.kind.as_str() {
+                "cpu" => format!("CPU above 90%, peak {:.0}%", i.peak),
+                "pressure" => format!(
+                    "memory pressure critical, {} in use at the peak",
+                    gb(i.peak)
+                ),
+                _ => format!("swap grew, to {}", gb(i.peak)),
+            };
+            let mins = i.ended.map(|e| ((e - i.started) / 60).max(1));
+            let by_mem = i.kind != "cpu";
+            out.push(format!(
+                "- {}: {what}{}. Busiest then: {}.",
+                when(i.started),
+                mins.map(|m| format!(", {m} min"))
+                    .unwrap_or_else(|| ", still going on".into()),
+                apps_line(&i.snapshot, by_mem)
+            ));
+        }
+    }
+    out.push(format!(
+        "Apps that used the most CPU over the last 24 h (average while running): {}.",
+        apps_line(&history::top_apps(day, now, false, 6), false)
+    ));
+    out.push(format!(
+        "Apps that held the most memory over the last 24 h: {}.",
+        apps_line(&history::top_apps(day, now, true, 6), true)
+    ));
+    out.join("\n")
+}
+
+#[derive(Serialize)]
+pub struct MacInfo {
+    pub chip: String,
+    pub cores: usize,
+    pub memory: f64,
+    pub uptime_secs: u64,
+}
+
+#[tauri::command]
+pub async fn mac_info() -> MacInfo {
+    let mut sys = System::new();
+    sys.refresh_memory();
+    MacInfo {
+        chip: sysctl_string(c"machdep.cpu.brand_string").unwrap_or_default(),
+        cores: std::thread::available_parallelism().map_or(1, |n| n.get()),
+        memory: sys.total_memory() as f64,
+        uptime_secs: System::uptime(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn helpers_count_as_their_app() {
+        let p = Path::new("/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)");
+        assert_eq!(
+            app_of(Some(p), "Google Chrome Helper (Renderer)"),
+            "Google Chrome"
+        );
+        assert_eq!(
+            app_of(Some(Path::new("/usr/sbin/mds_stores")), "mds_stores"),
+            "Spotlight (mds_stores)"
+        );
+        assert_eq!(app_of(None, "kernel_task"), "kernel_task");
+    }
+
+    #[test]
+    fn a_minute_keeps_its_peak() {
+        let mut a = Acc::default();
+        for cpu in [10.0, 90.0, 20.0] {
+            a.add(
+                &Sample {
+                    cpu,
+                    ..Default::default()
+                },
+                1.0,
+                &[],
+            );
+        }
+        assert_eq!(a.m.cpu_max, 90.0);
+        assert_eq!(a.m.cpu / a.n, 40.0);
+    }
+}

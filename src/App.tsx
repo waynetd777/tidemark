@@ -1,19 +1,25 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: MIT (see LICENSE at the repository root)
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { api } from "./api";
+import { api, on } from "./api";
 import Ask from "./Ask";
+import { Mark } from "./Mark";
+import Now from "./Now";
+import Performance from "./Performance";
+import SettingsPage from "./Settings";
+import Trends from "./Trends";
+import { useLive, usePoll } from "./perf";
 import HelpDrawer from "./Help";
 import Tooltips from "./Tooltips";
 import { describeView } from "./context";
 import { useAssistant } from "./assistant";
 import { hideSplash } from "./main";
 import Treemap, { REVEAL, type Block } from "./Treemap";
-import type { AppInfo, Progress, View } from "./types";
-import { abbrev, fmt, fmtDuration, fmtN, fmtWhen, parentPath } from "./util";
+import type { AppInfo, GrowthInfo, Progress, Screen, Settings, View } from "./types";
+import { abbrev, fmt, fmtDelta, fmtDuration, fmtN, fmtUptime, fmtWhen, parentPath } from "./util";
 
 const RELOAD_ICON = (
   <svg
@@ -59,6 +65,90 @@ const STOP_ICON = (
     <rect x="3" y="3" width="10" height="10" rx="2" />
   </svg>
 );
+const NAV: { id: Screen; label: string; key: string; icon: ReactNode }[] = [
+  {
+    id: "now",
+    label: "Now",
+    key: "⌘1",
+    icon: (
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      >
+        <path d="M2 5h12" strokeDasharray="1.6 2" />
+        <path d="M1.5 10.5c1.6-1.7 3-1.7 4.3 0s2.8 1.7 4.3 0 2.8-1.7 4.4 0" />
+      </svg>
+    ),
+  },
+  {
+    id: "performance",
+    label: "Performance",
+    key: "⌘2",
+    icon: (
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M1.5 8.5h3l2-5 3 9 2-4h3" />
+      </svg>
+    ),
+  },
+  {
+    id: "disk",
+    label: "Disk",
+    key: "⌘3",
+    icon: (
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      >
+        <rect x="2" y="2.5" width="12" height="11" rx="2" />
+        <path d="M8.5 2.5v11M8.5 8H14" />
+      </svg>
+    ),
+  },
+  {
+    id: "trends",
+    label: "Trends",
+    key: "⌘4",
+    icon: (
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M2 12.5l3.5-4 3 2.5L14 4" />
+        <path d="M10.5 4H14v3.5" />
+      </svg>
+    ),
+  },
+];
+const SETTINGS_ICON = (
+  <svg
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+  >
+    <circle cx="8" cy="8" r="2.2" />
+    <path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4L5 11M11 5l1.4-1.4" />
+  </svg>
+);
+
 const RevealIcon = () => <span className="svgwrap" dangerouslySetInnerHTML={{ __html: REVEAL }} />;
 
 /// Folders smaller than this share of the folder on screen are folded into a "more" block.
@@ -81,6 +171,22 @@ function saveShowFree(on: boolean) {
   }
 }
 
+/// One step in back and forward: a screen, and for the map the folder it showed.
+interface Place {
+  screen: Screen;
+  path: string | null;
+}
+
+/// Whether the map marks what grew this week, remembered between launches. On unless turned off.
+const GROWTH_KEY = "showGrowth";
+function loadShowGrowth(): boolean {
+  try {
+    return localStorage.getItem(GROWTH_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -90,6 +196,15 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ block: Block; x: number; y: number } | null>(null);
   const [showFree, setShowFree] = useState(loadShowFree);
+  const [showGrowth, setShowGrowth] = useState(loadShowGrowth);
+  const [screen, setScreen] = useState<Screen>("now");
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [growth, setGrowth] = useState<GrowthInfo | null>(null);
+  const [growthTick, setGrowthTick] = useState(0);
+  const live = useLive();
+  const mac = usePoll(api.macInfo, 60_000);
+  // The performance record as text, for Ask; read when Ask opens and every half minute after.
+  const [brief, setBrief] = useState("");
   const [askOpen, setAskOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   // A question Help hands to Ask, typed into its box; `n` makes a repeat of the same text count.
@@ -104,6 +219,16 @@ export default function App() {
     if (on) setAskOpen(false);
   }, []);
   const assistant = useAssistant();
+  const toggleGrowth = useCallback(() => {
+    setShowGrowth((on) => {
+      try {
+        localStorage.setItem(GROWTH_KEY, on ? "0" : "1");
+      } catch {
+        // Not remembered; the toggle still works for this launch.
+      }
+      return !on;
+    });
+  }, []);
   const toggleFree = useCallback(() => {
     setShowFree((on) => {
       saveShowFree(!on);
@@ -112,8 +237,9 @@ export default function App() {
   }, []);
   const toastTimer = useRef<number | undefined>(undefined);
   const wasScanning = useRef(false);
-  // Where you have been, like Finder's back and forward. Zooming pushes; a new root starts over.
-  const [hist, setHist] = useState<{ stack: string[]; idx: number }>({ stack: [], idx: -1 });
+  // Where you have been, like Finder's back and forward, across every screen: changing screen
+  // pushes, zooming into a folder pushes. A Disk entry without a path is the map as it was.
+  const [hist, setHist] = useState<{ stack: Place[]; idx: number }>({ stack: [], idx: -1 });
 
   const say = useCallback((m: string) => {
     setToast(m);
@@ -144,7 +270,7 @@ export default function App() {
             return;
           }
           setViewPath((p) => p ?? s.root);
-          setHist((h) => (h.stack.length ? h : { stack: [s.root], idx: 0 }));
+          setHist((h) => (h.stack.length ? h : { stack: [{ screen: "now", path: null }], idx: 0 }));
           hideSplash();
         })
         .catch(() => {
@@ -156,6 +282,18 @@ export default function App() {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!askOpen) return;
+    const load = () =>
+      api
+        .perfBrief()
+        .then(setBrief)
+        .catch(() => {});
+    void load();
+    const id = window.setInterval(load, 30_000);
+    return () => window.clearInterval(id);
+  }, [askOpen]);
 
   const [treeTick, setTreeTick] = useState(0);
   // The parts of `info` the effects below follow; `info` itself changes on every poll.
@@ -214,7 +352,6 @@ export default function App() {
         // The path is not in this scan (e.g. the root changed): fall back to the root.
         if (viewPath !== infoRoot) {
           setViewPath(infoRoot);
-          setHist({ stack: [infoRoot], idx: 0 });
         } else {
           setTree(null);
           setTreeError(String(e));
@@ -227,6 +364,33 @@ export default function App() {
 
   const scanning = progress?.scanning ?? info?.scanning ?? false;
 
+  // What grew this week under the root on screen: for the map, Now and Ask.
+  useEffect(() => {
+    if (!infoRoot) return;
+    let alive = true;
+    const load = () =>
+      api
+        .growth(infoRoot, 7)
+        .then((g) => alive && setGrowth(g))
+        .catch(() => {});
+    void load();
+    const id = window.setInterval(load, 10 * 60_000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [infoRoot, growthTick]);
+  const growthMaps = useMemo(
+    () =>
+      growth && showGrowth
+        ? {
+            landed: new Map(growth.landed.filter((g) => g.delta > 0).map((g) => [g.path, g.delta])),
+            all: new Map(growth.all.map((g) => [g.path, g.delta])),
+          }
+        : null,
+    [growth, showGrowth],
+  );
+
   const reveal = useCallback(
     (path: string) => {
       api
@@ -237,31 +401,74 @@ export default function App() {
     [say],
   );
 
-  const go = useCallback((path: string) => {
-    setMenu(null);
-    setViewPath(path);
+  const push = useCallback((p: Place) => {
     setHist((h) => {
-      if (h.stack[h.idx] === path) return h;
-      const stack = [...h.stack.slice(0, h.idx + 1), path];
+      const cur = h.stack[h.idx];
+      if (cur && cur.screen === p.screen && (p.path === null || cur.path === p.path)) return h;
+      const stack = [...h.stack.slice(0, h.idx + 1), p];
       return { stack, idx: stack.length - 1 };
     });
   }, []);
+  /// Changes screen, as a step back and forward can retrace.
+  const show = useCallback(
+    (s: Screen) => {
+      setMenu(null);
+      setScreen(s);
+      push({ screen: s, path: null });
+    },
+    [push],
+  );
+  const go = useCallback(
+    (path: string) => {
+      setMenu(null);
+      setScreen("disk");
+      setViewPath(path);
+      push({ screen: "disk", path });
+    },
+    [push],
+  );
   const zoomTo = go;
+
+  // The tray's "navigate" arrives in a listener set up once; it calls the current `show`.
+  const showRef = useRef<(s: Screen) => void>(() => {});
+  useEffect(() => {
+    showRef.current = show;
+  });
+  useEffect(() => {
+    api
+      .settings()
+      .then(setSettings)
+      .catch(() => {});
+    const u1 = on<Screen>("navigate", (s) => showRef.current(s));
+    const u2 = on("open-ask", () => {
+      setAskOpen(true);
+      setHelpOpen(false);
+    });
+    const u3 = on("scan-finished", () => setGrowthTick((t) => t + 1));
+    return () => {
+      u1();
+      u2();
+      u3();
+    };
+  }, []);
 
   const canBack = hist.idx > 0;
   const canForward = hist.idx >= 0 && hist.idx < hist.stack.length - 1;
+  const visit = useCallback((p: Place) => {
+    setMenu(null);
+    setScreen(p.screen);
+    if (p.path) setViewPath(p.path);
+  }, []);
   const back = useCallback(() => {
     if (hist.idx <= 0) return;
-    setMenu(null);
-    setViewPath(hist.stack[hist.idx - 1]);
+    visit(hist.stack[hist.idx - 1]);
     setHist({ ...hist, idx: hist.idx - 1 });
-  }, [hist]);
+  }, [hist, visit]);
   const forward = useCallback(() => {
     if (hist.idx >= hist.stack.length - 1) return;
-    setMenu(null);
-    setViewPath(hist.stack[hist.idx + 1]);
+    visit(hist.stack[hist.idx + 1]);
     setHist({ ...hist, idx: hist.idx + 1 });
-  }, [hist]);
+  }, [hist, visit]);
 
   const up = useCallback(() => {
     if (!viewPath || !info || viewPath === info.root) return;
@@ -275,13 +482,14 @@ export default function App() {
         .then(() => {
           if (root) {
             setViewPath(root);
-            setHist({ stack: [root], idx: 0 });
+            setScreen("disk");
+            push({ screen: "disk", path: root });
           }
           void refreshInfo();
         })
         .catch((e) => say(String(e)));
     },
-    [refreshInfo, say],
+    [refreshInfo, say, push],
   );
 
   const stopScan = useCallback(() => {
@@ -311,6 +519,16 @@ export default function App() {
   // screen, ⌘K Ask.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey && ["1", "2", "3", "4"].includes(e.key)) {
+        e.preventDefault();
+        show(NAV[Number(e.key) - 1].id);
+        return;
+      }
+      if (e.metaKey && e.key === ",") {
+        e.preventDefault();
+        show("settings");
+        return;
+      }
       if (e.key === "Escape") {
         if (menu) {
           setMenu(null);
@@ -324,7 +542,7 @@ export default function App() {
           setHelpOpen(false);
           return;
         }
-        up();
+        if (screen === "disk") up();
         return;
       }
       // ? outside a text box opens and closes the help, with or without ⌘.
@@ -347,15 +565,15 @@ export default function App() {
       } else if (e.key === "o") {
         e.preventDefault();
         void chooseFolder();
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        up();
       } else if (e.key === "[") {
         e.preventDefault();
         back();
       } else if (e.key === "]") {
         e.preventDefault();
         forward();
+      } else if (e.key === "ArrowUp" && screen === "disk") {
+        e.preventDefault();
+        up();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -375,6 +593,8 @@ export default function App() {
     viewPath,
     reveal,
     chooseFolder,
+    screen,
+    show,
   ]);
 
   useEffect(() => {
@@ -415,88 +635,226 @@ export default function App() {
   const freeHere = volumeRoot && viewPath === root && info ? info.volume.free : 0;
   const showFdaBanner = info && !info.full_disk_access && (info.scan?.denied ?? 0) > 0;
   // What Ask puts to Claude: the folder on screen, as it is when the question is sent.
-  const askContext = useCallback(
-    () => (tree && info ? { path: tree.path, text: describeView(tree, info) } : null),
-    [tree, info],
+  const askContext = useCallback(() => {
+    const parts: string[] = [];
+    if (tree && info) parts.push(describeView(tree, info));
+    const landed = growth?.landed.filter((g) => g.delta > 0) ?? [];
+    if (growth?.from && growth.to)
+      parts.push(
+        landed.length
+          ? `What grew on the disk between the scans of ${new Date(growth.from * 1000).toDateString()} and ${new Date(growth.to * 1000).toDateString()}, where the growth landed:\n` +
+              landed
+                .slice(0, 12)
+                .map((g) => `- ${g.path}: ${fmtDelta(g.delta)} (now ${fmt(g.size)})`)
+                .join("\n")
+          : "Nothing on the disk grew by more than 100 MB this week.",
+      );
+    if (brief) parts.push(brief);
+    if (!parts.length) return null;
+    return { path: tree?.path ?? info?.root ?? "/", text: parts.join("\n\n") };
+  }, [tree, info, growth, brief]);
+  const askAbout = useCallback(
+    (text: string) => {
+      if (!assistant.available) return;
+      setAskSeed({ text, n: Date.now() });
+      openAsk(true);
+    },
+    [assistant.available, openAsk],
   );
+
+  // Ask and Help sit at the right of every screen's title bar.
+  const askHelp = (
+    <>
+      {/* A disabled button gets no pointer events, so the reason sits on a wrapper. */}
+      <span className="tipwrap" title={assistant.reason ?? undefined}>
+        <button
+          className={`btn${askOpen ? " on" : ""}`}
+          disabled={!assistant.available}
+          onClick={() => openAsk(!askOpen)}
+          aria-pressed={askOpen}
+          title="Ask about the disk or performance (⌘K)"
+        >
+          {ASK_ICON}
+          <span>Ask</span>
+        </button>
+      </span>
+      <button
+        className={`btn icon${helpOpen ? " on" : ""}`}
+        onClick={() => openHelp(!helpOpen)}
+        aria-pressed={helpOpen}
+        aria-label="Help"
+        title="Help (?)"
+      >
+        {HELP_ICON}
+      </button>
+    </>
+  );
+  const navBtns = (
+    <div className="navbtns">
+      <button
+        className="navb"
+        disabled={!canBack}
+        onClick={back}
+        title="Back (⌘[)"
+        aria-label="Back"
+      >
+        ‹
+      </button>
+      <button
+        className="navb"
+        disabled={!canForward}
+        onClick={forward}
+        title="Forward (⌘])"
+        aria-label="Forward"
+      >
+        ›
+      </button>
+    </div>
+  );
+  const bar = (left: ReactNode) => (
+    <div className="topbar" data-tauri-drag-region="deep">
+      {navBtns}
+      <div className="barleft">{left}</div>
+      {askHelp}
+    </div>
+  );
+  const historyDays = settings?.history_days ?? 14;
 
   return (
     <div className="app">
       <aside className="sidebar" data-tauri-drag-region="deep">
-        <div className="brand">Tidemark</div>
-        <div className="sec first">Scanning</div>
-        <button
-          className="rootpick"
-          onClick={() => void chooseFolder()}
-          title="Choose the top-level folder to scan (⌘O)"
-        >
-          <span className="disk" />
-          <span className="nm">
-            {info ? (root === "/" ? info.root_name : abbrev(root, home)) : "…"}
-          </span>
-          <span className="chev">▾</span>
-        </button>
-        {info && info.volume.total > 0 && (
-          <div className="used" title={`${fmt(info.volume.free)} free`}>
-            {fmt(info.volume.used)} used of {fmt(info.volume.total)}
-            <div className="bar">
-              <i style={{ width: `${usedPct.toFixed(1)}%` }} />
+        <div className="brand">
+          <Mark size={24} />
+          <span>Tidemark</span>
+        </div>
+        <nav className="nav" aria-label="Sections">
+          {NAV.map((n) => (
+            <button
+              key={n.id}
+              className={screen === n.id ? "on" : ""}
+              aria-current={screen === n.id ? "page" : undefined}
+              onClick={() => show(n.id)}
+              title={`${n.label} (${n.key})`}
+            >
+              {n.icon}
+              <span>{n.label}</span>
+              <span className="k">{n.key}</span>
+            </button>
+          ))}
+        </nav>
+        {screen === "performance" && mac && (
+          <>
+            <div className="sec">This Mac</div>
+            <div className="macinfo">
+              <span>{mac.chip || "This Mac"}</span>
+              <span className="muted">
+                {mac.cores} cores · {fmt(mac.memory)} memory
+              </span>
+              <span className="muted">Up {fmtUptime(mac.uptime_secs)}</span>
             </div>
-            {notScanned > 0 && (
-              <div
-                className="unscanned"
-                title="Space the disk reports as used that the folder walk cannot reach: local Time Machine snapshots, purgeable caches, swap, the recovery volume, and folders macOS denied access to."
-              >
-                incl. {fmt(notScanned)} not scanned
+          </>
+        )}
+        {screen === "disk" && (
+          <>
+            <div className="sec">Scanning</div>
+            <button
+              className="rootpick"
+              onClick={() => void chooseFolder()}
+              title="Choose the top-level folder to scan (⌘O)"
+            >
+              <span className="disk" />
+              <span className="nm">
+                {info ? (root === "/" ? info.root_name : abbrev(root, home)) : "…"}
+              </span>
+              <span className="chev">▾</span>
+            </button>
+            {info && info.volume.total > 0 && (
+              <div className="used" title={`${fmt(info.volume.free)} free`}>
+                {fmt(info.volume.used)} used of {fmt(info.volume.total)}
+                <div className="bar">
+                  <i style={{ width: `${usedPct.toFixed(1)}%` }} />
+                </div>
+                {notScanned > 0 && (
+                  <div
+                    className="unscanned"
+                    title="Space the disk reports as used that the folder walk cannot reach: local Time Machine snapshots, purgeable caches, swap, the recovery volume, and folders macOS denied access to."
+                  >
+                    incl. {fmt(notScanned)} not scanned
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
-        <button className="ghost" onClick={() => void chooseFolder()}>
-          Choose folder…
-        </button>
+            <button
+              className="ghost"
+              onClick={() => void chooseFolder()}
+              title="Scan a different folder or disk (⌘O)"
+            >
+              Choose folder…
+            </button>
 
-        {info && info.recent.length > 0 && (
-          <>
-            <div className="sec">Recent folders</div>
-            {info.recent.map((r) => (
-              <button
-                key={r.path}
-                className={`recent${r.path === root ? " cur" : ""}`}
-                onClick={() => {
-                  if (r.path !== root) startScan(r.path);
-                }}
-                title={`${r.path}\nScanned ${fmtWhen(r.when)}`}
-              >
-                <span className="nm">{r.path === "/" ? r.name : abbrev(r.path, home)}</span>
-                <span className="sz">{fmt(r.size)}</span>
-              </button>
-            ))}
+            {info && info.recent.length > 0 && (
+              <>
+                <div className="sec">Recent folders</div>
+                {info.recent.map((r) => (
+                  <button
+                    key={r.path}
+                    className={`recent${r.path === root ? " cur" : ""}`}
+                    onClick={() => {
+                      if (r.path !== root) startScan(r.path);
+                    }}
+                    title={`${r.path}\nScanned ${fmtWhen(r.when)}`}
+                  >
+                    <span className="nm">{r.path === "/" ? r.name : abbrev(r.path, home)}</span>
+                    <span className="sz">{fmt(r.size)}</span>
+                  </button>
+                ))}
+              </>
+            )}
+
+            <div className="sec">Colour = folder level</div>
+            <div className="legend">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <div key={i} className={`d${i}`}>
+                  <i />
+                  <span>Level {i}</span>
+                </div>
+              ))}
+              <div className="f">
+                <i />
+                <span>Loose files</span>
+              </div>
+              {showFree && volumeRoot && (
+                <div className="fr">
+                  <i />
+                  <span>Free space</span>
+                </div>
+              )}
+              {growthMaps && growthMaps.landed.size > 0 && (
+                <div className="gr">
+                  <i />
+                  <span>Grew this week</span>
+                </div>
+              )}
+            </div>
           </>
         )}
 
-        <div className="sec">Colour = folder level</div>
-        <div className="legend">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className={`d${i}`}>
-              <i />
-              <span>Level {i}</span>
-            </div>
-          ))}
-          <div className="f">
-            <i />
-            <span>Loose files</span>
-          </div>
-          {showFree && volumeRoot && (
-            <div className="fr">
-              <i />
-              <span>Free space</span>
-            </div>
-          )}
-        </div>
-
         <div className="spacer" />
+        <nav className="nav" aria-label="Settings">
+          <button
+            className={screen === "settings" ? "on" : ""}
+            aria-current={screen === "settings" ? "page" : undefined}
+            onClick={() => show("settings")}
+            title="Settings (⌘,)"
+          >
+            {SETTINGS_ICON}
+            <span>Settings</span>
+            <span className="k">⌘,</span>
+          </button>
+        </nav>
         <div className="foot">
+          <span>Keeping {historyDays} days of history</span>
+          <br />
           {info?.scan ? (
             <>
               <b>Last scan {fmtWhen(info.scan.finished)}</b>
@@ -531,169 +889,159 @@ export default function App() {
       </aside>
 
       <main className="main">
-        <div className="topbar" data-tauri-drag-region="deep">
-          <div className="navbtns">
-            <button
-              className="navb"
-              disabled={!canBack}
-              onClick={back}
-              title="Back (⌘[)"
-              aria-label="Back"
-            >
-              ‹
-            </button>
-            <button
-              className="navb"
-              disabled={!canForward}
-              onClick={forward}
-              title="Forward (⌘])"
-              aria-label="Forward"
-            >
-              ›
-            </button>
-          </div>
-          <div className="crumbs">
-            {crumbs.map((c, i) => (
-              <span key={c.path} className="crumb">
-                {i > 0 && <span className="sep">›</span>}
-                {i === crumbs.length - 1 ? (
-                  <span className="cur">{c.name}</span>
-                ) : (
-                  <button onClick={() => zoomTo(c.path)}>{c.name}</button>
-                )}
-              </span>
-            ))}
-            {tree && (
-              <>
-                <span className="tot">
-                  {fmt(tree.size)}
-                  {tree.cloud ? ` on disk · ${fmt(tree.apparent)} in cloud` : ""} ·{" "}
-                  {fmtN(tree.items)} items
-                </span>
-                <button
-                  className="rvc"
-                  title={`Reveal ${tree.name} in Finder (⌘⇧R)`}
-                  onClick={() => reveal(tree.path)}
-                >
-                  <RevealIcon />
-                </button>
-              </>
-            )}
-          </div>
-          <div className="grow" />
-          <button
-            className={`btn toggle${showFree ? " on" : ""}`}
-            onClick={toggleFree}
-            aria-pressed={showFree}
-            title={
-              volumeRoot
-                ? `${showFree ? "Hide" : "Show"} the disk's free space in the map`
-                : "Free space is shown at the top of a whole-disk scan"
-            }
-          >
-            <span className="sw" />
-            <span>Free space</span>
-          </button>
-          {scanning ? (
-            <span className="pill info">
-              Scanning{info?.scan ? ` · showing ${fmtWhen(info.scan.finished)} scan` : ""}
-            </span>
-          ) : info?.scan ? (
-            <span className="pill good">Up to date · {fmtWhen(info.scan.finished)}</span>
-          ) : null}
-          {scanning ? (
-            <button
-              className="btn stop"
-              onClick={stopScan}
-              title="Stop the scan and keep the last results"
-            >
-              {STOP_ICON}
-              <span>Stop</span>
-            </button>
-          ) : (
-            <button className="btn" onClick={() => startScan()} title="Re-scan the whole tree (⌘R)">
-              {RELOAD_ICON}
-              <span>Reload</span>
-            </button>
-          )}
-          {/* A disabled button gets no pointer events, so the reason sits on a wrapper. */}
-          <span className="tipwrap" title={assistant.reason ?? undefined}>
-            <button
-              className={`btn${askOpen ? " on" : ""}`}
-              disabled={!assistant.available}
-              onClick={() => openAsk(!askOpen)}
-              aria-pressed={askOpen}
-              title="Ask an AI where space can be reclaimed (⌘K)"
-            >
-              {ASK_ICON}
-              <span>Ask</span>
-            </button>
-          </span>
-          <button
-            className={`btn${helpOpen ? " on" : ""}`}
-            onClick={() => openHelp(!helpOpen)}
-            aria-pressed={helpOpen}
-            aria-label="Help"
-            title="Help (?)"
-          >
-            {HELP_ICON}
-          </button>
-        </div>
-
-        {scanning && progress && (
-          <div className="scan">
-            <div className="what">
-              <span className="spinner" />
-              <b>
-                {info?.scan ? "Rescanning" : "Scanning"} {info?.root_name}
-              </b>
-              <span className="path">{progress.current}</span>
-            </div>
-            <div className="nums">
-              {fmtN(progress.items)}
-              {progress.expected_items
-                ? ` of ~${fmt(progress.expected_items).replace(/ .*/, "")}${progress.expected_items >= 1e6 ? "M" : progress.expected_items >= 1e3 ? "K" : ""} items`
-                : " items"}
-              {pct !== null ? ` · ${pct}%` : ""} · {fmtDuration(progress.elapsed_ms)}
-            </div>
-            <div className={`bar${pct === null ? " indet" : ""}`}>
-              <i style={pct === null ? {} : { width: `${pct}%` }} />
-            </div>
-          </div>
+        {screen === "now" && (
+          <Now live={live} growth={growth} home={home} bar={bar} go={show} ask={askAbout} />
         )}
-
-        <div className="content">
-          {showFdaBanner && (
-            <div className="banner warn">
-              <div className="grow">
-                <b>{fmtN(info.scan!.denied)} folders could not be read.</b> Give Tidemark Full Disk
-                Access to include them, then Reload.
+        {screen === "performance" && (
+          <Performance live={live} historyDays={historyDays} bar={bar} ask={askAbout} />
+        )}
+        {screen === "trends" && (
+          <Trends home={home} historyDays={historyDays} bar={bar} go={show} ask={askAbout} />
+        )}
+        {screen === "settings" && (
+          <SettingsPage info={info} settings={settings} onChange={setSettings} bar={bar} />
+        )}
+        {screen === "disk" && (
+          <>
+            <div className="topbar" data-tauri-drag-region="deep">
+              {navBtns}
+              <div className="crumbs">
+                {crumbs.map((c, i) => (
+                  <span key={c.path} className="crumb">
+                    {i > 0 && <span className="sep">›</span>}
+                    {i === crumbs.length - 1 ? (
+                      <span className="cur">{c.name}</span>
+                    ) : (
+                      <button onClick={() => zoomTo(c.path)}>{c.name}</button>
+                    )}
+                  </span>
+                ))}
+                {tree && (
+                  <>
+                    <span className="tot">
+                      {fmt(tree.size)}
+                      {tree.cloud ? ` on disk · ${fmt(tree.apparent)} in cloud` : ""} ·{" "}
+                      {fmtN(tree.items)} items
+                    </span>
+                    <button
+                      className="rvc"
+                      title={`Reveal ${tree.name} in Finder (⌘⇧R)`}
+                      onClick={() => reveal(tree.path)}
+                    >
+                      <RevealIcon />
+                    </button>
+                  </>
+                )}
               </div>
-              <button className="btn small" onClick={() => void api.openPrivacySettings()}>
-                Open System Settings
+              <div className="grow" />
+              <button
+                className={`btn toggle${showGrowth ? " on" : ""}`}
+                onClick={toggleGrowth}
+                aria-pressed={showGrowth}
+                title={`${showGrowth ? "Hide" : "Show"} the folders that grew this week`}
+              >
+                <span className="sw" />
+                <span>Growth this week</span>
               </button>
+              <button
+                className={`btn toggle${showFree ? " on" : ""}`}
+                onClick={toggleFree}
+                aria-pressed={showFree}
+                title={
+                  volumeRoot
+                    ? `${showFree ? "Hide" : "Show"} the disk's free space in the map`
+                    : "Free space is shown at the top of a whole-disk scan"
+                }
+              >
+                <span className="sw" />
+                <span>Free space</span>
+              </button>
+              {scanning ? (
+                <span className="pill info">
+                  Scanning{info?.scan ? ` · showing ${fmtWhen(info.scan.finished)} scan` : ""}
+                </span>
+              ) : info?.scan ? (
+                <span className="pill good">Up to date · {fmtWhen(info.scan.finished)}</span>
+              ) : null}
+              {scanning ? (
+                <button
+                  className="btn stop"
+                  onClick={stopScan}
+                  title="Stop the scan and keep the last results"
+                >
+                  {STOP_ICON}
+                  <span>Stop</span>
+                </button>
+              ) : (
+                <button
+                  className="btn"
+                  onClick={() => startScan()}
+                  title="Re-scan the whole tree (⌘R)"
+                >
+                  {RELOAD_ICON}
+                  <span>Reload</span>
+                </button>
+              )}
+              {askHelp}
             </div>
-          )}
-          {tree ? (
-            <Treemap
-              tree={tree}
-              free={showFree && freeHere > 0 ? freeHere : null}
-              onZoom={zoomTo}
-              onReveal={reveal}
-              onContext={(block, x, y) => setMenu({ block, x, y })}
-            />
-          ) : (
-            <div className="empty">
-              {treeError
-                ? treeError
-                : scanning
-                  ? "Scanning… the map appears when the first scan finishes."
-                  : info && !info.loading
-                    ? "No scan yet. Press Reload."
-                    : "Loading…"}
+
+            {scanning && progress && (
+              <div className="scan">
+                <div className="what">
+                  <span className="spinner" />
+                  <b>
+                    {info?.scan ? "Rescanning" : "Scanning"} {progress.root_name || info?.root_name}
+                  </b>
+                  <span className="path">{progress.current}</span>
+                </div>
+                <div className="nums">
+                  {fmtN(progress.items)}
+                  {progress.expected_items
+                    ? ` of ~${fmt(progress.expected_items).replace(/ .*/, "")}${progress.expected_items >= 1e6 ? "M" : progress.expected_items >= 1e3 ? "K" : ""} items`
+                    : " items"}
+                  {pct !== null ? ` · ${pct}%` : ""} · {fmtDuration(progress.elapsed_ms)}
+                </div>
+                <div className={`bar${pct === null ? " indet" : ""}`}>
+                  <i style={pct === null ? {} : { width: `${pct}%` }} />
+                </div>
+              </div>
+            )}
+
+            <div className="content">
+              {showFdaBanner && (
+                <div className="banner warn">
+                  <div className="grow">
+                    <b>{fmtN(info.scan!.denied)} folders could not be read.</b> Give Tidemark Full
+                    Disk Access to include them, then Reload.
+                  </div>
+                  <button className="btn small" onClick={() => void api.openPrivacySettings()}>
+                    Open System Settings
+                  </button>
+                </div>
+              )}
+              {tree ? (
+                <Treemap
+                  tree={tree}
+                  free={showFree && freeHere > 0 ? freeHere : null}
+                  growth={growthMaps}
+                  onZoom={zoomTo}
+                  onReveal={reveal}
+                  onContext={(block, x, y) => setMenu({ block, x, y })}
+                />
+              ) : (
+                <div className="empty">
+                  {treeError
+                    ? treeError
+                    : scanning
+                      ? "Scanning… the map appears when the first scan finishes."
+                      : info && !info.loading
+                        ? "No scan yet. Press Reload."
+                        : "Loading…"}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </main>
 
       {menu && (
@@ -708,13 +1056,10 @@ export default function App() {
       {toast && <div className="toast">{toast}</div>}
       <Ask open={askOpen} onClose={() => setAskOpen(false)} context={askContext} seed={askSeed} />
       <HelpDrawer
+        screen={screen}
         open={helpOpen}
         onClose={() => setHelpOpen(false)}
-        onAsk={(text) => {
-          if (!assistant.available) return;
-          setAskSeed({ text, n: Date.now() });
-          openAsk(true);
-        }}
+        onAsk={askAbout}
       />
       <Tooltips />
     </div>

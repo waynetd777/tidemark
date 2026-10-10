@@ -23,7 +23,7 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
@@ -32,12 +32,17 @@ tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 # The scan: one rayon task per directory, work-stealing across all cores.
 rayon = "1"
-# statfs for the volume's capacity and free space.
+# statfs for the volume's capacity and free space; sysctl for memory pressure.
 libc = "0.2"
+# The history: one SQLite file, compiled in so nothing on the Mac is assumed.
+rusqlite = { version = "0.40", features = ["bundled"] }
+# CPU, memory, swap, network and per-process use for the performance monitor.
+sysinfo = { version = "0.39", default-features = false, features = ["system", "network"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# NSNumber and NSString for setting drawsBackground on the webview (below).
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSValue"] }
+# NSNumber and NSString for setting drawsBackground on the webview; NSProcessInfo for the
+# thermal state.
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSValue", "NSProcessInfo"] }
 # To paint the WKWebView's own background before the page's first paint: Tauri's
 # set_background_color does nothing for the webview layer on macOS, so it shows white.
 objc2 = "0.6"

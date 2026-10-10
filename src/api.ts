@@ -2,7 +2,28 @@
 // SPDX-License-Identifier: MIT (see LICENSE at the repository root)
 
 import { invoke } from "@tauri-apps/api/core";
-import type { AppInfo, Progress, View, FileEntry } from "./types";
+import { listen } from "@tauri-apps/api/event";
+import type {
+  AppInfo,
+  AppUse,
+  DiskTrend,
+  FileEntry,
+  GrowthInfo,
+  Incident,
+  Live,
+  MacInfo,
+  PerfHistory,
+  Progress,
+  Screen,
+  Settings,
+  View,
+} from "./types";
+
+/// Listens for an event from the app; returns the function that stops listening.
+export function on<T = unknown>(name: string, f: (payload: T) => void): () => void {
+  const p = listen<T>(name, (e) => f(e.payload));
+  return () => void p.then((u) => u());
+}
 
 export interface Cli {
   path: string | null;
@@ -32,4 +53,30 @@ export const api = {
   reveal: (path: string) => invoke<void>("reveal", { path }),
   getInfo: (path: string) => invoke<void>("get_info", { path }),
   openPrivacySettings: () => invoke<void>("open_privacy_settings"),
+
+  live: () => invoke<Live>("perf_live"),
+  /// The last `secs` seconds of minutes, folded into at most `points` points.
+  perf: (secs: number, points = 480, markDays = 7) =>
+    invoke<PerfHistory>("perf_history", { secs, points, markDays }),
+  appsBetween: (from: number, to: number) =>
+    invoke<{ by_cpu: AppUse[]; by_mem: AppUse[] }>("perf_apps", { from, to }),
+  incidents: (days: number) => invoke<Incident[]>("incidents", { days }),
+  pauseRecording: (minutes: number) => invoke<number | null>("pause_recording", { minutes }),
+  macInfo: () => invoke<MacInfo>("mac_info"),
+  perfBrief: () => invoke<string>("perf_brief"),
+  diskTrend: (days: number) => invoke<DiskTrend>("disk_trend", { days }),
+  growth: (root: string, days: number) => invoke<GrowthInfo>("disk_growth", { root, days }),
+  folderHistory: (path: string, days: number) =>
+    invoke<[number, number][]>("folder_history", { path, days }),
+  cpuByHour: () => invoke<(number | null)[][]>("cpu_by_hour"),
+  historyInfo: () => invoke<{ bytes: number; since: number | null }>("history_info"),
+  settings: () => invoke<Settings>("get_settings"),
+  saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),
+  showMain: (screen?: Screen) => invoke<void>("show_main_window", { screen: screen ?? null }),
+  openAsk: () => invoke<void>("open_ask"),
+  quit: () => invoke<void>("quit"),
+  activityMonitor: () => invoke<void>("open_activity_monitor"),
+  /// Open at Login: [available, on].
+  loginItem: () => invoke<[boolean, boolean]>("login_item"),
+  setLoginItem: (on: boolean) => invoke<boolean>("set_login_item", { on }),
 };

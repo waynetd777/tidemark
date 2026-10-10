@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import FileTable from "./FileTable";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { View } from "./types";
-import { fmt, fmtN } from "./util";
+import { fmt, fmtDelta, fmtN } from "./util";
 
 /// What one block stands for. Folders are `dir`; the files directly inside a folder are one
 /// `files` block, and folders too small to draw are one `more` block, so a folder's area is
@@ -24,6 +24,9 @@ interface Props {
   onZoom: (path: string) => void;
   onReveal: (path: string) => void;
   onContext: (b: Block, x: number, y: number) => void;
+  /// This week's growth: `landed` marks the folders where it landed (outlined and tagged),
+  /// `all` gives any folder's change for its tooltip. Null when the layer is off.
+  growth?: { landed: Map<string, number>; all: Map<string, number> } | null;
 }
 
 const GAP = 3;
@@ -144,6 +147,8 @@ function blockCloud(b: Block): number {
 
 /// Every block on screen, by the id written into its element, so hover and click can find it.
 const registry = new Map<string, Block>();
+/// The growth layer for the render in progress (see Props.growth).
+let growthNow: Props["growth"] = null;
 
 function draw(b: Block, x: number, y: number, w: number, h: number, out: HTMLElement, id: string) {
   if (w < 3 || h < 3) return;
@@ -157,6 +162,16 @@ function draw(b: Block, x: number, y: number, w: number, h: number, out: HTMLEle
       : `blk ${b.kind}`;
   el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
   el.dataset.id = id;
+  const grew = b.kind === "dir" ? growthNow?.landed.get(v.path) : undefined;
+  if (grew) {
+    el.classList.add("grew");
+    if (w >= 70 && h >= 44) {
+      const tag = document.createElement("span");
+      tag.className = "gtag";
+      tag.textContent = `${fmtDelta(grew)}${w >= 160 ? " this week" : ""}`;
+      el.appendChild(tag);
+    }
+  }
   let labelled = false;
   if (w >= 56 && h >= 30) {
     labelled = true;
@@ -216,7 +231,7 @@ function draw(b: Block, x: number, y: number, w: number, h: number, out: HTMLEle
   }
 }
 
-export default function Treemap({ tree, free, onZoom, onReveal, onContext }: Props) {
+export default function Treemap({ tree, free, onZoom, onReveal, onContext, growth }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [filesHost, setFilesHost] = useState<HTMLElement | null>(null);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -229,6 +244,7 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext }: Pro
     const map = ref.current;
     if (!map) return;
     const render = () => {
+      growthNow = growth ?? null;
       setFilesHost(null);
       registry.clear();
       map.innerHTML = "";
@@ -266,7 +282,7 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext }: Pro
     const ro = new ResizeObserver(render);
     ro.observe(map);
     return () => ro.disconnect();
-  }, [tree, free]);
+  }, [tree, free, growth]);
 
   const blockAt = (t: EventTarget | null): { el: HTMLElement; b: Block } | null => {
     const el = (t as HTMLElement | null)?.closest?.(".blk") as HTMLElement | null;
@@ -335,6 +351,9 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext }: Pro
         `<b>${esc(v.name)}</b><div class="p">${esc(v.path)}</div><div class="r"><span>On disk</span><b>${fmt(v.size)}</b>` +
         (v.cloud ? `<span>In cloud</span><b>${fmt(v.apparent)}</b>` : "") +
         `<span>Items</span><b>${fmtN(v.items)}</b>` +
+        (growth?.all.has(v.path)
+          ? `<span>This week</span><b>${fmtDelta(growth.all.get(v.path)!)}</b>`
+          : "") +
         `<span>Level</span><b>${v.depth}</b>` +
         (v.denied
           ? `<span>Unreadable</span><b>${fmtN(v.denied)} folder${v.denied === 1 ? "" : "s"}</b>`

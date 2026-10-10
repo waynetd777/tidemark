@@ -47,3 +47,48 @@ export function parentPath(path: string): string | null {
   const i = path.lastIndexOf("/");
   return i === 0 ? "/" : path.slice(0, i);
 }
+
+/// A percentage, whole.
+export function pct(n: number): string {
+  return `${Math.round(n)}%`;
+}
+
+/// Bytes a second, compactly.
+export function fmtRate(b: number): string {
+  if (b >= 1e9) return `${(b / 1e9).toFixed(1)} GB/s`;
+  if (b >= 1e6) return `${(b / 1e6).toFixed(b >= 1e8 ? 0 : 1)} MB/s`;
+  if (b >= 1e3) return `${Math.round(b / 1e3)} KB/s`;
+  return `${Math.round(b)} B/s`;
+}
+
+/// A unix time (seconds) as "11:20" today, "yesterday 11:20", or "Tue 14:12" this week, else
+/// "3 Oct".
+export function fmtAt(ts: number, withTime = true): string {
+  const d = new Date(ts * 1000);
+  const hm = d.toTimeString().slice(0, 5);
+  const now = new Date();
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (diff === 0) return withTime ? hm : "today";
+  if (diff === 1) return withTime ? `yesterday ${hm}` : "yesterday";
+  if (diff < 7) {
+    const wd = d.toLocaleDateString("en-GB", { weekday: "short" });
+    return withTime ? `${wd} ${hm}` : wd;
+  }
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+/// A signed size change: "+6.1 GB", "−0.3 GB".
+export function fmtDelta(b: number): string {
+  return `${b < 0 ? "\u2212" : "+"}${fmt(Math.abs(b))}`;
+}
+
+/// Seconds as "6 days, 3 hours" or "3 hours, 12 min".
+export function fmtUptime(s: number): string {
+  const d = Math.floor(s / 86400),
+    h = Math.floor((s % 86400) / 3600),
+    m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d} day${d === 1 ? "" : "s"}, ${h} hour${h === 1 ? "" : "s"}`;
+  if (h > 0) return `${h} hour${h === 1 ? "" : "s"}, ${m} min`;
+  return `${m} min`;
+}

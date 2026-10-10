@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Tidemark",
         "width": 1180,
         "height": 760,
@@ -24,12 +25,26 @@
         "minimizable": true,
         "closable": true,
         "visible": false
+      },
+      {
+        "label": "tray",
+        "url": "index.html?view=tray",
+        "title": "Tidemark",
+        "width": 360,
+        "height": 520,
+        "decorations": false,
+        "transparent": true,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": true
       }
     ],
     "security": {
       "csp": null
     },
-    "macOSPrivateApi": false,
+    "macOSPrivateApi": true,
     "withGlobalTauri": true
   },
   "bundle": {

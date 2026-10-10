@@ -47,6 +47,8 @@ export interface Progress {
   current: string;
   elapsed_ms: number;
   expected_items: number | null;
+  /// What is being scanned: a scheduled scan of the disk can run behind another folder.
+  root_name: string;
 }
 
 /// One folder as the treemap draws it. `depth` is from the scan root (root = 0).
@@ -79,3 +81,130 @@ export interface FileEntry {
   modified: number | null;
   kind: string;
 }
+
+// ---- performance and history ----
+
+/// One reading of the Mac, every 2-5 s. Bytes, bytes a second, CPU as % of the whole machine.
+export interface Sample {
+  t: number;
+  cpu: number;
+  mem: number;
+  swap: number;
+  /// macOS memory pressure: 1 normal, 2 warning, 4 critical.
+  pressure: number;
+  disk_r: number;
+  disk_w: number;
+  net_in: number;
+  net_out: number;
+  /// 0 nominal, 1 fair, 2 serious, 3 critical.
+  thermal: number;
+}
+
+export interface AppUse {
+  app: string;
+  cpu: number;
+  mem: number;
+}
+
+export interface Status {
+  level: "calm" | "attention";
+  about: "" | "cpu" | "memory" | "swap" | "disk";
+  headline: string;
+  sub: string;
+}
+
+export interface Live {
+  samples: Sample[];
+  apps_cpu: AppUse[];
+  apps_mem: AppUse[];
+  processes: number;
+  cores: number;
+  mem_total: number;
+  paused_until: number | null;
+  status: Status;
+}
+
+/// One minute of history, or a bucket of minutes: averages and maxima.
+export interface Minute {
+  ts: number;
+  cpu: number;
+  cpu_max: number;
+  mem: number;
+  mem_max: number;
+  mem_total: number;
+  swap: number;
+  swap_max: number;
+  pressure: number;
+  disk_r: number;
+  disk_w: number;
+  disk_max: number;
+  net_in: number;
+  net_out: number;
+  net_max: number;
+  thermal: number;
+  /// Minutes recorded in this point, so rate × minutes × 60 is what moved.
+  minutes: number;
+}
+
+export interface Mark {
+  value: number;
+  at: number;
+}
+
+export interface PerfHistory {
+  points: Minute[];
+  tidemarks: Partial<Record<"cpu" | "mem" | "swap" | "disk" | "net", Mark>>;
+  since: number | null;
+}
+
+export interface Incident {
+  id: number;
+  kind: "cpu" | "pressure" | "swap";
+  started: number;
+  ended: number | null;
+  peak: number;
+  peak_at: number;
+  snapshot: AppUse[];
+}
+
+export interface DiskPoint {
+  ts: number;
+  used: number;
+  total: number;
+}
+
+export interface DiskTrend {
+  points: DiskPoint[];
+  high: DiskPoint | null;
+}
+
+export interface Growth {
+  path: string;
+  size: number;
+  before: number;
+  delta: number;
+}
+
+export interface GrowthInfo {
+  landed: Growth[];
+  /// What `landed` adds up to, a folder inside another listed one counted once.
+  total: number;
+  all: Growth[];
+  from: number | null;
+  to: number | null;
+}
+
+export interface Settings {
+  history_days: number;
+  scan: "daily" | "hourly" | "off";
+  theme: "system" | "light" | "dark";
+}
+
+export interface MacInfo {
+  chip: string;
+  cores: number;
+  memory: number;
+  uptime_secs: number;
+}
+
+export type Screen = "now" | "disk" | "performance" | "trends" | "settings";

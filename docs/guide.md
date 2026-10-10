@@ -1,6 +1,20 @@
 # Tidemark
 
-Tidemark shows what is using the disk: every folder as a block inside its parent's block, sized by what it takes up, so the big things are big. This guide is also the app's help: press `?` or the ? button in the title bar.
+Tidemark records the high-water marks of your Mac: what is using the disk and how hard the Mac is working, now and over time. It has four screens, in the sidebar: **Now** (⌘1), **Performance** (⌘2), **Disk** (⌘3) and **Trends** (⌘4). This guide is also the app's help: press `?` or the ? button in the title bar, and it opens on the sections for the screen you are on.
+
+The ‹ › buttons at the top left of every screen (⌘[ and ⌘]) step back and forward through where you have been, across screens and folders, like Finder.
+
+## Now
+
+How the Mac is doing, in a sentence, and the four things that matter most: CPU, memory and network over the last 24 hours, and disk space over the last week. Each chart has a dashed line across it, the **tidemark**: the highest that measure has been this week. The dot marks the highest point in the chart.
+
+Below them, **This week's tidemarks** lists the week's peaks and incidents (see Performance), and **What grew on disk this week** lists the folders where the disk's growth landed. Questions at the foot open Ask with that question typed in.
+
+## Disk
+
+Every folder as a block inside its parent's block, sized by what it takes up, so the big things are big. The rest of this guide's disk sections (the map, Getting around, Files in a folder, Free space, Cloud folders, Scanning) are about this screen.
+
+**Growth this week** outlines the folders that grew in the last week and tags each with how much. A folder is tagged where the growth actually landed: if most of ~/.colima's growth is in one folder inside it, that folder is tagged, not ~/.colima and everything above it. Hovering any folder shows how much it changed this week. Growth needs two scans at least a day apart; the switch hides it.
 
 ## The map
 
@@ -53,6 +67,41 @@ The scan is a parallel walk across every core; a full boot volume of about a mil
 
 Every completed scan is **cached**. On launch the cached map is drawn at once and a fresh scan runs behind it; the strip under the title bar shows the folder being walked, the items counted so far and a percentage measured against the previous scan. The title bar says when the scan on screen finished.
 
+## Performance
+
+CPU and memory over 1 hour, 24 hours, 7 or 14 days, with the week's tidemark and the range's peak. Move the pointer over a chart to read any moment; click it to see what every app was doing then. **Network** shows download and upload as two charts on the same scale, each with its busiest moment, and how much moved each way in the range. It counts every network interface except the Mac talking to itself. Smaller tiles show swap, disk reads and writes and the Mac's thermal state.
+
+The panel on the right is a **snapshot**: the apps that used the most at the chosen moment (the range's CPU peak until you click somewhere). Processes are grouped by the app they belong to, so Chrome's many helpers count as Google Chrome. CPU is a share of the whole Mac, not of one core.
+
+**Incidents** are recorded when something crosses a line: CPU above 90% for 30 seconds, memory pressure going red (critical), or swap growing by 1 GB within 10 minutes. Each keeps a snapshot of what every app was doing at its peak. Click one to jump to it.
+
+Tidemark samples every 2 seconds while a window is open and every 5 seconds otherwise, and keeps one row a minute: the minute's average and its peak, so a short spike is never averaged away. Time the Mac spent asleep is a gap in the charts, not a dip to zero.
+
+## Trends
+
+The disk over 14 days, 30 days, 3 months or 12 months: how much it grew, how fast, and when it would be full at that rate. Its tidemark is the most it has ever held in the range; the list beside it names the biggest one-day rises.
+
+**Top folders that rose** lists where the growth landed over the range. Up to 14 days this compares scans; beyond that it compares the daily record of the 40 biggest folders, so it is coarser. **When it gets busy** shades each hour of each weekday by its average CPU over the history, darker for busier; point at a cell for its value.
+
+## History
+
+Everything Tidemark remembers is in one file, ~/Library/Application Support/Tidemark/history.sqlite, on this Mac only:
+
+- Every minute's CPU, memory, swap, memory pressure, disk and network, with the busiest apps of that minute, and every incident, for the days Settings keeps (14 at most).
+- The disk's used space about every hour, and the folders of 100 MB or more from each scan, for the same days.
+- One row a day of the disk's used space and its biggest folders, for a year whatever the setting, so the Trends screen can go back 12 months.
+
+Tidemark only records while it is running. Closing the window keeps it running in the menu bar; Open at Login starts it when you log in.
+
+## Settings
+
+A few things to choose (⌘,):
+
+- **Keep history for** 14, 7 or 3 days. Shortening it forgets the older days at once. The year of daily disk totals is kept either way.
+- **Scan the disk**: Daily (the default) runs one full scan of the disk a day, when the Mac has been idle for 5 minutes and is on power; if it is never on power it still scans once the last scan is two days old. Hourly scans every hour, which costs some battery. Off scans only when you press Reload.
+- **Appearance**: Match the Mac (the default) follows the Mac's light or dark appearance; Light and Dark keep Tidemark that way whatever the Mac does. The menu-bar window follows too.
+- **Open at Login** starts Tidemark in the menu bar when you log in. It is the same setting as System Settings › General › Login Items. It works in the installed app, not in a development build.
+
 ## Full Disk Access
 
 Folders the app is not allowed to read are skipped and counted. If any were skipped and the app does not have Full Disk Access, a banner says so and opens System Settings. Grant it under Privacy & Security › Full Disk Access, then Reload, and Mail, Safari, Photos and the other protected folders are included.
@@ -61,27 +110,31 @@ Some folders stay unreadable even then: system folders owned by root, such as /p
 
 ## Ask
 
-**Ask** (⌘K) opens a chat about the folder on screen. It puts the scan to an AI: the folder you are looking at and its biggest folders, with sizes, and asks where space can be reclaimed safely. Start with one of the suggested questions, or type your own; follow-ups carry on the same conversation.
+**Ask** (⌘K) opens a chat about your Mac. It puts what Tidemark knows to an AI: the folder on screen and its biggest folders with sizes, what grew on the disk this week, and the performance record (now, today's highs, the week's tidemarks, incidents and the apps that used the most). Ask why the Mac was slow on Wednesday, or where space can be freed safely. Start with one of the suggested questions, or type your own; follow-ups carry on the same conversation.
 
 - Ask runs through an AI command-line tool already installed and signed in on this Mac: Claude Code, Codex, Antigravity or GitHub Copilot. No account or key is set up in the app. If none is installed the Ask button is disabled and says so.
 - The model menu in the panel's header lists every model those tools offer, grouped by tool. Claude Opus is the default; the choice is remembered.
-- The AI sees sizes, names and paths only. It cannot read your files, and the app deletes nothing: it advises, and you act in Finder or Terminal.
+- The AI sees sizes, names, paths, app names and the recorded figures only. It cannot read your files, and the app deletes and changes nothing: it advises, and you act in Finder, Terminal or the app concerned.
 - **Copy** under an answer copies it to the clipboard as text and as formatted text, for pasting into a note or a message.
 - **New chat** starts over about what is on screen now. Zooming to another folder and asking a follow-up sends the new folder with the question.
 
 ## Menu bar
 
-Closing the window hides it; the app stays in the menu bar. The menu-bar item shows the volume's used and total space, the scan's progress while one runs, and offers Open Tidemark, Rescan and Quit.
+Closing the window hides it and takes Tidemark out of the Dock; it keeps recording in the menu bar. The menu-bar icon gets a mark when something needs attention (memory running high, the CPU busy, swap growing, the disk nearly full).
+
+Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memory, network and disk with a line for the last 15 minutes (the disk's for the week) and today's high; network download and upload; what is using the most right now; and the week's disk growth. Below are the things worth doing from there: the main one changes with the state (Rescan disk when all is calm, Show what's using memory when memory is short), Ask Tidemark…, pausing recording for an hour, Open at Login, Open Tidemark, Settings and Quit. Their shortcuts work while it is open, and Esc closes it.
 
 ## Keyboard shortcuts
 
 | Keys | What they do |
 |---|---|
+| ⌘1 ⌘2 ⌘3 ⌘4 | Now, Performance, Disk, Trends |
+| ⌘, | Settings |
 | ⌘R | Re-scan the whole tree |
 | ⌘O | Choose a folder to scan |
-| Esc or ⌘↑ | Up one level (Esc first closes an open menu or panel) |
-| ⌘[ and ⌘] | Back and forward through where you have been |
+| Esc or ⌘↑ | Up one level on the Disk screen (Esc first closes an open menu or panel) |
+| ⌘[ and ⌘] | Back and forward through where you have been, across screens and folders |
 | ⌘⇧R | Reveal the folder on screen in Finder |
 | ⌘-click a block | Reveal that folder in Finder |
-| ⌘K | Ask about the folder on screen |
+| ⌘K | Ask about the disk or performance |
 | ? | This help |
