@@ -12,7 +12,8 @@
 //! path), so Chrome's dozens of helpers count as Google Chrome. CPU is a share of the whole
 //! machine, not of one core.
 
-use crate::history::{self, AppUse, Minute};
+use crate::energy::{Battery, Meter};
+use crate::history::{self, AppUse, By, Minute};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -38,6 +39,12 @@ pub struct Sample {
     pub net_in: f64,
     pub net_out: f64,
     pub thermal: i64,
+    /// What the Mac draws, watts; None without a battery controller.
+    #[serde(default)]
+    pub power: Option<f64>,
+    /// Battery charge, 0-100; None without a battery.
+    #[serde(default)]
+    pub battery: Option<f64>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -47,6 +54,9 @@ struct Live {
     apps: Vec<AppUse>,
     processes: usize,
     mem_total: f64,
+    /// The battery as last read.
+    #[serde(default)]
+    battery: Option<Battery>,
     /// Recording is paused until then (unix seconds).
     paused_until: Option<i64>,
     /// Incidents going on now: kind -> (id, started, peak).
@@ -225,7 +235,9 @@ struct Acc {
     minute: i64,
     n: f64,
     m: Minute,
-    apps: HashMap<String, (f64, f64)>,
+    apps: HashMap<String, (f64, f64, f64)>,
+    /// Power readings in the minute (not every sample has one) and their sum.
+    power_n: f64,
 }
 
 impl Acc {
@@ -246,10 +258,19 @@ impl Acc {
         m.net_out += s.net_out;
         m.net_max = m.net_max.max(s.net_in + s.net_out);
         m.thermal = m.thermal.max(s.thermal);
+        if let Some(w) = s.power {
+            m.power = Some(m.power.unwrap_or(0.0) + w);
+            m.power_max = Some(m.power_max.unwrap_or(0.0).max(w));
+            self.power_n += 1.0;
+        }
+        if s.battery.is_some() {
+            m.battery = s.battery;
+        }
         for a in apps {
             let e = self.apps.entry(a.app.clone()).or_default();
             e.0 += a.cpu;
             e.1 += a.mem;
+            e.2 += a.energy;
         }
         self.n += 1.0;
     }
@@ -272,18 +293,29 @@ impl Acc {
         ] {
             *v /= n;
         }
+        if let Some(p) = m.power.as_mut() {
+            *p /= self.power_n.max(1.0);
+        }
+        self.power_n = 0.0;
         let mut apps: Vec<AppUse> = self
             .apps
             .drain()
-            .map(|(app, (c, mm))| AppUse {
+            .map(|(app, (c, mm, e))| AppUse {
                 app,
                 cpu: c / n,
                 mem: mm / n,
+                energy: e / n,
             })
             .collect();
         apps.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
         let mut keep: Vec<AppUse> = apps.iter().take(APPS_PER_MINUTE).cloned().collect();
         apps.sort_by(|a, b| b.mem.total_cmp(&a.mem));
+        for a in apps.iter().take(APPS_PER_MINUTE) {
+            if !keep.iter().any(|k| k.app == a.app) {
+                keep.push(a.clone());
+            }
+        }
+        apps.sort_by(|a, b| b.energy.total_cmp(&a.energy));
         for a in apps.into_iter().take(APPS_PER_MINUTE) {
             if !keep.iter().any(|k| k.app == a.app) {
                 keep.push(a);
@@ -407,6 +439,9 @@ fn run() {
     refresh(&mut sys, &mut nets);
     let mut last = Instant::now();
     let mut acc = Acc::default();
+    let mut meter = Meter::new();
+    // The battery when the last sample was taken, for what a sleep cost.
+    let mut battery_then: Option<f64> = None;
     let mut watches = [
         Watch::new("cpu", 30, 30, false),
         Watch::new("pressure", 5, 30, true),
@@ -442,6 +477,21 @@ fn run() {
         // any moment. The gap stays a gap.
         if dt > every as f64 * 3.0 + 5.0 {
             acc.flush();
+            // Remember the gap, with the battery either side: what the sleep cost.
+            let after = meter.battery().map(|b| b.percent);
+            if dt >= 120.0 {
+                history::add_sleep(&history::Sleep {
+                    started: now - dt as i64,
+                    ended: now,
+                    battery_before: battery_then,
+                    battery_after: after,
+                });
+            }
+            battery_then = after;
+            // The energy counters span the gap too.
+            for p in sys.processes().keys() {
+                let _ = meter.watts(p.as_u32() as i32, dt);
+            }
             continue;
         }
 
@@ -458,7 +508,11 @@ fn run() {
             });
             e.cpu += p.cpu_usage() as f64 / cores;
             e.mem += p.memory() as f64;
+            e.energy += meter.watts(p.pid().as_u32() as i32, dt).unwrap_or(0.0);
         }
+        meter.keep_only(&sys.processes().keys().map(|p| p.as_u32() as i32).collect());
+        let battery = meter.battery();
+        battery_then = battery.as_ref().map(|b| b.percent);
         let mut apps: Vec<AppUse> = by_app.into_values().collect();
         apps.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
         let (mut nin, mut nout) = (0u64, 0u64);
@@ -480,6 +534,8 @@ fn run() {
             net_in: nin as f64 / dt,
             net_out: nout as f64 / dt,
             thermal: thermal(),
+            power: battery.as_ref().and_then(|b| b.watts),
+            battery: battery.as_ref().map(|b| b.percent),
         };
 
         let minute = now / 60;
@@ -528,6 +584,7 @@ fn run() {
             l.processes = sys.processes().len();
             l.mem_total = mem_total;
             l.apps = apps;
+            l.battery = battery;
         });
         share();
     }
@@ -539,7 +596,7 @@ fn run() {
 pub struct Status {
     /// "calm" or "attention".
     pub level: &'static str,
-    /// Which metric the attention is about: "cpu", "memory", "swap", "disk" or "".
+    /// Which metric the attention is about: "cpu", "memory", "swap", "disk", "energy" or "".
     pub about: &'static str,
     pub headline: String,
     pub sub: String,
@@ -605,6 +662,20 @@ pub fn status() -> Status {
             );
         }
     }
+    let battery = live(|l| l.battery.clone());
+    if let Some(b) = battery.as_ref().filter(|b| !b.on_ac && b.percent <= 10.0) {
+        return attention(
+            "energy",
+            "The battery is low".into(),
+            format!(
+                "{:.0}% left{}.",
+                b.percent,
+                b.minutes_left
+                    .map(|m| format!(", about {} min", m))
+                    .unwrap_or_default()
+            ),
+        );
+    }
     if vol.total > 0 && (vol.free as f64) < vol.total as f64 * 0.1 {
         return attention(
             "disk",
@@ -652,6 +723,8 @@ pub struct LiveInfo {
     pub samples: Vec<Sample>,
     pub apps_cpu: Vec<AppUse>,
     pub apps_mem: Vec<AppUse>,
+    pub apps_energy: Vec<AppUse>,
+    pub battery: Option<Battery>,
     pub processes: usize,
     pub cores: usize,
     pub mem_total: f64,
@@ -666,10 +739,15 @@ pub async fn perf_live() -> LiveInfo {
         let mut by_mem = l.apps.clone();
         by_mem.sort_by(|a, b| b.mem.total_cmp(&a.mem));
         by_mem.truncate(8);
+        let mut by_energy = l.apps.clone();
+        by_energy.sort_by(|a, b| b.energy.total_cmp(&a.energy));
+        by_energy.truncate(8);
         LiveInfo {
             samples: l.samples.iter().cloned().collect(),
             apps_cpu: l.apps.iter().take(8).cloned().collect(),
             apps_mem: by_mem,
+            apps_energy: by_energy,
+            battery: l.battery.clone(),
             processes: l.processes,
             cores: std::thread::available_parallelism().map_or(1, |n| n.get()),
             mem_total: l.mem_total,
@@ -707,6 +785,7 @@ pub async fn perf_history(secs: i64, points: Option<i64>, mark_days: Option<i64>
         ("swap", "swap_max"),
         ("disk", "disk_max"),
         ("net", "net_max"),
+        ("power", "power_max"),
     ] {
         if let Some((value, at)) = history::high(col, week) {
             tidemarks.insert(k, Mark { value, at });
@@ -723,15 +802,23 @@ pub async fn perf_history(secs: i64, points: Option<i64>, mark_days: Option<i64>
 pub struct AppsAt {
     pub by_cpu: Vec<AppUse>,
     pub by_mem: Vec<AppUse>,
+    pub by_energy: Vec<AppUse>,
 }
 
 /// The busiest apps between two times (a peak's minute, or a whole range).
 #[tauri::command]
 pub async fn perf_apps(from: i64, to: i64) -> AppsAt {
     AppsAt {
-        by_cpu: history::top_apps(from, to, false, 8),
-        by_mem: history::top_apps(from, to, true, 8),
+        by_cpu: history::top_apps(from, to, By::Cpu, 8),
+        by_mem: history::top_apps(from, to, By::Mem, 8),
+        by_energy: history::top_apps(from, to, By::Energy, 8),
     }
+}
+
+/// Times the Mac slept (or wasn't recorded) in the last `days` days, with the battery either side.
+#[tauri::command]
+pub async fn sleeps(days: i64) -> Vec<history::Sleep> {
+    history::sleeps(history::now() - days * 86_400)
 }
 
 #[tauri::command]
@@ -863,6 +950,50 @@ pub async fn perf_brief() -> String {
             rate(d.net_max)
         ));
     }
+    if let Some(b) = live(|l| l.battery.clone()) {
+        out.push(format!(
+            "Energy: {}battery {:.0}%{}{}{}.",
+            b.watts
+                .map(|w| format!("drawing {w:.1} W, "))
+                .unwrap_or_default(),
+            b.percent,
+            if b.charging {
+                ", charging"
+            } else if b.on_ac {
+                ", on power"
+            } else {
+                ", on battery"
+            },
+            b.minutes_left
+                .map(|m| format!(", {} h {} min left", m / 60, m % 60))
+                .unwrap_or_default(),
+            match (b.health, b.cycles) {
+                (Some(h), Some(c)) => format!("; battery health {h:.0}% after {c} cycles"),
+                _ => String::new(),
+            }
+        ));
+    }
+    let energy = history::top_apps(day, now, By::Energy, 6);
+    if energy.iter().any(|a| a.energy > 0.0) {
+        out.push(format!(
+            "Apps that used the most energy over the last 24 h (average watts while running): {}.",
+            energy
+                .iter()
+                .map(|a| format!("{} {:.1} W", a.app, a.energy))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    for sl in history::sleeps(week).iter().take(3) {
+        if let (Some(b), Some(a)) = (sl.battery_before, sl.battery_after) {
+            out.push(format!(
+                "Asleep {} for {} h {} min: battery {b:.0}% to {a:.0}%.",
+                when(sl.started),
+                (sl.ended - sl.started) / 3600,
+                (sl.ended - sl.started) % 3600 / 60
+            ));
+        }
+    }
     let inc = history::incidents(week);
     if inc.is_empty() {
         out.push("No incidents in the last 7 days.".into());
@@ -890,11 +1021,11 @@ pub async fn perf_brief() -> String {
     }
     out.push(format!(
         "Apps that used the most CPU over the last 24 h (average while running): {}.",
-        apps_line(&history::top_apps(day, now, false, 6), false)
+        apps_line(&history::top_apps(day, now, By::Cpu, 6), false)
     ));
     out.push(format!(
         "Apps that held the most memory over the last 24 h: {}.",
-        apps_line(&history::top_apps(day, now, true, 6), true)
+        apps_line(&history::top_apps(day, now, By::Mem, 6), true)
     ));
     out.join("\n")
 }

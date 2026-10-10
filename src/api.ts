@@ -16,6 +16,7 @@ import type {
   Progress,
   Screen,
   Settings,
+  Sleep,
   View,
 } from "./types";
 
@@ -65,7 +66,8 @@ export const api = {
   perf: (secs: number, points = 480, markDays = 7) =>
     invoke<PerfHistory>("perf_history", { secs, points, markDays }),
   appsBetween: (from: number, to: number) =>
-    invoke<{ by_cpu: AppUse[]; by_mem: AppUse[] }>("perf_apps", { from, to }),
+    invoke<{ by_cpu: AppUse[]; by_mem: AppUse[]; by_energy: AppUse[] }>("perf_apps", { from, to }),
+  sleeps: (days: number) => invoke<Sleep[]>("sleeps", { days }),
   incidents: (days: number) => invoke<Incident[]>("incidents", { days }),
   pauseRecording: (minutes: number) => invoke<number | null>("pause_recording", { minutes }),
   macInfo: () => invoke<MacInfo>("mac_info"),

@@ -98,17 +98,42 @@ export interface Sample {
   net_out: number;
   /// 0 nominal, 1 fair, 2 serious, 3 critical.
   thermal: number;
+  /// What the Mac draws, watts; null without a battery controller.
+  power: number | null;
+  /// Battery charge, 0-100; null without a battery.
+  battery: number | null;
+}
+
+export interface Battery {
+  percent: number;
+  charging: boolean;
+  on_ac: boolean;
+  fully_charged: boolean;
+  watts: number | null;
+  minutes_left: number | null;
+  cycles: number | null;
+  /// Capacity now as a share of the design capacity, 0-100.
+  health: number | null;
+}
+
+export interface Sleep {
+  started: number;
+  ended: number;
+  battery_before: number | null;
+  battery_after: number | null;
 }
 
 export interface AppUse {
   app: string;
   cpu: number;
   mem: number;
+  /// Watts.
+  energy: number;
 }
 
 export interface Status {
   level: "calm" | "attention";
-  about: "" | "cpu" | "memory" | "swap" | "disk";
+  about: "" | "cpu" | "memory" | "swap" | "disk" | "energy";
   headline: string;
   sub: string;
 }
@@ -117,6 +142,8 @@ export interface Live {
   samples: Sample[];
   apps_cpu: AppUse[];
   apps_mem: AppUse[];
+  apps_energy: AppUse[];
+  battery: Battery | null;
   processes: number;
   cores: number;
   mem_total: number;
@@ -144,6 +171,10 @@ export interface Minute {
   thermal: number;
   /// Minutes recorded in this point, so rate × minutes × 60 is what moved.
   minutes: number;
+  power: number | null;
+  power_max: number | null;
+  battery: number | null;
+  on_ac: boolean;
 }
 
 export interface Mark {
@@ -153,7 +184,7 @@ export interface Mark {
 
 export interface PerfHistory {
   points: Minute[];
-  tidemarks: Partial<Record<"cpu" | "mem" | "swap" | "disk" | "net", Mark>>;
+  tidemarks: Partial<Record<"cpu" | "mem" | "swap" | "disk" | "net" | "power", Mark>>;
   since: number | null;
 }
 

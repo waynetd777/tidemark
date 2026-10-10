@@ -46,6 +46,15 @@ const PATHS: Record<Metric, React.ReactNode> = {
       <path d="M5 2.5v9M2.5 9 5 11.5 7.5 9M11 13.5v-9M8.5 7 11 4.5 13.5 7" />
     </>
   ),
+  // A bolt.
+  energy: <path d="M9 1.8 3.8 9h4L7 14.2 12.2 7h-4z" />,
+  // A battery.
+  battery: (
+    <>
+      <rect x="1.8" y="4.5" width="11" height="7" rx="1.6" />
+      <path d="M14.2 7v2M4 6.8v2.4M6.2 6.8v2.4" />
+    </>
+  ),
   // A thermometer.
   thermal: (
     <>

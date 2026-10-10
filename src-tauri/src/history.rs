@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS disk_snap (
 );
 CREATE INDEX IF NOT EXISTS disk_snap_root ON disk_snap (root, ts);
 CREATE INDEX IF NOT EXISTS disk_snap_path ON disk_snap (path, ts);
+CREATE TABLE IF NOT EXISTS sleeps (
+  started INTEGER PRIMARY KEY, ended INTEGER, battery_before REAL, battery_after REAL
+);
 CREATE TABLE IF NOT EXISTS disk_daily (
   day TEXT PRIMARY KEY, used REAL, used_max REAL, total REAL, top TEXT
 );
@@ -75,6 +78,16 @@ fn open() -> Connection {
     let _ = c.busy_timeout(std::time::Duration::from_secs(10));
     if let Err(e) = c.execute_batch(SCHEMA) {
         eprintln!("history schema: {e}");
+    }
+    // Columns added after the first release of the schema; an error means it is there already.
+    for sql in [
+        "ALTER TABLE perf ADD COLUMN power REAL",
+        "ALTER TABLE perf ADD COLUMN power_max REAL",
+        "ALTER TABLE perf ADD COLUMN battery REAL",
+        "ALTER TABLE perf ADD COLUMN on_ac INTEGER",
+        "ALTER TABLE procs ADD COLUMN energy REAL",
+    ] {
+        let _ = c.execute(sql, []);
     }
     c
 }
@@ -122,6 +135,16 @@ pub struct Minute {
     pub net_max: f64,
     /// NSProcessInfo thermal state: 0 nominal .. 3 critical. The minute's worst.
     pub thermal: i64,
+    /// What the Mac drew, watts (average and peak); None without a battery controller.
+    #[serde(default)]
+    pub power: Option<f64>,
+    #[serde(default)]
+    pub power_max: Option<f64>,
+    /// Battery charge, 0-100, and whether a power adapter was connected.
+    #[serde(default)]
+    pub battery: Option<f64>,
+    #[serde(default)]
+    pub on_ac: bool,
     /// Minutes recorded in this point (1 for a minute; a bucket's count), so a rate times
     /// `minutes * 60` is what moved.
     #[serde(default)]
@@ -133,21 +156,29 @@ pub struct AppUse {
     pub app: String,
     pub cpu: f64,
     pub mem: f64,
+    /// Watts.
+    #[serde(default)]
+    pub energy: f64,
 }
 
 pub fn add_minute(m: &Minute, apps: &[AppUse]) {
     with(|c| {
         c.execute(
-            "INSERT OR REPLACE INTO perf VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
+            "INSERT OR REPLACE INTO perf (ts, cpu, cpu_max, mem, mem_max, mem_total, swap, swap_max,
+               pressure, disk_r, disk_w, disk_max, net_in, net_out, net_max, thermal, power,
+               power_max, battery, on_ac)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)",
             params![
                 m.ts, m.cpu, m.cpu_max, m.mem, m.mem_max, m.mem_total, m.swap, m.swap_max,
                 m.pressure, m.disk_r, m.disk_w, m.disk_max, m.net_in, m.net_out, m.net_max,
-                m.thermal
+                m.thermal, m.power, m.power_max, m.battery, m.on_ac
             ],
         )?;
-        let mut st = c.prepare_cached("INSERT OR REPLACE INTO procs VALUES (?1,?2,?3,?4)")?;
+        let mut st = c.prepare_cached(
+            "INSERT OR REPLACE INTO procs (ts, app, cpu, mem, energy) VALUES (?1,?2,?3,?4,?5)",
+        )?;
         for a in apps {
-            st.execute(params![m.ts, a.app, a.cpu, a.mem])?;
+            st.execute(params![m.ts, a.app, a.cpu, a.mem, a.energy])?;
         }
         Ok(())
     })
@@ -161,7 +192,8 @@ pub fn perf_range(from: i64, to: i64, points: i64) -> Vec<Minute> {
         let mut st = c.prepare_cached(
             "SELECT MIN(ts), AVG(cpu), MAX(cpu_max), AVG(mem), MAX(mem_max), MAX(mem_total),
                     AVG(swap), MAX(swap_max), MAX(pressure), AVG(disk_r), AVG(disk_w), MAX(disk_max),
-                    AVG(net_in), AVG(net_out), MAX(net_max), MAX(thermal), COUNT(*)
+                    AVG(net_in), AVG(net_out), MAX(net_max), MAX(thermal), COUNT(*),
+                    AVG(power), MAX(power_max), AVG(battery), MAX(on_ac)
              FROM perf WHERE ts >= ?1 AND ts <= ?2 GROUP BY (ts - ?1) / ?3 ORDER BY 1",
         )?;
         let rows = st.query_map(params![from, to, bucket], |r| {
@@ -183,6 +215,10 @@ pub fn perf_range(from: i64, to: i64, points: i64) -> Vec<Minute> {
                 net_max: r.get(14)?,
                 thermal: r.get(15)?,
                 minutes: r.get(16)?,
+                power: r.get(17)?,
+                power_max: r.get(18)?,
+                battery: r.get(19)?,
+                on_ac: r.get::<_, Option<i64>>(20)?.unwrap_or(0) != 0,
             })
         })?;
         rows.collect()
@@ -192,7 +228,15 @@ pub fn perf_range(from: i64, to: i64, points: i64) -> Vec<Minute> {
 /// The highest point of one metric since `from`: (value, when). `col` is a perf column.
 pub fn high(col: &str, from: i64) -> Option<(f64, i64)> {
     // Only ever called with the fixed names below; never with anything from the UI.
-    debug_assert!(["cpu_max", "mem_max", "swap_max", "disk_max", "net_max"].contains(&col));
+    debug_assert!([
+        "cpu_max",
+        "mem_max",
+        "swap_max",
+        "disk_max",
+        "net_max",
+        "power_max"
+    ]
+    .contains(&col));
     with(|c| {
         c.query_row(
             &format!("SELECT {col}, ts FROM perf WHERE ts >= ?1 ORDER BY {col} DESC LIMIT 1"),
@@ -203,20 +247,32 @@ pub fn high(col: &str, from: i64) -> Option<(f64, i64)> {
     })
 }
 
+#[derive(Clone, Copy)]
+pub enum By {
+    Cpu,
+    Mem,
+    Energy,
+}
+
 /// The apps that used the most between `from` and `to`, averaged over the minutes they ran,
-/// by CPU or by memory.
-pub fn top_apps(from: i64, to: i64, by_mem: bool, n: usize) -> Vec<AppUse> {
-    let order = if by_mem { "mem" } else { "cpu" };
+/// by CPU, memory or energy.
+pub fn top_apps(from: i64, to: i64, by: By, n: usize) -> Vec<AppUse> {
+    let order = match by {
+        By::Cpu => "cpu",
+        By::Mem => "mem",
+        By::Energy => "energy",
+    };
     with(|c| {
         let mut st = c.prepare(&format!(
-            "SELECT app, AVG(cpu) cpu, AVG(mem) mem FROM procs WHERE ts >= ?1 AND ts <= ?2
-             GROUP BY app ORDER BY {order} DESC LIMIT ?3"
+            "SELECT app, AVG(cpu) cpu, AVG(mem) mem, AVG(COALESCE(energy, 0)) energy FROM procs
+             WHERE ts >= ?1 AND ts <= ?2 GROUP BY app ORDER BY {order} DESC LIMIT ?3"
         ))?;
         let rows = st.query_map(params![from, to, n as i64], |r| {
             Ok(AppUse {
                 app: r.get(0)?,
                 cpu: r.get(1)?,
                 mem: r.get(2)?,
+                energy: r.get(3)?,
             })
         })?;
         rows.collect()
@@ -238,6 +294,45 @@ pub fn cpu_by_hour(from: i64) -> Vec<(u32, u32, f64)> {
 
 pub fn first_minute() -> Option<i64> {
     with(|c| c.query_row("SELECT MIN(ts) FROM perf", [], |r| r.get(0)))
+}
+
+// ---- sleep ----
+
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct Sleep {
+    pub started: i64,
+    pub ended: i64,
+    pub battery_before: Option<f64>,
+    pub battery_after: Option<f64>,
+}
+
+/// A stretch the Mac spent asleep (or the record was stopped), with the battery either side.
+pub fn add_sleep(s: &Sleep) {
+    with(|c| {
+        c.execute(
+            "INSERT OR REPLACE INTO sleeps VALUES (?1,?2,?3,?4)",
+            params![s.started, s.ended, s.battery_before, s.battery_after],
+        )?;
+        Ok(())
+    })
+}
+
+pub fn sleeps(from: i64) -> Vec<Sleep> {
+    with(|c| {
+        let mut st = c.prepare(
+            "SELECT started, ended, battery_before, battery_after FROM sleeps WHERE ended >= ?1
+             ORDER BY started DESC",
+        )?;
+        let rows = st.query_map(params![from], |r| {
+            Ok(Sleep {
+                started: r.get(0)?,
+                ended: r.get(1)?,
+                battery_before: r.get(2)?,
+                battery_after: r.get(3)?,
+            })
+        })?;
+        rows.collect()
+    })
 }
 
 // ---- incidents ----
@@ -635,6 +730,7 @@ pub fn prune(days: u32) {
         c.execute("DELETE FROM perf WHERE ts < ?1", params![cut])?;
         c.execute("DELETE FROM procs WHERE ts < ?1", params![cut])?;
         c.execute("DELETE FROM incidents WHERE started < ?1", params![cut])?;
+        c.execute("DELETE FROM sleeps WHERE started < ?1", params![cut])?;
         c.execute("DELETE FROM disk_used WHERE ts < ?1", params![cut])?;
         c.execute("DELETE FROM disk_snap WHERE ts < ?1", params![cut])?;
         c.execute("DELETE FROM disk_daily WHERE day < ?1", params![year])?;

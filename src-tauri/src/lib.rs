@@ -7,6 +7,7 @@
 mod assistant;
 mod cache;
 mod disk;
+mod energy;
 mod files;
 mod history;
 #[cfg(target_os = "macos")]
@@ -137,6 +138,7 @@ pub fn run() {
             monitor::perf_history,
             monitor::perf_apps,
             monitor::incidents,
+            monitor::sleeps,
             monitor::pause_recording,
             monitor::mac_info,
             monitor::perf_brief,

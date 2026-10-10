@@ -12,7 +12,7 @@ import { Area, type Pt } from "./charts";
 import { incidentTitle, incidentWhy } from "./incidents";
 import { now, startOfToday, usePoll } from "./perf";
 import type { GrowthInfo, Live, Screen } from "./types";
-import { abbrev, fmt, fmtAt, fmtDelta, fmtRate, pct } from "./util";
+import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
 const DAY = 86400;
 
@@ -141,6 +141,25 @@ export default function Now({
       mark: null,
       high: netHigh ? `Busiest ${fmtRate(netHigh.v)} at ${fmtAt(netHigh.t)}` : "Quiet so far today",
       fmt: fmtRate,
+      to: "performance" as Screen,
+    },
+    {
+      name: "Energy",
+      range: "Last 24 h",
+      value: latest?.power != null ? fmtW(latest.power).split(" ")[0] : "–",
+      unit: latest?.power != null ? "W" : "",
+      sub: live?.battery ? `Battery ${batteryLine(live.battery)}` : "No battery on this Mac",
+      pts: (day?.points ?? [])
+        .filter((m) => m.power != null)
+        .map((m) => ({ t: m.ts, v: m.power as number })),
+      max: Math.max(1, ...(day?.points ?? []).map((m) => m.power ?? 0)),
+      mark: tm.power
+        ? { v: tm.power.value, label: `Tidemark ${fmtW(tm.power.value)} · ${fmtAt(tm.power.at)}` }
+        : null,
+      high: live?.apps_energy[0]?.energy
+        ? `Most now: ${live.apps_energy[0].app}, ${fmtW(live.apps_energy[0].energy)}`
+        : "Energy appears after a few readings",
+      fmt: fmtW,
       to: "performance" as Screen,
     },
     {

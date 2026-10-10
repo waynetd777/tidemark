@@ -14,7 +14,7 @@ import { incidentTitle } from "./incidents";
 import { now, usePoll } from "./perf";
 import { index, useRemembered } from "./remember";
 import type { Incident, Live, Minute } from "./types";
-import { fmt, fmtAt, fmtRate, pct } from "./util";
+import { batteryLine, fmt, fmtAt, fmtMins, fmtRate, fmtW, pct } from "./util";
 
 const RANGES = [
   { label: "1 hour", secs: 3600 },
@@ -70,11 +70,15 @@ export default function Performance({
     60_000,
     [at?.t, bucket],
   );
+  // The range's energy: what used the most, and the times the Mac slept.
+  const rangeApps = usePoll(() => api.appsBetween(now() - secs, now()), 60_000, [secs]);
+  const sleeps = usePoll(() => api.sleeps(Math.max(1, Math.ceil(secs / 86400))), 60_000, [secs]);
   const latest = live?.samples[live.samples.length - 1];
   const total = live?.mem_total || points[0]?.mem_total || 1;
   const tm = hist?.tidemarks ?? {};
 
-  type Num = keyof Minute;
+  // The minute's numeric measures (the ones a chart can draw).
+  type Num = { [K in keyof Minute]: Minute[K] extends number ? K : never }[keyof Minute];
   const ser = (k: Num): Pt[] => points.map((m) => ({ t: m.ts, v: m[k] }));
   const atPoint = points.reduce<Minute | null>(
     (b, m) => (at && (!b || Math.abs(m.ts - at.t) < Math.abs(b.ts - at.t)) ? m : b),
@@ -282,6 +286,135 @@ export default function Performance({
                 </div>
               ))}
             </div>
+          </section>
+          <section className="card chart">
+            <div className="row base wrap">
+              <b className="cname">
+                <Labelled m="energy">Energy</Labelled>
+              </b>
+              <span className="cnow">{latest?.power != null ? fmtW(latest.power) : "–"}</span>
+              <span className="muted small">
+                {live?.battery
+                  ? `battery ${batteryLine(live.battery)}`
+                  : "no battery on this Mac: apps only"}
+              </span>
+            </div>
+            <div className="energygrid">
+              <div className="minw0">
+                {points.some((m) => m.power != null) ? (
+                  <Area
+                    pts={points
+                      .filter((m) => m.power != null)
+                      .map((m) => ({ t: m.ts, v: m.power as number }))}
+                    max={Math.max(1, ...points.map((m) => m.power_max ?? 0))}
+                    height={120}
+                    mark={
+                      tm.power
+                        ? {
+                            v: tm.power.value,
+                            label: `Tidemark ${fmtW(tm.power.value)} · ${fmtAt(tm.power.at)}`,
+                          }
+                        : null
+                    }
+                    peak={(() => {
+                      const m = points.reduce<Minute | null>(
+                        (b, x) => ((x.power ?? 0) > (b?.power ?? 0) ? x : b),
+                        null,
+                      );
+                      return m?.power
+                        ? { t: m.ts, v: m.power, label: `${fmtW(m.power)} · ${fmtAt(m.ts)}` }
+                        : null;
+                    })()}
+                    fmt={fmtW}
+                    fmtT={(t) => fmtAt(t)}
+                    name="Power"
+                    domain={[now() - secs, now()]}
+                    xLabels={xLabels(secs, 4)}
+                    label={`Power drawn over the last ${RANGES[range].label}`}
+                  />
+                ) : (
+                  <div className="empty small">
+                    {live?.battery
+                      ? "Recording… the first minute appears shortly."
+                      : "This Mac reports no power draw."}
+                  </div>
+                )}
+              </div>
+              <div className="estats">
+                {live?.battery && (
+                  <>
+                    <div>
+                      <span className="eyebrow">
+                        <Labelled m="battery">Battery</Labelled>
+                      </span>
+                      <b className="tv">{Math.round(live.battery.percent)}%</b>
+                      <Spark
+                        pts={points
+                          .filter((m) => m.battery != null)
+                          .map((m) => ({ t: m.ts, v: m.battery as number }))}
+                        min={0}
+                        max={100}
+                        width={160}
+                        height={24}
+                        label="Battery charge over the range"
+                      />
+                      <span className="muted small">{batteryLine(live.battery)}</span>
+                    </div>
+                    {live.battery.health != null && (
+                      <div>
+                        <span className="eyebrow">Battery health</span>
+                        <b className="tv">{Math.round(live.battery.health)}%</b>
+                        <span className="muted small">
+                          of its design capacity
+                          {live.battery.cycles != null ? ` · ${live.battery.cycles} cycles` : ""}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+                {(() => {
+                  const sl = (sleeps ?? []).find(
+                    (x) => x.battery_before != null && x.battery_after != null,
+                  );
+                  if (!sl) return null;
+                  const used = (sl.battery_before ?? 0) - (sl.battery_after ?? 0);
+                  return (
+                    <div>
+                      <span className="eyebrow">Last sleep</span>
+                      <b className="tv">{fmtMins(Math.round((sl.ended - sl.started) / 60))}</b>
+                      <span className="muted small">
+                        {used > 0.5
+                          ? `used ${Math.round(used)}% of the battery`
+                          : "used next to no battery"}{" "}
+                        · {fmtAt(sl.started)}
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+            {(rangeApps?.by_energy ?? []).some((a) => a.energy > 0) && (
+              <div className="eapps">
+                <span className="eyebrow">Using the most energy · {RANGES[range].label}</span>
+                {(rangeApps?.by_energy ?? [])
+                  .filter((a) => a.energy > 0)
+                  .slice(0, 5)
+                  .map((a, _, all) => (
+                    <div className="brow" key={a.app}>
+                      <div className="row between">
+                        <span className="ell">{a.app}</span>
+                        <b>{fmtW(a.energy)}</b>
+                      </div>
+                      <span className="bar">
+                        <i style={{ width: `${(100 * a.energy) / all[0].energy}%` }} />
+                      </span>
+                    </div>
+                  ))}
+                <span className="muted small">
+                  Average while running. Only your own apps can be measured.
+                </span>
+              </div>
+            )}
           </section>
           <div className="tiles">
             {tiles.map((t) => (

@@ -36,6 +36,8 @@ rayon = "1"
 libc = "0.2"
 # The history: one SQLite file, compiled in so nothing on the Mac is assumed.
 rusqlite = { version = "0.40", features = ["bundled"] }
+# The battery controller's report (ioreg -a output is a plist).
+plist = "1"
 # CPU, memory, swap, network and per-process use for the performance monitor.
 sysinfo = { version = "0.39", default-features = false, features = ["system", "network"] }
 

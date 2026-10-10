@@ -18,7 +18,7 @@ import { Mark } from "./Mark";
 import Tooltips from "./Tooltips";
 import { startOfToday } from "./perf";
 import type { DiskTrend, GrowthInfo, Live, PerfHistory } from "./types";
-import { abbrev, fmt, fmtAt, fmtDelta, fmtRate, pct } from "./util";
+import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
 const WIDTH = 360;
 const hide = () => void getCurrentWindow().hide();
@@ -292,6 +292,22 @@ export default function Tray() {
           pts={live.samples.map((x) => ({ t: x.t / 1000, v: x.net_in }))}
           max={Math.max(1, ...live.samples.map((x) => x.net_in))}
           label="Download, last 15 minutes"
+        />
+      ),
+    },
+    {
+      name: "Energy",
+      note: live.battery ? batteryLine(live.battery) : "No battery",
+      warn: about === "energy",
+      value: latest?.power != null ? fmtW(latest.power) : "–",
+      spark: (
+        <Spark
+          pts={live.samples
+            .filter((x) => x.power != null)
+            .map((x) => ({ t: x.t / 1000, v: x.power as number }))}
+          max={Math.max(1, ...live.samples.map((x) => x.power ?? 0))}
+          tone={about === "energy" ? "warn" : "tide"}
+          label="Power drawn, last 15 minutes"
         />
       ),
     },

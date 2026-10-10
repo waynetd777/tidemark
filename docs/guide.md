@@ -6,7 +6,7 @@ The ‹ › buttons at the top left of every screen (⌘[ and ⌘]) step back an
 
 ## Now
 
-How the Mac is doing, in a sentence, and the four things that matter most: CPU, memory and network over the last 24 hours, and disk space over the last week. Each chart has a dashed line across it, the **tidemark**: the highest that measure has been this week. The dot marks the highest point in the chart.
+How the Mac is doing, in a sentence, and the five things that matter most: CPU, memory, network and energy over the last 24 hours, and disk space over the last week. Each chart has a dashed line across it, the **tidemark**: the highest that measure has been this week. The dot marks the highest point in the chart.
 
 Below them, **This week's tidemarks** lists the week's peaks and incidents (see Performance), and **What grew on disk this week** lists the folders where the disk's growth landed. Questions at the foot open Ask with that question typed in.
 
@@ -69,7 +69,11 @@ Every completed scan is **cached**. On launch the cached map is drawn at once an
 
 ## Performance
 
-CPU and memory over 1 hour, 24 hours, 7 or 14 days, with the week's tidemark and the range's peak. Move the pointer over a chart to read any moment; click it to see what every app was doing then. **Network** shows download and upload as two charts on the same scale, each with its busiest moment, and how much moved each way in the range. It counts every network interface except the Mac talking to itself. Smaller tiles show swap, disk reads and writes and the Mac's thermal state.
+CPU and memory over 1 hour, 24 hours, 7 or 14 days, with the week's tidemark and the range's peak. Move the pointer over a chart to read any moment; click it to see what every app was doing then. **Energy** shows the power the whole Mac draws, in watts, with the week's tidemark and the range's peak; the battery's charge over the range, its health (its capacity now against what it was designed to hold) and charge cycles; what the last sleep cost the battery; and the apps that used the most energy. Power and battery come from the battery's own controller, so a Mac without a battery shows only the apps. An app's energy is the figure Activity Monitor's Energy tab is built on, and only your own apps can be measured.
+
+When the Mac sleeps nothing runs, Tidemark included, so sleep is a gap in the charts. Tidemark notes the battery either side, which is how it knows what a sleep cost.
+
+**Network** shows download and upload as two charts on the same scale, each with its busiest moment, and how much moved each way in the range. It counts every network interface except the Mac talking to itself. Smaller tiles show swap, disk reads and writes and the Mac's thermal state.
 
 The panel on the right is a **snapshot**: the apps that used the most at the chosen moment (the range's CPU peak until you click somewhere). Processes are grouped by the app they belong to, so Chrome's many helpers count as Google Chrome. CPU is a share of the whole Mac, not of one core.
 
@@ -121,9 +125,9 @@ Some folders stay unreadable even then: system folders owned by root, such as /p
 
 ## Menu bar
 
-Closing the window hides it and takes Tidemark out of the Dock; it keeps recording in the menu bar. The menu-bar icon gets a mark when something needs attention (memory running high, the CPU busy, swap growing, the disk nearly full).
+Closing the window hides it and takes Tidemark out of the Dock; it keeps recording in the menu bar. The menu-bar icon gets a mark when something needs attention (memory running high, the CPU busy, swap growing, the battery low, the disk nearly full).
 
-Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memory, network and disk with a line for the last 15 minutes (the disk's for the week) and today's high; network download and upload; what is using the most right now; and the week's disk growth. Below are the things worth doing from there: the main one changes with the state (Rescan disk when all is calm, Show what's using memory when memory is short), Ask Tidemark…, pausing recording for an hour, Open at Login, Open Tidemark, Settings and Quit. Their shortcuts work while it is open, and Esc closes it.
+Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memory, network, energy and disk with a line for the last 15 minutes (the disk's for the week) and today's high; network download and upload; what is using the most right now; and the week's disk growth. Below are the things worth doing from there: the main one changes with the state (Rescan disk when all is calm, Show what's using memory when memory is short), Ask Tidemark…, pausing recording for an hour, Open at Login, Open Tidemark, Settings and Quit. Their shortcuts work while it is open, and Esc closes it.
 
 ## Keyboard shortcuts
 

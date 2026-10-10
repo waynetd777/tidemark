@@ -2181,6 +2181,29 @@ pre,
   margin-top: 10px;
 }
 
+.energygrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 20px;
+  margin-top: 10px;
+}
+.estats {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.estats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.eapps {
+  display: flex;
+  flex-direction: column;
+  margin-top: 14px;
+  gap: 2px;
+}
+
 /* ---- Trends ---- */
 .trendwrap {
   display: flex;

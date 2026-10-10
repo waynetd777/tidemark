@@ -92,3 +92,28 @@ export function fmtUptime(s: number): string {
   if (h > 0) return `${h} hour${h === 1 ? "" : "s"}, ${m} min`;
   return `${m} min`;
 }
+
+/// Watts: "10.5 W", "34 W".
+export function fmtW(w: number): string {
+  return `${w < 10 ? w.toFixed(1) : Math.round(w)} W`;
+}
+
+/// Minutes as "3 h 15 min" or "42 min".
+export function fmtMins(m: number): string {
+  const h = Math.floor(m / 60);
+  return h ? `${h} h ${m % 60} min` : `${m} min`;
+}
+
+/// The battery in a few words: "54% · 3 h 15 min left", "Charging · 54%", "On power · 100%".
+export function batteryLine(b: {
+  percent: number;
+  charging: boolean;
+  on_ac: boolean;
+  minutes_left: number | null;
+}): string {
+  const p = `${Math.round(b.percent)}%`;
+  if (b.charging)
+    return `Charging · ${p}${b.minutes_left ? ` · full in ${fmtMins(b.minutes_left)}` : ""}`;
+  if (b.on_ac) return `On power · ${p}`;
+  return `${p}${b.minutes_left ? ` · ${fmtMins(b.minutes_left)} left` : ""}`;
+}
