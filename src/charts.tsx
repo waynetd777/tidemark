@@ -6,7 +6,7 @@
 // lines stay 2px and markers round.
 
 import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Gap } from "./perf";
+import { gapMin, type Gap } from "./perf";
 import { fmtAt, fmtMins } from "./util";
 
 export interface Pt {
@@ -82,7 +82,7 @@ export function Spark({
   const t1 = pts.length ? pts[pts.length - 1].t : 1;
   const x = (t: number) => ((t - t0) / (t1 - t0 || 1)) * width;
   const y = (v: number) => height - 1 - ((v - lo) / span) * (height - 2);
-  const paths = runs(pts, step(pts) * 4).map((r) => {
+  const paths = runs(pts, gapMin(step(pts))).map((r) => {
     const line = "M" + r.map((p) => `${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" L");
     return {
       line,
@@ -179,6 +179,8 @@ export function Area({
   const hatch = useId();
   const [ref, W] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
+  // Pointing inside a gap shows the gap, not the nearest reading: the gap and where the pointer is.
+  const [gapHover, setGapHover] = useState<{ g: Gap; px: number } | null>(null);
   const H = height;
   const left = axis ? 44 : 0;
   const w = Math.max(0, W - left);
@@ -190,7 +192,7 @@ export function Area({
   const x = (t: number) => left + ((t - t0) / (t1 - t0 || 1)) * w;
   const y = (v: number) => H - 1 - ((v - lo) / (hi - lo || 1)) * (H - 4);
   const paths = useMemo(() => {
-    return runs(pts, step(pts) * 4).map((r) => {
+    return runs(pts, gapMin(step(pts))).map((r) => {
       const line = "M" + r.map((p) => `${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" L");
       return {
         line,
@@ -203,7 +205,7 @@ export function Area({
   }, [pts, W, hi, lo, H, t0, t1]);
   const bandPaths = useMemo(() => {
     if (!band?.length) return [];
-    return runs(band, step(band) * 4).map((r) => {
+    return runs(band, gapMin(step(band))).map((r) => {
       const line = "M" + r.map((p) => `${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" L");
       return `${line} L${x(r[r.length - 1].t).toFixed(1)} ${H} L${x(r[0].t).toFixed(1)} ${H} Z`;
     });
@@ -229,8 +231,23 @@ export function Area({
         className="plot"
         ref={ref}
         style={{ height: H }}
-        onPointerMove={(e) => setHover(nearest(e.clientX, e.currentTarget))}
-        onPointerLeave={() => setHover(null)}
+        onPointerMove={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          const px = e.clientX - r.left;
+          const t = t0 + ((px - left) / (w || 1)) * (t1 - t0);
+          const g = (gaps ?? []).find((g) => t >= g.from && t <= g.to);
+          if (g) {
+            setGapHover({ g, px });
+            setHover(null);
+          } else {
+            setGapHover(null);
+            setHover(nearest(e.clientX, e.currentTarget));
+          }
+        }}
+        onPointerLeave={() => {
+          setHover(null);
+          setGapHover(null);
+        }}
         onClick={() => {
           if (hp && onPick) onPick(hp);
         }}
@@ -259,7 +276,6 @@ export function Area({
                     width={gw}
                     height={H}
                     fill={g.kind === "off" ? `url(#${hatch})` : undefined}
-                    data-tip={`${what} · ${fmtAt(g.from)} to ${fmtAt(g.to)} · ${fmtMins(Math.round((g.to - g.from) / 60))}`}
                   />
                   {gw >= 64 && (
                     <text className="gaplabel" x={gx + gw / 2} y={14} textAnchor="middle">
@@ -341,6 +357,19 @@ export function Area({
               {peak.label}
             </span>
           </>
+        )}
+        {gapHover && (
+          <div
+            className="readout"
+            style={{ left: Math.min(Math.max(gapHover.px, left + 80), W - 80) }}
+          >
+            <b>{gapHover.g.kind === "sleep" ? "Asleep" : "Not recording"}</b>
+            <span>
+              {fmtAt(gapHover.g.from)} to {fmtAt(gapHover.g.to)} ·{" "}
+              {fmtMins(Math.max(1, Math.round((gapHover.g.to - gapHover.g.from) / 60)))}
+            </span>
+            {gapHover.g.kind === "off" && <span>Tidemark was quit, paused or not yet started</span>}
+          </div>
         )}
         {hp && (
           <>

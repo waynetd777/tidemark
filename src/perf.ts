@@ -57,6 +57,13 @@ export function upToNow(pts: Pt[], t: number | undefined, v: number | null | und
   return [...pts, { t, v }];
 }
 
+/// How long readings must stop, against their usual spacing, to be a gap: three steps, and
+/// three minutes at least. The charts break their lines by the same rule, so a band and the end
+/// of a line always meet.
+export function gapMin(step: number): number {
+  return Math.max(3 * step, 180);
+}
+
 /// A stretch of a chart with no readings: the Mac asleep, or Tidemark not recording (quit,
 /// paused, or not yet started).
 export interface Gap {
@@ -74,13 +81,12 @@ export function gapsOf(ts: number[], domain: [number, number], sleeps: Sleep[]):
     .map((t, i) => t - ts[i])
     .sort((a, b) => a - b);
   const step = diffs.length ? diffs[Math.floor(diffs.length / 2)] : 60;
-  const min = Math.max(3 * step, 180);
+  const min = gapMin(step);
   const raw: [number, number][] = [];
   if (!ts.length) raw.push(domain);
   else {
     if (ts[0] - domain[0] > min) raw.push([domain[0], ts[0]]);
-    for (let i = 1; i < ts.length; i++)
-      if (ts[i] - ts[i - 1] > min) raw.push([ts[i - 1] + step, ts[i]]);
+    for (let i = 1; i < ts.length; i++) if (ts[i] - ts[i - 1] > min) raw.push([ts[i - 1], ts[i]]);
   }
   return raw.map(([from, to]) => {
     const asleep = sleeps.reduce(
