@@ -11,7 +11,7 @@ import { metricOf } from "./metrics";
 import { api } from "./api";
 import { Area, Legend, Spark, type Pt } from "./charts";
 import { incidentTitle } from "./incidents";
-import { now, usePoll } from "./perf";
+import { now, upToNow, usePoll } from "./perf";
 import { index, useRemembered } from "./remember";
 import type { Incident, Live, Minute } from "./types";
 import { batteryLine, fmt, fmtAt, fmtMins, fmtRate, fmtW, pct } from "./util";
@@ -79,7 +79,24 @@ export default function Performance({
 
   // The minute's numeric measures (the ones a chart can draw).
   type Num = { [K in keyof Minute]: Minute[K] extends number ? K : never }[keyof Minute];
-  const ser = (k: Num): Pt[] => points.map((m) => ({ t: m.ts, v: m[k] }));
+  // Each history measure's live counterpart, so the charts run on to the latest reading.
+  const LIVE: Partial<Record<Num, "cpu" | "mem" | "net_in" | "net_out" | "swap">> = {
+    cpu: "cpu",
+    cpu_max: "cpu",
+    mem: "mem",
+    mem_max: "mem",
+    net_in: "net_in",
+    net_out: "net_out",
+    swap: "swap",
+  };
+  const ser = (k: Num): Pt[] => {
+    const lk = LIVE[k];
+    return upToNow(
+      points.map((m) => ({ t: m.ts, v: m[k] })),
+      latest ? latest.t / 1000 : undefined,
+      lk && latest ? latest[lk] : undefined,
+    );
+  };
   const atPoint = points.reduce<Minute | null>(
     (b, m) => (at && (!b || Math.abs(m.ts - at.t) < Math.abs(b.ts - at.t)) ? m : b),
     null,
@@ -313,12 +330,20 @@ export default function Performance({
               <div className="minw0">
                 {points.some((m) => m.power != null) ? (
                   <Area
-                    pts={points
-                      .filter((m) => m.power != null)
-                      .map((m) => ({ t: m.ts, v: m.power as number }))}
-                    hi={points
-                      .filter((m) => m.power_max != null)
-                      .map((m) => ({ t: m.ts, v: m.power_max as number }))}
+                    pts={upToNow(
+                      points
+                        .filter((m) => m.power != null)
+                        .map((m) => ({ t: m.ts, v: m.power as number })),
+                      latest ? latest.t / 1000 : undefined,
+                      latest?.power,
+                    )}
+                    hi={upToNow(
+                      points
+                        .filter((m) => m.power_max != null)
+                        .map((m) => ({ t: m.ts, v: m.power_max as number })),
+                      latest ? latest.t / 1000 : undefined,
+                      latest?.power,
+                    )}
                     max={Math.max(1, ...points.map((m) => m.power_max ?? 0))}
                     height={120}
                     mark={

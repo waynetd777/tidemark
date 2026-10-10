@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import type { Pt } from "./charts";
 import type { Live } from "./types";
 
 /// Calls `load` now and every `ms`, keeping the last answer. A failed call keeps what was there.
@@ -48,3 +49,10 @@ export function startOfToday(): number {
 }
 
 export const now = () => Math.floor(Date.now() / 1000);
+
+/// A series of finished minutes, ending at the latest live reading (unix seconds), so the chart
+/// reaches now rather than stopping at the last whole minute or bucket.
+export function upToNow(pts: Pt[], t: number | undefined, v: number | null | undefined): Pt[] {
+  if (t == null || v == null || (pts.length && pts[pts.length - 1].t >= t)) return pts;
+  return [...pts, { t, v }];
+}

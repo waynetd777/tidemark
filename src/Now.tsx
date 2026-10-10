@@ -10,7 +10,7 @@ import { metricOf } from "./metrics";
 import { api } from "./api";
 import { Area, Legend, type Pt } from "./charts";
 import { incidentTitle, incidentWhy } from "./incidents";
-import { now, startOfToday, usePoll } from "./perf";
+import { now, startOfToday, upToNow, usePoll } from "./perf";
 import type { GrowthInfo, Live, Screen } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
@@ -40,7 +40,11 @@ export default function Now({
   const total = live?.mem_total || day?.points[0]?.mem_total || 1;
 
   const series = (k: "cpu" | "mem" | "net_in"): Pt[] =>
-    (day?.points ?? []).map((m) => ({ t: m.ts, v: m[k] }));
+    upToNow(
+      (day?.points ?? []).map((m) => ({ t: m.ts, v: m[k] })),
+      latest ? latest.t / 1000 : undefined,
+      latest?.[k],
+    );
   const highToday = (k: "cpu_max" | "mem_max") => {
     let best: { v: number; t: number } | null = null;
     for (const m of day?.points ?? [])
@@ -153,9 +157,13 @@ export default function Now({
       value: latest?.power != null ? fmtW(latest.power).split(" ")[0] : "–",
       unit: latest?.power != null ? "W" : "",
       sub: live?.battery ? `Battery ${batteryLine(live.battery)}` : "No battery on this Mac",
-      pts: (day?.points ?? [])
-        .filter((m) => m.power != null)
-        .map((m) => ({ t: m.ts, v: m.power as number })),
+      pts: upToNow(
+        (day?.points ?? [])
+          .filter((m) => m.power != null)
+          .map((m) => ({ t: m.ts, v: m.power as number })),
+        latest ? latest.t / 1000 : undefined,
+        latest?.power,
+      ),
       max: Math.max(1, ...(day?.points ?? []).map((m) => m.power ?? 0)),
       mark: tm.power
         ? { v: tm.power.value, label: `Tidemark ${fmtW(tm.power.value)} · ${fmtAt(tm.power.at)}` }
