@@ -44,6 +44,8 @@
   --tide-soft: #e1eff3;
   --on-tide: #ffffff;
   --mark: #1d1d1f;
+  /* The grey of the high-tide labels and the growth tags: softer than the text itself. */
+  --peak: color-mix(in srgb, var(--text) 78%, var(--panel));
   --hover: #e3e3e8;
   --sunk: #f3f3f6;
   --grid: #ececf0;
@@ -2049,7 +2051,7 @@ pre,
   transform: translate(-50%, -150%);
   z-index: 3;
   /* Softer than the text colour itself: a light grey on dark, a dark grey on light. */
-  background: color-mix(in srgb, var(--text) 78%, var(--panel));
+  background: var(--peak);
   color: var(--panel);
   font-size: 11.5px;
   font-weight: 600;
@@ -2368,7 +2370,7 @@ pre,
 /* ---- the map's growth layer ---- */
 /* Growth in ink, so it stands out on the tide-coloured map. */
 .blk.grew {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--peak);
   outline-offset: -2px;
 }
 .blk > .gtag {
@@ -2377,7 +2379,7 @@ pre,
   bottom: 4px;
   padding: 1px 7px;
   border-radius: 8px;
-  background: var(--text);
+  background: var(--peak);
   color: var(--panel);
   font-size: 11px;
   font-weight: 600;
