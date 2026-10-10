@@ -6,7 +6,8 @@
 // lines stay 2px and markers round.
 
 import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { gapMin, type Gap } from "./perf";
+import { gapMin, gapsOf, type Gap } from "./perf";
+import type { Sleep } from "./types";
 import { fmtAt, fmtMins } from "./util";
 
 export interface Pt {
@@ -65,7 +66,7 @@ export function Spark({
   height = 26,
   tone = "tide",
   label,
-  gaps,
+  sleeps,
   domain,
 }: {
   pts: Pt[];
@@ -76,12 +77,20 @@ export function Spark({
   height?: number;
   tone?: "tide" | "warn";
   label: string;
-  /// Stretches with no readings, shaded as on the big charts (no labels at this size).
-  gaps?: Gap[];
+  /// The recorded sleeps: with `domain`, its gaps are shaded as on the big charts.
+  sleeps?: Sleep[];
   /// The time span across the line, so gaps and readings sit at their real times.
   domain?: [number, number];
 }) {
   const hatch = useId();
+  const gaps =
+    sleeps && domain
+      ? gapsOf(
+          pts.map((p) => p.t),
+          domain,
+          sleeps,
+        )
+      : [];
   const lo = Math.min(min, ...pts.map((p) => p.v));
   const hi = Math.max(max, mark ?? 0, ...pts.map((p) => p.v));
   const span = hi - lo || 1;
@@ -175,8 +184,9 @@ export interface AreaProps {
   /// Each point's peak (the busiest reading inside a minute), drawn as a faint band behind the
   /// line of averages, so a short spike, the peak dot and the tidemark have something to sit on.
   hi?: Pt[];
-  /// Stretches with no readings, shaded and labelled for what they were (gapsOf in perf.ts).
-  gaps?: Gap[];
+  /// The recorded sleeps: with `domain`, the chart shades its own gaps (where its line has no
+  /// readings) as asleep or not recording, so a band always meets its line.
+  sleeps?: Sleep[];
   /// The time span across the chart (unix seconds): the range asked for, so a reading sits at
   /// its real time and the labels under the chart are true even when the record is shorter.
   domain?: [number, number];
@@ -201,9 +211,21 @@ export function Area({
   axis = true,
   domain,
   hi: band,
-  gaps,
+  sleeps,
 }: AreaProps) {
   const hatch = useId();
+  const [d0, d1] = domain ?? [null, null];
+  const gaps = useMemo(
+    () =>
+      sleeps && d0 != null && d1 != null
+        ? gapsOf(
+            pts.map((p) => p.t),
+            [d0, d1],
+            sleeps,
+          )
+        : [],
+    [pts, sleeps, d0, d1],
+  );
   const [ref, W] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   // Pointing inside a gap shows the gap, not the nearest reading: the gap and where the pointer is.

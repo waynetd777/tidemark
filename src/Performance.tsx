@@ -155,11 +155,6 @@ export default function Performance({
   const tail = points.slice(-60);
   // The tiles' span: their last 60 points, up to now.
   const tailDomain: [number, number] = [tail.length ? tail[0].ts : now() - secs, now()];
-  const tailGaps = gapsOf(
-    tail.map((m) => m.ts),
-    tailDomain,
-    sleeps ?? [],
-  );
   const high = (k: Num) => tail.reduce<Minute | null>((b, m) => (!b || m[k] > b[k] ? m : b), null);
   const swapHigh = tm.swap;
   const ioHigh = high("disk_max");
@@ -269,7 +264,7 @@ export default function Performance({
                   extra={c.extra}
                   xLabels={xLabels(secs)}
                   domain={[now() - secs, now()]}
-                  gaps={gaps}
+                  sleeps={sleeps ?? []}
                   label={`${c.name} over the last ${RANGES[range].label}`}
                   onPick={(p) => setPicked({ t: p.t, why: c.why })}
                 />
@@ -310,7 +305,7 @@ export default function Performance({
                       height={100}
                       peak={netPeak(n.k)}
                       domain={[now() - secs, now()]}
-                      gaps={gaps}
+                      sleeps={sleeps ?? []}
                       xLabels={xLabels(secs, 3)}
                       fmt={fmtRate}
                       fmtT={(t) => fmtAt(t)}
@@ -388,7 +383,7 @@ export default function Performance({
                     fmtT={(t) => fmtAt(t)}
                     name="Power"
                     domain={[now() - secs, now()]}
-                    gaps={gaps}
+                    sleeps={sleeps ?? []}
                     xLabels={xLabels(secs, 4)}
                     label={`Power drawn over the last ${RANGES[range].label}`}
                   />
@@ -416,7 +411,7 @@ export default function Performance({
                         max={100}
                         width={160}
                         height={24}
-                        gaps={gaps}
+                        sleeps={sleeps ?? []}
                         domain={[now() - secs, now()]}
                         label="Battery charge over the range"
                       />
@@ -498,7 +493,7 @@ export default function Performance({
                 <Spark
                   pts={t.pts}
                   max={t.max}
-                  gaps={tailGaps}
+                  sleeps={sleeps ?? []}
                   domain={tailDomain}
                   width={150}
                   height={26}

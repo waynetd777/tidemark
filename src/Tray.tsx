@@ -16,7 +16,7 @@ import { api, on } from "./api";
 import { Spark, type Pt } from "./charts";
 import { Mark } from "./Mark";
 import Tooltips from "./Tooltips";
-import { gapsOf, startOfToday } from "./perf";
+import { startOfToday } from "./perf";
 import type { DiskTrend, GrowthInfo, Live, PerfHistory, Sleep } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
@@ -209,11 +209,6 @@ export default function Tray() {
   const liveDomain: [number, number] = latest
     ? [latest.t / 1000 - 15 * 60, latest.t / 1000]
     : [0, 1];
-  const liveGaps = gapsOf(
-    live.samples.map((x) => x.t / 1000),
-    liveDomain,
-    sleeps,
-  );
   const today = startOfToday();
   const highToday = (k: "cpu_max" | "mem_max") => {
     let best: { v: number; t: number } | null = null;
@@ -241,7 +236,7 @@ export default function Tray() {
       value: latest ? pct(latest.cpu) : "–",
       spark: (
         <Spark
-          gaps={liveGaps}
+          sleeps={sleeps}
           domain={liveDomain}
           pts={series("cpu")}
           max={100}
@@ -262,7 +257,7 @@ export default function Tray() {
       value: latest ? fmt(latest.mem) : "–",
       spark: (
         <Spark
-          gaps={liveGaps}
+          sleeps={sleeps}
           domain={liveDomain}
           pts={series("mem")}
           max={live.mem_total}
@@ -279,7 +274,7 @@ export default function Tray() {
       value: latest ? `↓ ${fmtRate(latest.net_in)}` : "–",
       spark: (
         <Spark
-          gaps={liveGaps}
+          sleeps={sleeps}
           domain={liveDomain}
           pts={live.samples.map((x) => ({ t: x.t / 1000, v: x.net_in }))}
           max={Math.max(1, ...live.samples.map((x) => x.net_in))}
@@ -294,7 +289,7 @@ export default function Tray() {
       value: latest?.power != null ? fmtW(latest.power) : "–",
       spark: (
         <Spark
-          gaps={liveGaps}
+          sleeps={sleeps}
           domain={liveDomain}
           pts={live.samples
             .filter((x) => x.power != null)

@@ -236,7 +236,7 @@ export default function Now({
         height={150}
         axis={false}
         domain={[nowS - (c.range === "Last 7 days" ? 7 : 1) * DAY, nowS]}
-        gaps={c.name === "Disk" ? undefined : dayGaps}
+        sleeps={c.name === "Disk" ? undefined : (sleeps ?? [])}
         mark={c.mark}
         fmt={c.fmt}
         fmtT={(t) => fmtAt(t)}
