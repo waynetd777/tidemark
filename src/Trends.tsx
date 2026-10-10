@@ -11,11 +11,12 @@ import { metricOf } from "./metrics";
 import { api } from "./api";
 import { Area, Heatmap, Legend, Spark, type Pt } from "./charts";
 import { now, usePoll } from "./perf";
-import { index, useRemembered } from "./remember";
+import { useRemembered } from "./remember";
 import type { DiskPoint, Growth, Mark, Screen } from "./types";
 import { abbrev, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
 const RANGES = [
+  { label: "7 days", days: 7 },
   { label: "14 days", days: 14 },
   { label: "30 days", days: 30 },
   { label: "3 months", days: 91 },
@@ -70,8 +71,11 @@ export default function Trends({
   go: (s: Screen, target?: string) => void;
   ask: (q: string) => void;
 }) {
-  const [range, setRange] = useRemembered("trends.range", 1, index(RANGES.length));
-  const days = RANGES[range].days;
+  // Remembered as days, not as a place in the list, so adding a range never shifts the choice.
+  const [days, setDays] = useRemembered("trends.days", 30, (v): v is number =>
+    RANGES.some((r) => r.days === v),
+  );
+  const range = RANGES.findIndex((r) => r.days === days);
   const trend = usePoll(() => api.diskTrend(days), 300_000, [days]);
   const growth = usePoll(() => api.growth("/", days), 300_000, [days]);
   const heat = usePoll(api.cpuByHour, 600_000);
@@ -145,7 +149,7 @@ export default function Trends({
                 key={r.label}
                 className={i === range ? "on" : ""}
                 aria-pressed={i === range}
-                onClick={() => setRange(i)}
+                onClick={() => setDays(RANGES[i].days)}
                 title={`The disk over the last ${r.label}`}
               >
                 {r.label}

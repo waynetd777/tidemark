@@ -112,7 +112,7 @@ Some folders stay unreadable even then: system folders owned by root, such as /p
 
 ## Trends
 
-The disk's space over 14 days, 30 days, 3 months or 12 months (remembered, like Performance's range): how much it grew, how fast, and when it would be full at that rate. Up to 14 days the line is the used space hourly; beyond, each day's high. Its tidemark is the most it held in the range; the list beside it names the biggest one-day rises.
+The disk's space over 7 days, 14 days, 30 days, 3 months or 12 months (remembered, like Performance's range): how much it grew, how fast, and when it would be full at that rate. Up to 14 days the line is the used space hourly; beyond, each day's high. Its tidemark is the most it held in the range; the list beside it names the biggest one-day rises.
 
 **Top folders that rose** lists where the growth landed over the range. Up to 14 days this compares scans; beyond that it compares the daily record of the 40 biggest folders, so it is coarser. **When it gets busy** shades each hour of each weekday by its average CPU over the history, darker for busier; point at a cell for its value.
 
