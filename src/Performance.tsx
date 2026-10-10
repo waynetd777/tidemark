@@ -295,7 +295,7 @@ export default function Performance({
       <div className="page perf">
         <div className="perfmain">
           {charts.map((c) => (
-            <section className="card chart" key={c.name}>
+            <section className="card chart" key={c.name} data-focus={c.name.toLowerCase()}>
               <div className="row base wrap">
                 <b className="cname">
                   <Labelled m={metricOf(c.name)}>{c.name}</Labelled>
@@ -332,7 +332,7 @@ export default function Performance({
               )}
             </section>
           ))}
-          <section className="card chart">
+          <section className="card chart" data-focus="network">
             <div className="row base wrap">
               <b className="cname">
                 <Labelled m="network">Network</Labelled>
@@ -381,7 +381,7 @@ export default function Performance({
               ))}
             </div>
           </section>
-          <section className="card chart">
+          <section className="card chart" data-focus="energy">
             <div className="row base wrap">
               <b className="cname">
                 <Labelled m="energy">Energy</Labelled>

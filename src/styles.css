@@ -2476,3 +2476,23 @@ html.tray #root {
   font-size: 11px;
   color: var(--muted);
 }
+
+/* A section a Details link brought into view: a brief tide-coloured ring. */
+.flash {
+  animation: flash 1.6s ease-out;
+}
+@keyframes flash {
+  0%,
+  35% {
+    box-shadow: 0 0 0 3px var(--tide);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flash {
+    animation: none;
+    outline: 3px solid var(--tide);
+  }
+}

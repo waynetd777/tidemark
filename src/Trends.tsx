@@ -67,7 +67,7 @@ export default function Trends({
   home: string;
   historyDays: number;
   bar: (left: ReactNode) => ReactNode;
-  go: (s: Screen) => void;
+  go: (s: Screen, target?: string) => void;
   ask: (q: string) => void;
 }) {
   const [range, setRange] = useRemembered("trends.range", 1, index(RANGES.length));
@@ -161,7 +161,7 @@ export default function Trends({
         </>,
       )}
       <div className="page">
-        <section className="card chart">
+        <section className="card chart" data-focus="disk">
           <div className="row base wrap">
             <b className="cname">
               <Labelled m="disk">Disk used</Labelled>

@@ -28,7 +28,7 @@ export default function Now({
   growth: GrowthInfo | null;
   home: string;
   bar: (left: ReactNode) => ReactNode;
-  go: (s: Screen) => void;
+  go: (s: Screen, target?: string) => void;
   ask: (q: string) => void;
 }) {
   const day = usePoll(() => api.perf(DAY, 288), 60_000);
@@ -261,7 +261,7 @@ export default function Now({
         </span>
         <button
           className="link"
-          onClick={() => go(c.to)}
+          onClick={() => go(c.to, c.name.toLowerCase())}
           title={
             c.to === "trends"
               ? "See the disk over weeks and months"

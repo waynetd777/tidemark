@@ -434,14 +434,35 @@ export default function App() {
   useEffect(() => {
     viewPathRef.current = viewPath;
   });
+  // A section to bring into view on the screen being opened (a Details link's target).
+  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
   const show = useCallback(
-    (s: Screen) => {
+    (s: Screen, target?: string) => {
       setMenu(null);
       setScreen(s);
       push({ screen: s, path: s === "disk" ? viewPathRef.current : null });
+      if (target) setFocus({ id: target, n: Date.now() });
     },
     [push, setScreen],
   );
+  // Scrolls the target section into view once the screen has drawn it, and marks it briefly.
+  useEffect(() => {
+    if (!focus) return;
+    let tries = 0;
+    let timer: number | undefined;
+    const find = () => {
+      const el = document.querySelector<HTMLElement>(`[data-focus="${focus.id}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.classList.remove("flash");
+        void el.offsetWidth; // restart the animation
+        el.classList.add("flash");
+        timer = window.setTimeout(() => el.classList.remove("flash"), 1600);
+      } else if (tries++ < 20) timer = window.setTimeout(find, 50);
+    };
+    timer = window.setTimeout(find, 0);
+    return () => window.clearTimeout(timer);
+  }, [focus, screen]);
   const go = useCallback(
     (path: string) => {
       setMenu(null);
