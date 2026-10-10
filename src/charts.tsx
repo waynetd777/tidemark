@@ -263,6 +263,17 @@ export function Area({
                 strokeDasharray="4 3"
               />
             )}
+            {/* Now: the right-hand end of a chart that runs up to the present. */}
+            {domain && (
+              <line
+                className="nowl"
+                x1={x(domain[1]) - 0.5}
+                x2={x(domain[1]) - 0.5}
+                y1={0}
+                y2={H}
+                strokeDasharray="2 3"
+              />
+            )}
             {peak && <line className="peakl" x1={x(peak.t)} x2={x(peak.t)} y1={0} y2={H} />}
             {hp && <line className="cross" x1={x(hp.t)} x2={x(hp.t)} y1={0} y2={H} />}
           </svg>

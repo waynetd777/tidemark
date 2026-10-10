@@ -201,6 +201,52 @@ export default function Now({
     "Is the disk filling faster than usual?",
   ];
 
+  // One measure's card: its figure, a chart of the range with the tidemark, and its high.
+  const card = (c: (typeof cards)[number]) => (
+    <section className="card metric" key={c.name}>
+      <div className="row between">
+        <span className="eyebrow">
+          <Labelled m={metricOf(c.name)}>{c.name}</Labelled>
+        </span>
+        <span className="muted small">{c.range}</span>
+      </div>
+      <div className="big">
+        <span className="num">{c.value}</span>
+        <span className="muted unit">{c.unit}</span>
+      </div>
+      <div className="muted small">{c.sub}</div>
+      <Area
+        pts={c.pts}
+        max={c.max}
+        min={c.min ?? 0}
+        height={150}
+        axis={false}
+        domain={[nowS - (c.range === "Last 7 days" ? 7 : 1) * DAY, nowS]}
+        mark={c.mark}
+        fmt={c.fmt}
+        fmtT={(t) => fmtAt(t)}
+        name={c.name}
+        label={`${c.name}, ${c.range.toLowerCase()}`}
+      />
+      <Legend line={c.line} mark={c.mark ? "Week's tidemark" : undefined} />
+      <div className="row between small mfoot">
+        <span className="muted ell" title={c.high}>
+          {c.high}
+        </span>
+        <button
+          className="link"
+          onClick={() => go(c.to)}
+          title={
+            c.to === "trends"
+              ? "See the disk over weeks and months"
+              : `See ${c.name.toLowerCase()} in detail`
+          }
+        >
+          Details
+        </button>
+      </div>
+    </section>
+  );
   return (
     <>
       {bar(
@@ -224,55 +270,10 @@ export default function Now({
           <p className="muted">{sub || "The first readings arrive in a few seconds."}</p>
         </div>
 
-        <div className="cards3">
-          {cards.map((c) => (
-            <section className="card metric" key={c.name}>
-              <div className="row between">
-                <span className="eyebrow">
-                  <Labelled m={metricOf(c.name)}>{c.name}</Labelled>
-                </span>
-                <span className="muted small">{c.range}</span>
-              </div>
-              <div className="big">
-                <span className="num">{c.value}</span>
-                <span className="muted unit">{c.unit}</span>
-              </div>
-              <div className="muted small">{c.sub}</div>
-              <Area
-                pts={c.pts}
-                max={c.max}
-                min={c.min ?? 0}
-                height={150}
-                axis={false}
-                domain={[nowS - (c.range === "Last 7 days" ? 7 : 1) * DAY, nowS]}
-                mark={c.mark}
-                fmt={c.fmt}
-                fmtT={(t) => fmtAt(t)}
-                name={c.name}
-                label={`${c.name}, ${c.range.toLowerCase()}`}
-              />
-              <Legend line={c.line} mark={c.mark ? "Week's tidemark" : undefined} />
-              <div className="row between small mfoot">
-                <span className="muted ell" title={c.high}>
-                  {c.high}
-                </span>
-                <button
-                  className="link"
-                  onClick={() => go(c.to)}
-                  title={
-                    c.to === "trends"
-                      ? "See the disk over weeks and months"
-                      : `See ${c.name.toLowerCase()} in detail`
-                  }
-                >
-                  Details
-                </button>
-              </div>
-            </section>
-          ))}
-        </div>
+        <div className="cards4">{cards.filter((c) => c.name !== "Disk").map((c) => card(c))}</div>
 
-        <div className="cards2">
+        <div className="cards3">
+          {cards.filter((c) => c.name === "Disk").map((c) => card(c))}
           <section className="card list">
             <div className="row between head">
               <span className="eyebrow">This week's tidemarks</span>

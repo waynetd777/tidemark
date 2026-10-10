@@ -1814,17 +1814,17 @@ pre,
   margin: 6px 0 0;
   font-size: 14px;
 }
-.cards3 {
+/* Now: the four live measures across the top, then the disk beside the week's tidemarks and
+   what grew. Fewer columns as the window narrows. */
+.cards4 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 18px;
 }
-/* A last card alone on its row takes the rest of it. */
-.cards3 > :last-child:nth-child(3n + 1) {
-  grid-column: 1 / -1;
-}
-.cards3 > :last-child:nth-child(3n + 2) {
-  grid-column: span 2;
+.cards3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
 }
 .cards2 {
   display: grid;
@@ -1954,6 +1954,10 @@ pre,
 .area .peakl {
   stroke: var(--text);
   opacity: 0.25;
+}
+.area .nowl {
+  stroke: var(--muted);
+  opacity: 0.7;
 }
 .area .cross {
   stroke: var(--text);
