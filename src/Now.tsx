@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import { api } from "./api";
 import { Area, type Pt } from "./charts";
 import { incidentTitle, incidentWhy } from "./incidents";
-import { startOfToday, usePoll } from "./perf";
+import { now, startOfToday, usePoll } from "./perf";
 import type { GrowthInfo, Live, Screen } from "./types";
 import { abbrev, fmt, fmtAt, fmtDelta, fmtRate, pct } from "./util";
 
@@ -34,6 +34,7 @@ export default function Now({
   const incidents = usePoll(() => api.incidents(7), 60_000);
   const latest = live?.samples[live.samples.length - 1];
   const today = startOfToday();
+  const nowS = now();
   const total = live?.mem_total || day?.points[0]?.mem_total || 1;
 
   const series = (k: "cpu" | "mem" | "net_in"): Pt[] =>
@@ -215,6 +216,7 @@ export default function Now({
                 min={c.min ?? 0}
                 height={72}
                 axis={false}
+                domain={[nowS - (c.range === "Last 7 days" ? 7 : 1) * DAY, nowS]}
                 mark={c.mark}
                 fmt={c.fmt}
                 fmtT={(t) => fmtAt(t)}

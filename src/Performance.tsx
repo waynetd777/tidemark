@@ -20,10 +20,9 @@ const RANGES = [
   { label: "14 days", secs: 14 * 86400 },
 ];
 
-function xLabels(secs: number): string[] {
+function xLabels(secs: number, n = 6): string[] {
   const t1 = now(),
     t0 = t1 - secs;
-  const n = 6;
   return Array.from({ length: n + 1 }, (_, i) => {
     if (i === n) return "now";
     const d = new Date((t0 + ((t1 - t0) * i) / n) * 1000);
@@ -227,6 +226,7 @@ export default function Performance({
                   name={c.name}
                   extra={c.extra}
                   xLabels={xLabels(secs)}
+                  domain={[now() - secs, now()]}
                   label={`${c.name} over the last ${RANGES[range].label}`}
                   onPick={(p) => setPicked({ t: p.t, why: c.why })}
                 />
@@ -260,6 +260,8 @@ export default function Performance({
                       max={netTop}
                       height={100}
                       peak={netPeak(n.k)}
+                      domain={[now() - secs, now()]}
+                      xLabels={xLabels(secs, 3)}
                       fmt={fmtRate}
                       fmtT={(t) => fmtAt(t)}
                       name={n.name}

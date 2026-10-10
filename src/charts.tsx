@@ -143,6 +143,9 @@ export interface AreaProps {
   onPick?: (p: Pt) => void;
   /// Draw the y-axis labels (top and middle) at the left.
   axis?: boolean;
+  /// The time span across the chart (unix seconds): the range asked for, so a reading sits at
+  /// its real time and the labels under the chart are true even when the record is shorter.
+  domain?: [number, number];
 }
 
 /// A line over its area, with a crosshair that follows the pointer, snaps to the nearest
@@ -162,6 +165,7 @@ export function Area({
   label,
   onPick,
   axis = true,
+  domain,
 }: AreaProps) {
   const [ref, W] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
@@ -170,8 +174,8 @@ export function Area({
   const w = Math.max(0, W - left);
   const hi = Math.max(max, mark?.v ?? 0, ...pts.map((p) => p.v)) || 1;
   const lo = min;
-  const t0 = pts.length ? pts[0].t : 0;
-  const t1 = pts.length ? pts[pts.length - 1].t : 1;
+  const t0 = domain?.[0] ?? (pts.length ? pts[0].t : 0);
+  const t1 = domain?.[1] ?? (pts.length ? pts[pts.length - 1].t : 1);
   const x = (t: number) => left + ((t - t0) / (t1 - t0 || 1)) * w;
   const y = (v: number) => H - 1 - ((v - lo) / (hi - lo || 1)) * (H - 4);
   const paths = useMemo(() => {
@@ -183,9 +187,9 @@ export function Area({
         single: r.length === 1 ? r[0] : null,
       };
     });
-    // x and y follow W, pts and the scale.
+    // x and y follow W, pts, the time span and the scale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pts, W, hi, lo, H]);
+  }, [pts, W, hi, lo, H, t0, t1]);
   const nearest = (clientX: number, el: HTMLElement) => {
     if (!pts.length) return null;
     const r = el.getBoundingClientRect();
@@ -197,93 +201,97 @@ export function Area({
   };
   const hp = hover != null ? pts[hover] : null;
   const tipLeft = hp ? Math.min(Math.max(x(hp.t), left + 70), W - 70) : 0;
+  // A peak at the top of the chart has its label below the dot, inside the card.
+  const peakBelow = peak ? y(peak.v) < 28 : false;
   return (
-    <div
-      className="area"
-      ref={ref}
-      style={{ height: H }}
-      onPointerMove={(e) => setHover(nearest(e.clientX, e.currentTarget))}
-      onPointerLeave={() => setHover(null)}
-      onClick={() => {
-        if (hp && onPick) onPick(hp);
-      }}
-    >
-      {W > 0 && (
-        <svg width={W} height={H} role="img" aria-label={label}>
-          <line className="gridl" x1={left} x2={W} y1={0.5} y2={0.5} />
-          <line className="gridl" x1={left} x2={W} y1={H / 2} y2={H / 2} />
-          <line className="basel" x1={left} x2={W} y1={H - 0.5} y2={H - 0.5} />
-          {paths.map((p, i) =>
-            p.single ? (
-              <circle key={i} cx={x(p.single.t)} cy={y(p.single.v)} r={2} fill="var(--tide)" />
-            ) : (
-              <g key={i}>
-                <path d={p.area} fill="var(--tide)" fillOpacity={0.12} />
-                <path
-                  d={p.line}
-                  fill="none"
-                  stroke="var(--tide)"
-                  strokeWidth={2}
-                  strokeLinejoin="round"
-                />
-              </g>
-            ),
-          )}
-          {mark && mark.v > 0 && (
-            <line
-              className="tm"
-              x1={left}
-              x2={W}
-              y1={y(mark.v)}
-              y2={y(mark.v)}
-              strokeDasharray="4 3"
-            />
-          )}
-          {peak && <line className="peakl" x1={x(peak.t)} x2={x(peak.t)} y1={0} y2={H} />}
-          {hp && <line className="cross" x1={x(hp.t)} x2={x(hp.t)} y1={0} y2={H} />}
-        </svg>
-      )}
-      {axis && W > 0 && (
-        <>
-          <span className="ax" style={{ top: 0 }}>
-            {fmt(hi)}
-          </span>
-          <span className="ax" style={{ top: H / 2 }}>
-            {fmt((hi + lo) / 2)}
-          </span>
-        </>
-      )}
-      {mark && mark.v > 0 && W > 0 && (
-        <span className="tmlabel" style={{ top: y(mark.v) + 3 }}>
-          {mark.label}
-        </span>
-      )}
-      {peak && W > 0 && (
-        <>
-          <span className="dot peakdot" style={{ left: x(peak.t), top: y(peak.v) }} />
-          <span
-            className="peaklabel"
-            style={{
-              left: Math.min(Math.max(x(peak.t), left + 50), W - 50),
-              top: y(peak.v),
-            }}
-          >
-            {peak.label}
-          </span>
-        </>
-      )}
-      {hp && (
-        <>
-          <span className="dot hoverdot" style={{ left: x(hp.t), top: y(hp.v) }} />
-          <div className="readout" style={{ left: tipLeft }}>
-            <b>{fmt(hp.v)}</b>
-            <span>
-              {name} · {fmtT(hp.t)}
+    <div className="area">
+      <div
+        className="plot"
+        ref={ref}
+        style={{ height: H }}
+        onPointerMove={(e) => setHover(nearest(e.clientX, e.currentTarget))}
+        onPointerLeave={() => setHover(null)}
+        onClick={() => {
+          if (hp && onPick) onPick(hp);
+        }}
+      >
+        {W > 0 && (
+          <svg width={W} height={H} role="img" aria-label={label}>
+            <line className="gridl" x1={left} x2={W} y1={0.5} y2={0.5} />
+            <line className="gridl" x1={left} x2={W} y1={H / 2} y2={H / 2} />
+            <line className="basel" x1={left} x2={W} y1={H - 0.5} y2={H - 0.5} />
+            {paths.map((p, i) =>
+              p.single ? (
+                <circle key={i} cx={x(p.single.t)} cy={y(p.single.v)} r={2} fill="var(--tide)" />
+              ) : (
+                <g key={i}>
+                  <path d={p.area} fill="var(--tide)" fillOpacity={0.12} />
+                  <path
+                    d={p.line}
+                    fill="none"
+                    stroke="var(--tide)"
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                  />
+                </g>
+              ),
+            )}
+            {mark && mark.v > 0 && (
+              <line
+                className="tm"
+                x1={left}
+                x2={W}
+                y1={y(mark.v)}
+                y2={y(mark.v)}
+                strokeDasharray="4 3"
+              />
+            )}
+            {peak && <line className="peakl" x1={x(peak.t)} x2={x(peak.t)} y1={0} y2={H} />}
+            {hp && <line className="cross" x1={x(hp.t)} x2={x(hp.t)} y1={0} y2={H} />}
+          </svg>
+        )}
+        {axis && W > 0 && (
+          <>
+            <span className="ax" style={{ top: 0 }}>
+              {fmt(hi)}
             </span>
-            {extra?.(hover!)}
-          </div>
-        </>
-      )}
+            <span className="ax" style={{ top: H / 2 }}>
+              {fmt((hi + lo) / 2)}
+            </span>
+          </>
+        )}
+        {mark && mark.v > 0 && W > 0 && (
+          <span className="tmlabel" style={{ top: y(mark.v) + 3, left: left + 4 }}>
+            {mark.label}
+          </span>
+        )}
+        {peak && W > 0 && (
+          <>
+            <span className="dot peakdot" style={{ left: x(peak.t), top: y(peak.v) }} />
+            <span
+              className={`peaklabel${peakBelow ? " below" : ""}`}
+              style={{
+                left: Math.min(Math.max(x(peak.t), left + 50), W - 50),
+                top: y(peak.v),
+              }}
+            >
+              {peak.label}
+            </span>
+          </>
+        )}
+        {hp && (
+          <>
+            <span className="dot hoverdot" style={{ left: x(hp.t), top: y(hp.v) }} />
+            <div className="readout" style={{ left: tipLeft }}>
+              <b>{fmt(hp.v)}</b>
+              <span>
+                {name} · {fmtT(hp.t)}
+              </span>
+              {extra?.(hover!)}
+            </div>
+          </>
+        )}
+      </div>
       {xLabels && (
         <div className="xl" style={{ marginLeft: left }}>
           {xLabels.map((l, i) => (

@@ -8,7 +8,7 @@
 import { useState, type ReactNode } from "react";
 import { api } from "./api";
 import { Area, Heatmap, Spark, type Pt } from "./charts";
-import { usePoll } from "./perf";
+import { now, usePoll } from "./perf";
 import type { DiskPoint, Growth, Screen } from "./types";
 import { abbrev, fmt, fmtAt, fmtDelta, pct } from "./util";
 
@@ -124,12 +124,12 @@ export default function Trends({
     { name: "Disk high", value: high ? fmt(high.used) : "–", when: high ? dateLabel(high.ts) : "" },
   ];
 
-  const xl =
-    first && last
-      ? Array.from({ length: 5 }, (_, i) =>
-          i === 4 ? "today" : dateLabel(first.ts + ((last.ts - first.ts) * i) / 4),
-        )
-      : [];
+  // The chart spans the range asked for, so its labels are the range's dates.
+  const t1 = now();
+  const t0 = t1 - days * 86400;
+  const xl = Array.from({ length: 5 }, (_, i) =>
+    i === 4 ? "today" : dateLabel(t0 + ((t1 - t0) * i) / 4),
+  );
 
   return (
     <>
@@ -198,6 +198,7 @@ export default function Trends({
                   fmtT={(t) => (days > 14 ? dateLabel(t) : fmtAt(t))}
                   name="Disk used"
                   xLabels={xl}
+                  domain={[t0, t1]}
                   label={`Disk used over the last ${RANGES[range].label}`}
                 />
               ) : (
