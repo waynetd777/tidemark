@@ -8,7 +8,7 @@ This guide is also the app's help: press `?`, the ? button in the title bar, or 
 
 ## Now
 
-How the Mac is doing, in a sentence, and the things that matter most: CPU, GPU (where the Mac reports it), memory, disk reads and writes, network download and upload, and energy over the last hour, and disk space over the last week, in rows of four; below them, side by side, **This week's tidemarks** (the week's peaks and incidents, see Performance) and **What grew on disk this week** (the folders where the disk's growth landed). Each card's **Details** opens the screen with more.
+How the Mac is doing, in a sentence, and the things that matter most: CPU, GPU (where the Mac reports it), memory, disk reads and writes, network download and upload, and energy over the last hour, and disk space over the last week, in rows of four; below them, side by side, **This week's tidemarks** (the week's peaks and incidents, see Performance) and **What grew on disk this week** (the folders where the disk's growth landed). Each card's **Details** opens the screen with more and brings that measure into view: Performance for the live measures, Disk Usage for the disk.
 
 Questions at the foot open Ask with that question typed in.
 

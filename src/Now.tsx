@@ -283,7 +283,7 @@ export default function Now({
           ? `Freed ${fmt(disk.high.used - diskNow)} since ${fmtAt(disk.high.ts, false)}`
           : "At its high-water mark",
       fmt,
-      to: "trends" as Screen,
+      to: "disk" as Screen,
     },
   ];
 
@@ -341,8 +341,8 @@ export default function Now({
           className="link"
           onClick={() => go(c.to, ("focus" in c ? c.focus : undefined) ?? c.name.toLowerCase())}
           title={
-            c.to === "trends"
-              ? "See the disk over weeks and months"
+            c.to === "disk"
+              ? "Open Disk Usage: what is using the disk (⌘3)"
               : `See ${c.name.toLowerCase()} in detail`
           }
         >
