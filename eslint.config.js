@@ -23,5 +23,11 @@ export default tseslint.config(
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
     },
   },
+  // The product page's script: plain browser JavaScript, no build step.
+  {
+    files: ["site/**/*.js"],
+    extends: [js.configs.recommended],
+    languageOptions: { globals: globals.browser, sourceType: "script" },
+  },
   prettier,
 );

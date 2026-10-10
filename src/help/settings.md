@@ -7,6 +7,7 @@ A few choices; everything else looks after itself.
 - **Keep history for**: 14, 7 or 3 days. Shortening it forgets older days at once; the year of daily disk totals is kept either way.
 - **Scan the disk**: **Daily** (the default) scans once a day when the Mac has been idle for 5 minutes and is on power, or after two days if it never is. **Hourly** scans every hour and costs some battery. **Off** scans only when you press Reload.
 - **Appearance**: **Match the Mac** (the default), **Light** or **Dark**. The menu-bar window follows.
+- **About** shows the version; **Website** opens tidemark.davies.co.za. Tidemark › About Tidemark shows it too, as a link, and Help › Tidemark Website opens it.
 - The foot shows how much space the history takes, and whether Tidemark has Full Disk Access.
 
 ## History

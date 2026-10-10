@@ -100,3 +100,22 @@ export function Labelled({ m, children }: { m: Metric; children: React.ReactNode
     </span>
   );
 }
+
+/// A globe, for links to the website.
+export function Globe({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {PATHS.network}
+    </svg>
+  );
+}

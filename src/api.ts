@@ -61,6 +61,8 @@ export const api = {
   reveal: (path: string) => invoke<void>("reveal", { path }),
   getInfo: (path: string) => invoke<void>("get_info", { path }),
   openPrivacySettings: () => invoke<void>("open_privacy_settings"),
+  /// Opens tidemark.davies.co.za in the browser.
+  openWebsite: () => invoke<void>("open_website"),
 
   live: () => invoke<Live>("perf_live"),
   /// The last `secs` seconds of minutes, folded into at most `points` points.

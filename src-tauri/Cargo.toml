@@ -44,7 +44,7 @@ sysinfo = { version = "0.39", default-features = false, features = ["system", "n
 [target.'cfg(target_os = "macos")'.dependencies]
 # NSNumber and NSString for setting drawsBackground on the webview; NSProcessInfo for the
 # thermal state.
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSValue", "NSProcessInfo"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSValue", "NSProcessInfo", "NSDictionary", "NSURL", "NSArray"] }
 # To paint the WKWebView's own background before the page's first paint: Tauri's
 # set_background_color does nothing for the webview layer on macOS, so it shows white.
 objc2 = "0.6"

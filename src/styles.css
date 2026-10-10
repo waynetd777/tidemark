@@ -2360,6 +2360,23 @@ pre,
   background: var(--panel);
   padding: 0 8px;
 }
+/* About: the icon, the name and version, and the website. */
+.group.about {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+}
+.about-t {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-right: auto;
+}
+.about-name {
+  font-weight: 600;
+  font-size: 15px;
+}
 .setfoot {
   display: flex;
   justify-content: space-between;

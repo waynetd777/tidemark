@@ -3,8 +3,11 @@
 
 // Settings: three things to choose. Everything else looks after itself.
 
+import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, type Helper } from "./api";
+import { Globe } from "./icons";
+import { Mark } from "./Mark";
 import { usePoll } from "./perf";
 import { saveTheme } from "./theme";
 import { Switch } from "./Tray";
@@ -35,6 +38,12 @@ export default function Settings({
     api
       .helper()
       .then(setHelper)
+      .catch(() => {});
+  }, []);
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    getVersion()
+      .then(setVersion)
       .catch(() => {});
   }, []);
   const save = (s: S) =>
@@ -186,6 +195,23 @@ export default function Settings({
             </div>
           </div>
         )}
+        <div className="group about">
+          <Mark size={48} />
+          <div className="about-t">
+            <span className="about-name">
+              Tidemark{version && <span className="muted"> {version}</span>}
+            </span>
+            <span className="muted">The high-water marks of your Mac.</span>
+          </div>
+          <button
+            className="btn"
+            title="Open Tidemark's website in the browser"
+            onClick={() => void api.openWebsite()}
+          >
+            <Globe />
+            Website
+          </button>
+        </div>
         <div className="setfoot muted small">
           <span>
             History uses {hist ? fmt(hist.bytes) : "…"} in ~/Library/Application Support/Tidemark

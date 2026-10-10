@@ -53,6 +53,8 @@ The disk over weeks and months, and when the Mac is busiest.
 | **Scan the disk** | Daily (idle and on power), hourly or off. |
 | **Appearance** | Match the Mac, light or dark. |
 
+Below them, About shows the version, with a **Website** button.
+
 ## Menu bar
 
 Closing the window keeps Tidemark recording in the menu bar.

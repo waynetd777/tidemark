@@ -4,6 +4,8 @@
 //! Puts the app together: the disk side (disk.rs, scan.rs), the recorder (monitor.rs), the
 //! history and its schedule (history.rs, schedule.rs, trends.rs), the menu bar (tray.rs) and Ask.
 
+#[cfg(target_os = "macos")]
+mod about;
 mod assistant;
 mod cache;
 mod crashes;
@@ -59,14 +61,54 @@ pub fn stamp(what: &str) {
     eprintln!("[timing] {ms:>5} ms  {what}");
 }
 
-/// The app's website, as the Help menu opens it.
-const WEBSITE: &str = "https://tidemark.davies.co.za";
+/// The app's website: the Help menu, the About panel and Settings' Website button open it.
+const WEBSITE: &str = "https://tidemark.davies.co.za/";
 
-/// The standard menu bar, with Tidemark's help and website in its Help menu.
+/// Opens the website in the browser.
+#[tauri::command]
+fn open_website() {
+    let _ = std::process::Command::new("/usr/bin/open")
+        .arg(WEBSITE)
+        .status();
+}
+
+/// macOS's About panel, with the website under the copyright, clickable.
+fn about(app: &tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let version = app.package_info().version.to_string();
+        let link = WEBSITE.trim_start_matches("https://").trim_end_matches('/');
+        let _ = app.run_on_main_thread(move || {
+            about::show(
+                "Tidemark",
+                &version,
+                "© 2026 Wayne Davies · GPL-3.0-or-later",
+                include_bytes!("../icons/128x128@2x.png"),
+                link,
+                WEBSITE,
+            );
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
+/// The standard menu bar, with Tidemark's own About item (for the website link) and its help
+/// and website in the Help menu.
 fn help_menu(app: &tauri::App) -> tauri::Result<()> {
-    use tauri::menu::{Menu, MenuItem, HELP_SUBMENU_ID};
+    use tauri::menu::{Menu, MenuItem, MenuItemKind, HELP_SUBMENU_ID};
     use tauri::Emitter;
     let menu = Menu::default(app.handle())?;
+    // The app menu's first item is the platform's About, which can't carry a link.
+    if cfg!(target_os = "macos") {
+        if let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.into_iter().next() {
+            app_menu.remove_at(0)?;
+            app_menu.insert(
+                &MenuItem::with_id(app, "about", "About Tidemark", true, None::<&str>)?,
+                0,
+            )?;
+        }
+    }
     if let Some(help) = menu
         .get(HELP_SUBMENU_ID)
         .and_then(|m| m.as_submenu().cloned())
@@ -92,11 +134,8 @@ fn help_menu(app: &tauri::App) -> tauri::Result<()> {
             tray::show_main(app);
             let _ = app.emit("open-help", ());
         }
-        "website" => {
-            let _ = std::process::Command::new("/usr/bin/open")
-                .arg(WEBSITE)
-                .status();
-        }
+        "website" => open_website(),
+        "about" => about(app),
         _ => {}
     });
     Ok(())
@@ -133,6 +172,7 @@ pub fn run() {
             disk::reveal,
             disk::get_info,
             disk::open_privacy_settings,
+            open_website,
             files::get_files,
             assistant::assistant_status,
             assistant::ask,
