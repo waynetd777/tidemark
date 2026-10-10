@@ -10,6 +10,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LogicalSize } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Labelled } from "./icons";
+import { metricOf } from "./metrics";
 import { api, on } from "./api";
 import { Spark, type Pt } from "./charts";
 import { Mark } from "./Mark";
@@ -363,7 +365,9 @@ export default function Tray() {
             }}
           >
             <span className="tname">
-              <span className="nm">{r.name}</span>
+              <span className="nm">
+                <Labelled m={metricOf(r.name)}>{r.name}</Labelled>
+              </span>
               <span className={`tiny${r.warn ? " warnt" : " muted"}`}>{r.note}</span>
             </span>
             {r.spark}

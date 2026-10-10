@@ -6,6 +6,8 @@
 // moment (the peak, or wherever the chart is clicked).
 
 import { useMemo, useState, type ReactNode } from "react";
+import { Labelled } from "./icons";
+import { metricOf } from "./metrics";
 import { api } from "./api";
 import { Area, Spark, type Pt } from "./charts";
 import { incidentTitle } from "./incidents";
@@ -204,7 +206,9 @@ export default function Performance({
           {charts.map((c) => (
             <section className="card chart" key={c.name}>
               <div className="row base wrap">
-                <b className="cname">{c.name}</b>
+                <b className="cname">
+                  <Labelled m={metricOf(c.name)}>{c.name}</Labelled>
+                </b>
                 <span className="cnow">{c.now}</span>
                 <span className="muted small">{c.sub}</span>
                 <span className="grow" />
@@ -237,7 +241,9 @@ export default function Performance({
           ))}
           <section className="card chart">
             <div className="row base wrap">
-              <b className="cname">Network</b>
+              <b className="cname">
+                <Labelled m="network">Network</Labelled>
+              </b>
               <span className="cnow">
                 {latest ? `↓ ${fmtRate(latest.net_in)}  ↑ ${fmtRate(latest.net_out)}` : "–"}
               </span>
@@ -251,7 +257,9 @@ export default function Performance({
               {net.map((n) => (
                 <div className="minw0" key={n.k}>
                   <div className="row between small">
-                    <span className="eyebrow">{n.name}</span>
+                    <span className="eyebrow">
+                      <Labelled m={metricOf(n.name)}>{n.name}</Labelled>
+                    </span>
                     <span className="muted">{n.now != null ? `${fmtRate(n.now)} now` : ""}</span>
                   </div>
                   {points.length ? (
@@ -277,7 +285,9 @@ export default function Performance({
           <div className="tiles">
             {tiles.map((t) => (
               <section className="card tile" key={t.name}>
-                <span className="eyebrow">{t.name}</span>
+                <span className="eyebrow">
+                  <Labelled m={metricOf(t.name)}>{t.name}</Labelled>
+                </span>
                 <b className="tv">{t.value}</b>
                 <Spark
                   pts={t.pts}

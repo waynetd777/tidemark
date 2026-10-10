@@ -857,7 +857,7 @@ export default function App() {
           <br />
           {info?.scan ? (
             <>
-              <b>Last scan {fmtWhen(info.scan.finished)}</b>
+              <b>Last disk scan {fmtWhen(info.scan.finished)}</b>
               <br />
               {fmtN(info.scan.items)} items in {fmtDuration(info.scan.duration_ms)}
               <br />

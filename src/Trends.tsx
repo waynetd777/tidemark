@@ -6,6 +6,8 @@
 // performance goes back as far as the history setting keeps it (14 days at most).
 
 import { useState, type ReactNode } from "react";
+import { Labelled } from "./icons";
+import { metricOf } from "./metrics";
 import { api } from "./api";
 import { Area, Heatmap, Spark, type Pt } from "./charts";
 import { now, usePoll } from "./perf";
@@ -160,7 +162,9 @@ export default function Trends({
       <div className="page">
         <section className="card chart">
           <div className="row base wrap">
-            <b className="cname">Disk used</b>
+            <b className="cname">
+              <Labelled m="disk">Disk used</Labelled>
+            </b>
             <span className="cnow">{pts.length > 1 ? fmtDelta(delta) : "–"}</span>
             {first && last && (
               <span className="muted small">
@@ -280,7 +284,9 @@ export default function Trends({
         <div className="tiles">
           {marks.map((m) => (
             <section className="card tile" key={m.name}>
-              <span className="eyebrow">{m.name}</span>
+              <span className="eyebrow">
+                <Labelled m={metricOf(m.name)}>{m.name}</Labelled>
+              </span>
               <b className="tv big2">{m.value}</b>
               <span className="muted small">{m.when}</span>
             </section>

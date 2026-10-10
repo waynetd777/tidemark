@@ -1754,6 +1754,21 @@ pre,
   pointer-events: none;
 }
 
+/* A measure's label with its icon (icons.tsx). */
+.labelled {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.labelled .micon {
+  flex: none;
+  color: var(--tide);
+}
+.eyebrow .labelled .micon {
+  width: 13px;
+  height: 13px;
+}
+
 /* ---- pages ---- */
 .page {
   flex: 1;

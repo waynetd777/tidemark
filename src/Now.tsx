@@ -5,6 +5,8 @@
 // week's high-water marks and incidents; what grew on the disk; and questions for Ask.
 
 import type { ReactNode } from "react";
+import { Labelled } from "./icons";
+import { metricOf } from "./metrics";
 import { api } from "./api";
 import { Area, type Pt } from "./charts";
 import { incidentTitle, incidentWhy } from "./incidents";
@@ -202,7 +204,9 @@ export default function Now({
           {cards.map((c) => (
             <section className="card metric" key={c.name}>
               <div className="row between">
-                <span className="eyebrow">{c.name}</span>
+                <span className="eyebrow">
+                  <Labelled m={metricOf(c.name)}>{c.name}</Labelled>
+                </span>
                 <span className="muted small">{c.range}</span>
               </div>
               <div className="big">
