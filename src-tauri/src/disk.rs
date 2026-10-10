@@ -197,6 +197,45 @@ pub fn get_tree(
     ))
 }
 
+/// Walks `root` completely. None if the walk was stopped or the root could not be read.
+/// Nothing here needs the app, so the background helper scans the same way (recorder.rs).
+pub fn walk_root(root: &str, progress: &scan::Progress) -> Option<cache::Scan> {
+    let t0 = Instant::now();
+    let name = volume::root_name(root);
+    let tree = scan::walk(Path::new(root), name.clone(), false, progress)?;
+    Some(cache::Scan {
+        root: root.to_string(),
+        root_name: name,
+        finished: chrono::Local::now().to_rfc3339(),
+        duration_ms: t0.elapsed().as_millis() as u64,
+        items: tree.items,
+        size: tree.size,
+        apparent: tree.apparent,
+        denied: tree.denied,
+        tree,
+    })
+}
+
+/// Keeps what a finished scan found: the recent list, the cache for the next launch, and the
+/// history (which is how growth is known).
+pub fn keep(s: &cache::Scan) {
+    cache::push_recent(cache::Recent {
+        path: s.root.clone(),
+        name: s.root_name.clone(),
+        size: s.size,
+        items: s.items,
+        when: s.finished.clone(),
+    });
+    if let Err(e) = cache::save_scan(s) {
+        eprintln!("could not cache the scan: {e}");
+    }
+    history::add_scan(&s.root, history::now(), &s.tree);
+    if s.root == "/" {
+        let v = volume::info("/");
+        history::add_disk_used(history::now(), v.used, v.total);
+    }
+}
+
 /// Starts a scan of `root`. With `show` the app switches to that root (the user asked); without
 /// it, the scan runs behind whatever is on screen (the schedule), and only replaces the scan on
 /// screen if it is of the same root.
@@ -231,21 +270,7 @@ pub fn start_scan_thread(app: &AppHandle, root: String, show: bool) -> Result<()
     let scanning = state.scanning.clone();
     let handle = app.clone();
     std::thread::spawn(move || {
-        let t0 = Instant::now();
-        let name = volume::root_name(&root);
-        let result = scan::walk(Path::new(&root), name.clone(), false, &progress);
-        if let Some(tree) = result {
-            let s = cache::Scan {
-                root: root.clone(),
-                root_name: name.clone(),
-                finished: chrono::Local::now().to_rfc3339(),
-                duration_ms: t0.elapsed().as_millis() as u64,
-                items: tree.items,
-                size: tree.size,
-                apparent: tree.apparent,
-                denied: tree.denied,
-                tree,
-            };
+        if let Some(s) = walk_root(&root, &progress) {
             let st: State<AppState> = handle.state();
             // Only publish if the root is still the one this scan was for.
             let still = st.root() == root;
@@ -254,23 +279,9 @@ pub fn start_scan_thread(app: &AppHandle, root: String, show: bool) -> Result<()
                     *cur = Some(Arc::new(s.clone()));
                 }
             }
-            cache::push_recent(cache::Recent {
-                path: root.clone(),
-                name,
-                size: s.size,
-                items: s.items,
-                when: s.finished.clone(),
-            });
             scanning.store(false, Ordering::SeqCst);
             let _ = handle.emit("scan-finished", &root);
-            if let Err(e) = cache::save_scan(&s) {
-                eprintln!("could not cache the scan: {e}");
-            }
-            history::add_scan(&root, history::now(), &s.tree);
-            if root == "/" {
-                let v = volume::info("/");
-                history::add_disk_used(history::now(), v.used, v.total);
-            }
+            keep(&s);
         } else {
             scanning.store(false, Ordering::SeqCst);
             let _ = handle.emit("scan-finished", &root);

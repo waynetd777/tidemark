@@ -14,6 +14,7 @@ mod login_item;
 #[cfg(target_os = "macos")]
 mod login_launch;
 mod monitor;
+mod recorder;
 mod scan;
 mod schedule;
 mod settings;
@@ -52,6 +53,58 @@ pub fn stamp(what: &str) {
         .map(|t| t.elapsed().as_millis())
         .unwrap_or(0);
     eprintln!("[timing] {ms:>5} ms  {what}");
+}
+
+/// The app's website, as the Help menu opens it.
+const WEBSITE: &str = "https://tidemark.davies.co.za";
+
+/// The standard menu bar, with Tidemark's help and website in its Help menu.
+fn help_menu(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem, HELP_SUBMENU_ID};
+    use tauri::Emitter;
+    let menu = Menu::default(app.handle())?;
+    if let Some(help) = menu
+        .get(HELP_SUBMENU_ID)
+        .and_then(|m| m.as_submenu().cloned())
+    {
+        help.append(&MenuItem::with_id(
+            app,
+            "help",
+            "Tidemark Help",
+            true,
+            Some("CmdOrCtrl+Shift+/"),
+        )?)?;
+        help.append(&MenuItem::with_id(
+            app,
+            "website",
+            "Tidemark Website",
+            true,
+            None::<&str>,
+        )?)?;
+    }
+    app.set_menu(menu)?;
+    app.on_menu_event(|app, ev| match ev.id.as_ref() {
+        "help" => {
+            tray::show_main(app);
+            let _ = app.emit("open-help", ());
+        }
+        "website" => {
+            let _ = std::process::Command::new("/usr/bin/open")
+                .arg(WEBSITE)
+                .status();
+        }
+        _ => {}
+    });
+    Ok(())
+}
+
+/// `Tidemark --record`: the background helper (recorder.rs) rather than the app. Some(never
+/// returns) when the arguments ask for it.
+pub fn helper(args: &[String]) -> Option<std::convert::Infallible> {
+    if args.iter().any(|a| a == recorder::ARG) {
+        recorder::run();
+    }
+    None
 }
 
 pub fn run() {
@@ -100,6 +153,8 @@ pub fn run() {
             tray::open_activity_monitor,
             tray::login_item,
             tray::set_login_item,
+            recorder::background_helper,
+            recorder::set_background_helper,
         ])
         .setup(move |app| {
             stamp("setup() start");
@@ -136,6 +191,7 @@ pub fn run() {
             monitor::start();
             schedule::start(handle.clone());
             tray::setup(app)?;
+            help_menu(app)?;
 
             if let Some(w) = app.get_webview_window("main") {
                 // Paint the native window in the theme's background colour before it is shown,

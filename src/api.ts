@@ -19,6 +19,12 @@ import type {
   View,
 } from "./types";
 
+export interface Helper {
+  available: boolean;
+  on: boolean;
+  needs_approval: boolean;
+}
+
 /// Listens for an event from the app; returns the function that stops listening.
 export function on<T = unknown>(name: string, f: (payload: T) => void): () => void {
   const p = listen<T>(name, (e) => f(e.payload));
@@ -79,4 +85,7 @@ export const api = {
   /// Open at Login: [available, on].
   loginItem: () => invoke<[boolean, boolean]>("login_item"),
   setLoginItem: (on: boolean) => invoke<boolean>("set_login_item", { on }),
+  /// The background helper that records while the app is quit (recorder.rs).
+  helper: () => invoke<Helper>("background_helper"),
+  setHelper: (on: boolean) => invoke<Helper>("set_background_helper", { on }),
 };

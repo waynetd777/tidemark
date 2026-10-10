@@ -12,6 +12,7 @@ import Performance from "./Performance";
 import SettingsPage from "./Settings";
 import Trends from "./Trends";
 import { useLive, usePoll } from "./perf";
+import { useRemembered } from "./remember";
 import HelpDrawer from "./Help";
 import Tooltips from "./Tooltips";
 import { describeView } from "./context";
@@ -171,6 +172,9 @@ function saveShowFree(on: boolean) {
   }
 }
 
+const SCREENS: Screen[] = ["now", "performance", "disk", "trends", "settings"];
+const isScreen = (v: unknown): v is Screen => SCREENS.includes(v as Screen);
+
 /// One step in back and forward: a screen, and for the map the folder it showed.
 interface Place {
   screen: Screen;
@@ -197,11 +201,13 @@ export default function App() {
   const [menu, setMenu] = useState<{ block: Block; x: number; y: number } | null>(null);
   const [showFree, setShowFree] = useState(loadShowFree);
   const [showGrowth, setShowGrowth] = useState(loadShowGrowth);
-  const [screen, setScreen] = useState<Screen>("now");
+  const [screen, setScreen] = useRemembered<Screen>("screen", "now", isScreen);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [growth, setGrowth] = useState<GrowthInfo | null>(null);
   const [growthTick, setGrowthTick] = useState(0);
   const live = useLive();
+  // Back and forward start from the screen the app opened on.
+  const [screenAtStart] = useState(screen);
   const mac = usePoll(api.macInfo, 60_000);
   // The performance record as text, for Ask; read when Ask opens and every half minute after.
   const [brief, setBrief] = useState("");
@@ -270,7 +276,9 @@ export default function App() {
             return;
           }
           setViewPath((p) => p ?? s.root);
-          setHist((h) => (h.stack.length ? h : { stack: [{ screen: "now", path: null }], idx: 0 }));
+          setHist((h) =>
+            h.stack.length ? h : { stack: [{ screen: screenAtStart, path: null }], idx: 0 },
+          );
           hideSplash();
         })
         .catch(() => {
@@ -281,7 +289,7 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [screenAtStart]);
 
   useEffect(() => {
     if (!askOpen) return;
@@ -416,7 +424,7 @@ export default function App() {
       setScreen(s);
       push({ screen: s, path: null });
     },
-    [push],
+    [push, setScreen],
   );
   const go = useCallback(
     (path: string) => {
@@ -425,7 +433,7 @@ export default function App() {
       setViewPath(path);
       push({ screen: "disk", path });
     },
-    [push],
+    [push, setScreen],
   );
   const zoomTo = go;
 
@@ -444,21 +452,34 @@ export default function App() {
       setAskOpen(true);
       setHelpOpen(false);
     });
-    const u3 = on("scan-finished", () => setGrowthTick((t) => t + 1));
+    const u4 = on("open-help", () => {
+      setHelpOpen(true);
+      setAskOpen(false);
+    });
+    // A scan finished, here or in the background helper: new growth, and a new map.
+    const u3 = on("scan-finished", () => {
+      setGrowthTick((t) => t + 1);
+      void refreshInfo();
+      setTreeTick((t) => t + 1);
+    });
     return () => {
       u1();
       u2();
       u3();
+      u4();
     };
-  }, []);
+  }, [refreshInfo]);
 
   const canBack = hist.idx > 0;
   const canForward = hist.idx >= 0 && hist.idx < hist.stack.length - 1;
-  const visit = useCallback((p: Place) => {
-    setMenu(null);
-    setScreen(p.screen);
-    if (p.path) setViewPath(p.path);
-  }, []);
+  const visit = useCallback(
+    (p: Place) => {
+      setMenu(null);
+      setScreen(p.screen);
+      if (p.path) setViewPath(p.path);
+    },
+    [setScreen],
+  );
   const back = useCallback(() => {
     if (hist.idx <= 0) return;
     visit(hist.stack[hist.idx - 1]);
@@ -489,7 +510,7 @@ export default function App() {
         })
         .catch((e) => say(String(e)));
     },
-    [refreshInfo, say, push],
+    [refreshInfo, say, push, setScreen],
   );
 
   const stopScan = useCallback(() => {

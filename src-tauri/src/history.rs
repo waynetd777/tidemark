@@ -71,6 +71,8 @@ fn open() -> Connection {
             Connection::open_in_memory()
         })
         .expect("sqlite opens in memory");
+    // The app and the background helper can both write (a scan each, say): wait for the other.
+    let _ = c.busy_timeout(std::time::Duration::from_secs(10));
     if let Err(e) = c.execute_batch(SCHEMA) {
         eprintln!("history schema: {e}");
     }

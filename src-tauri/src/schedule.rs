@@ -10,10 +10,11 @@
 
 use crate::disk::{self, AppState};
 use crate::settings::{self, ScanEvery};
-use crate::{history, volume};
-use std::sync::atomic::Ordering;
-use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use crate::{cache, history, monitor, volume};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, SystemTime};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[cfg(target_os = "macos")]
 extern "C" {
@@ -51,31 +52,103 @@ fn due(every: ScanEvery, age: Option<i64>) -> bool {
     }
 }
 
+/// One minute's upkeep, done by whichever process is recording (see monitor.rs): the used
+/// space hourly, pruning, and the scheduled scan of the disk, started by `scan_disk`.
+fn upkeep(last_prune: &mut i64, scanning: bool, scan_disk: &dyn Fn()) {
+    let now = history::now();
+    if history::last_disk_used().is_none_or(|t| now - t >= 3600) {
+        let v = volume::info("/");
+        if v.total > 0 {
+            history::add_disk_used(now, v.used, v.total);
+        }
+    }
+    if now - *last_prune >= 6 * 3600 {
+        history::prune(settings::get().history_days);
+        *last_prune = now;
+    }
+    if !scanning
+        && due(
+            settings::get().scan,
+            history::last_scan("/").map(|t| now - t),
+        )
+    {
+        scan_disk();
+    }
+}
+
+/// The app's schedule. While the background helper records, the helper scans; the app picks
+/// up the scan it leaves in the cache.
 pub fn start(app: AppHandle) {
     std::thread::Builder::new()
         .name("schedule".into())
         .spawn(move || {
             let mut last_prune = 0i64;
+            let mut seen: Option<SystemTime> = None;
             loop {
-                let now = history::now();
-                if history::last_disk_used().is_none_or(|t| now - t >= 3600) {
-                    let v = volume::info("/");
-                    if v.total > 0 {
-                        history::add_disk_used(now, v.used, v.total);
-                    }
-                }
-                if now - last_prune >= 6 * 3600 {
-                    history::prune(settings::get().history_days);
-                    last_prune = now;
-                }
                 let st: tauri::State<AppState> = app.state();
-                if !st.scanning.load(Ordering::SeqCst)
-                    && due(
-                        settings::get().scan,
-                        history::last_scan("/").map(|t| now - t),
-                    )
-                {
-                    let _ = disk::start_scan_thread(&app, "/".into(), false);
+                if monitor::recording() {
+                    upkeep(&mut last_prune, st.scanning.load(Ordering::SeqCst), &|| {
+                        let _ = disk::start_scan_thread(&app, "/".into(), false);
+                    });
+                } else {
+                    reload_if_newer(&app, &mut seen);
+                }
+                std::thread::sleep(Duration::from_secs(60));
+            }
+        })
+        .expect("the schedule thread starts");
+}
+
+/// A scan another process saved for the root on screen replaces the one shown.
+fn reload_if_newer(app: &AppHandle, seen: &mut Option<SystemTime>) {
+    let st: tauri::State<AppState> = app.state();
+    if st.scanning.load(Ordering::SeqCst) {
+        return;
+    }
+    let root = st.root();
+    let m = std::fs::metadata(cache::scan_path(&root))
+        .and_then(|m| m.modified())
+        .ok();
+    if seen.is_none() || m.is_none() {
+        *seen = m;
+        return;
+    }
+    if m != *seen {
+        *seen = m;
+        if let Some(s) = cache::load_scan(&root) {
+            if let Ok(mut cur) = st.scan.lock() {
+                *cur = Some(Arc::new(s));
+            }
+            let _ = app.emit("scan-finished", &root);
+        }
+    }
+}
+
+/// A scheduled scan is running in the background helper.
+static HEADLESS_SCANNING: AtomicBool = AtomicBool::new(false);
+
+/// The background helper's schedule: the same upkeep, scanning on a thread of its own.
+pub fn start_headless() {
+    std::thread::Builder::new()
+        .name("schedule".into())
+        .spawn(|| {
+            let mut last_prune = 0i64;
+            loop {
+                if monitor::recording() {
+                    upkeep(
+                        &mut last_prune,
+                        HEADLESS_SCANNING.load(Ordering::SeqCst),
+                        &|| {
+                            HEADLESS_SCANNING.store(true, Ordering::SeqCst);
+                            std::thread::spawn(|| {
+                                let progress = crate::scan::Progress::default();
+                                if let Some(s) = disk::walk_root("/", &progress) {
+                                    disk::keep(&s);
+                                }
+                                HEADLESS_SCANNING.store(false, Ordering::SeqCst);
+                            });
+                        },
+                    );
                 }
                 std::thread::sleep(Duration::from_secs(60));
             }

@@ -81,6 +81,7 @@ export default function Tray() {
   const [growth, setGrowth] = useState<GrowthInfo | null>(null);
   const [home, setHome] = useState("");
   const [login, setLogin] = useState<[boolean, boolean]>([false, false]);
+  const [helperOn, setHelperOn] = useState(false);
   const [open, setOpen] = useState(true);
 
   // Everything but the live readings, read again each time the menu opens.
@@ -104,6 +105,10 @@ export default function Tray() {
     api
       .loginItem()
       .then(setLogin)
+      .catch(() => {});
+    api
+      .helper()
+      .then((h) => setHelperOn(h.on))
       .catch(() => {});
   }, []);
   useEffect(() => {
@@ -461,7 +466,11 @@ export default function Tray() {
           tip="Quit. Nothing is recorded until Tidemark is opened again"
         />
       </div>
-      <div className="tfoot">Tidemark keeps recording when the window is closed.</div>
+      <div className="tfoot">
+        {helperOn
+          ? "Tidemark keeps recording even when it's quit."
+          : "Tidemark keeps recording when the window is closed."}
+      </div>
     </div>
   );
 }

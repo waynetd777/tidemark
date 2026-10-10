@@ -8,8 +8,9 @@
   --border: #e2e2e6;
   --text: #1d1d1f;
   --muted: #6e6e73;
-  --accent: #0a66c2;
-  --accent-soft: #e6f0fa;
+  /* The app's one blue is the tide (below); older controls use these names for it. */
+  --accent: var(--tide);
+  --accent-soft: var(--tide-soft);
   --sidebar: #ececef;
   --info: #1565c0;
   --info-soft: #e3f2fd;
@@ -57,8 +58,8 @@
     --border: #3a3a3f;
     --text: #f2f2f4;
     --muted: #9a9aa2;
-    --accent: #4c9be8;
-    --accent-soft: #1d2f44;
+    --accent: var(--tide);
+    --accent-soft: var(--tide-soft);
     --sidebar: #232326;
     --info: #63a9f0;
     --info-soft: #1a2c40;
@@ -96,8 +97,8 @@
   --border: #3a3a3f;
   --text: #f2f2f4;
   --muted: #9a9aa2;
-  --accent: #4c9be8;
-  --accent-soft: #1d2f44;
+  --accent: var(--tide);
+  --accent-soft: var(--tide-soft);
   --sidebar: #232326;
   --info: #63a9f0;
   --info-soft: #1a2c40;
@@ -1372,8 +1373,9 @@ pre,
   color: var(--text);
 }
 .ask-input textarea:focus {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--tide);
   outline-offset: -1px;
+  border-color: var(--tide);
 }
 .btn.on {
   background: var(--accent-soft);
@@ -1804,8 +1806,15 @@ pre,
 }
 .cards3 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 18px;
+}
+/* A last card alone on its row takes the rest of it. */
+.cards3 > :last-child:nth-child(3n + 1) {
+  grid-column: 1 / -1;
+}
+.cards3 > :last-child:nth-child(3n + 2) {
+  grid-column: span 2;
 }
 .cards2 {
   display: grid;
@@ -1815,7 +1824,11 @@ pre,
 .metric {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  padding: 20px 22px 16px;
+}
+.metric .big .num {
+  font-size: 40px;
 }
 .big {
   display: flex;

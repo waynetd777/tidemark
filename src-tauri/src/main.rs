@@ -5,6 +5,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let _ = tidemark_lib::helper(&args);
     tidemark_lib::mark_start();
     tidemark_lib::run()
 }

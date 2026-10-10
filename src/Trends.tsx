@@ -5,12 +5,13 @@
 // that rose, when the Mac is usually busy, and the range's highs. Disk totals go back a year;
 // performance goes back as far as the history setting keeps it (14 days at most).
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
 import { api } from "./api";
 import { Area, Heatmap, Spark, type Pt } from "./charts";
 import { now, usePoll } from "./perf";
+import { index, useRemembered } from "./remember";
 import type { DiskPoint, Growth, Screen } from "./types";
 import { abbrev, fmt, fmtAt, fmtDelta, pct } from "./util";
 
@@ -69,7 +70,7 @@ export default function Trends({
   go: (s: Screen) => void;
   ask: (q: string) => void;
 }) {
-  const [range, setRange] = useState(1);
+  const [range, setRange] = useRemembered("trends.range", 1, index(RANGES.length));
   const days = RANGES[range].days;
   const trend = usePoll(() => api.diskTrend(days), 300_000, [days]);
   const growth = usePoll(() => api.growth("/", days), 300_000, [days]);

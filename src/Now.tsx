@@ -218,7 +218,7 @@ export default function Now({
                 pts={c.pts}
                 max={c.max}
                 min={c.min ?? 0}
-                height={72}
+                height={150}
                 axis={false}
                 domain={[nowS - (c.range === "Last 7 days" ? 7 : 1) * DAY, nowS]}
                 mark={c.mark}

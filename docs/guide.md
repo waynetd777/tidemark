@@ -91,7 +91,7 @@ Everything Tidemark remembers is in one file, ~/Library/Application Support/Tide
 - The disk's used space about every hour, and the folders of 100 MB or more from each scan, for the same days.
 - One row a day of the disk's used space and its biggest folders, for a year whatever the setting, so the Trends screen can go back 12 months.
 
-Tidemark only records while it is running. Closing the window keeps it running in the menu bar; Open at Login starts it when you log in.
+Tidemark records while it is running: closing the window keeps it running in the menu bar, and Open at Login starts it when you log in. With **Keep recording when quit** on (Settings), a background helper records even while the app is quit.
 
 ## Settings
 
@@ -100,6 +100,7 @@ A few things to choose (⌘,):
 - **Keep history for** 14, 7 or 3 days. Shortening it forgets the older days at once. The year of daily disk totals is kept either way.
 - **Scan the disk**: Daily (the default) runs one full scan of the disk a day, when the Mac has been idle for 5 minutes and is on power; if it is never on power it still scans once the last scan is two days old. Hourly scans every hour, which costs some battery. Off scans only when you press Reload.
 - **Appearance**: Match the Mac (the default) follows the Mac's light or dark appearance; Light and Dark keep Tidemark that way whatever the Mac does. The menu-bar window follows too.
+- **Keep recording when quit** registers a small background helper: Tidemark's own program, with no window, that records while the app is quit and starts when you log in. macOS lists it in System Settings › General › Login Items › Allow in the Background, and may ask you to allow it there. While both are running only one records; the other shows what it records.
 - **Open at Login** starts Tidemark in the menu bar when you log in. It is the same setting as System Settings › General › Login Items. It works in the installed app, not in a development build.
 
 ## Full Disk Access
@@ -137,4 +138,4 @@ Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memor
 | ⌘⇧R | Reveal the folder on screen in Finder |
 | ⌘-click a block | Reveal that folder in Finder |
 | ⌘K | Ask about the disk or performance |
-| ? | This help |
+| ? or ⌘? | This help (also Help › Tidemark Help in the menu bar; Help › Tidemark Website opens tidemark.davies.co.za) |

@@ -4,7 +4,7 @@
 // Settings: three things to choose. Everything else looks after itself.
 
 import { useEffect, useState, type ReactNode } from "react";
-import { api } from "./api";
+import { api, type Helper } from "./api";
 import { usePoll } from "./perf";
 import { saveTheme } from "./theme";
 import { Switch } from "./Tray";
@@ -30,6 +30,13 @@ export default function Settings({
       .catch(() => {});
   }, []);
   const hist = usePoll(api.historyInfo, 30_000);
+  const [helper, setHelper] = useState<Helper | null>(null);
+  useEffect(() => {
+    api
+      .helper()
+      .then(setHelper)
+      .catch(() => {});
+  }, []);
   const save = (s: S) =>
     api
       .saveSettings(s)
@@ -124,6 +131,27 @@ export default function Settings({
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="set">
+              <span className="t">
+                <span>Keep recording when quit</span>
+                <span className="muted">
+                  {!helper?.available
+                    ? "Available in the installed app (make install-app), not in a development build."
+                    : helper.needs_approval
+                      ? "macOS needs you to allow it: System Settings › General › Login Items › Allow in the Background."
+                      : "A small background helper records while Tidemark is quit, and starts when you log in."}
+                </span>
+              </span>
+              <span className={helper?.available ? "" : "disabled"}>
+                <Switch
+                  label="Keep recording when quit"
+                  on={!!helper?.on}
+                  onChange={(v) => {
+                    if (helper?.available) void api.setHelper(v).then(setHelper);
+                  }}
+                />
+              </span>
             </div>
             <div className="set">
               <span className="t">

@@ -13,7 +13,7 @@
 //! machine, not of one core.
 
 use crate::history::{self, AppUse, Minute};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -25,7 +25,7 @@ const LIVE_SECS: i64 = 15 * 60;
 /// Apps kept per minute, by CPU and by memory (the union is stored).
 const APPS_PER_MINUTE: usize = 8;
 
-#[derive(Serialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Sample {
     /// Unix milliseconds.
     pub t: i64,
@@ -40,7 +40,7 @@ pub struct Sample {
     pub thermal: i64,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 struct Live {
     samples: VecDeque<Sample>,
     /// Every app at the latest sample, busiest CPU first.
@@ -50,7 +50,7 @@ struct Live {
     /// Recording is paused until then (unix seconds).
     paused_until: Option<i64>,
     /// Incidents going on now: kind -> (id, started, peak).
-    open: HashMap<&'static str, (i64, i64, f64)>,
+    open: HashMap<String, (i64, i64, f64)>,
 }
 
 static LIVE: Mutex<Option<Live>> = Mutex::new(None);
@@ -192,7 +192,7 @@ impl Watch {
                     let since = *self.since_on.get_or_insert(now);
                     if now - since >= self.on_for {
                         let id = history::open_incident(self.kind, since, value, &snapshot());
-                        live(|l| l.open.insert(self.kind, (id, since, value)));
+                        live(|l| l.open.insert(self.kind.to_string(), (id, since, value)));
                         self.since_off = None;
                     }
                 } else {
@@ -202,7 +202,7 @@ impl Watch {
             Some((id, started, peak)) => {
                 if value > peak {
                     history::update_incident(id, value, now, Some(&snapshot()));
-                    live(|l| l.open.insert(self.kind, (id, started, value)));
+                    live(|l| l.open.insert(self.kind.to_string(), (id, started, value)));
                 }
                 if off {
                     let since = *self.since_off.get_or_insert(now);
@@ -294,11 +294,98 @@ impl Acc {
     }
 }
 
+// ---- one recorder at a time ----
+//
+// The app and the background helper (`Tidemark --record`, a launch agent: see recorder.rs) can
+// both be running. Whichever holds recorder.lock records; the other reads what it shares in
+// live.json. The lock goes with the process, so when the recorder stops, the other takes over
+// within seconds.
+
+/// This process holds the lock and is recording.
+static RECORDING: AtomicBool = AtomicBool::new(false);
+
+pub fn recording() -> bool {
+    RECORDING.load(Ordering::SeqCst)
+}
+
+fn try_lock() -> bool {
+    let dir = crate::cache::dir();
+    let _ = std::fs::create_dir_all(&dir);
+    let Ok(f) = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(dir.join("recorder.lock"))
+    else {
+        return false;
+    };
+    use std::os::fd::AsRawFd;
+    if unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        return false;
+    }
+    // Held for the rest of the process's life.
+    std::mem::forget(f);
+    true
+}
+
+fn live_path() -> std::path::PathBuf {
+    crate::cache::dir().join("live.json")
+}
+/// Touched by a process with a window on screen, so the recorder samples faster.
+fn watching_path() -> std::path::PathBuf {
+    crate::cache::dir().join("watching")
+}
+/// When recording is paused until, as the pause control left it (unix seconds; absent: not).
+fn pause_path() -> std::path::PathBuf {
+    crate::cache::dir().join("paused-until")
+}
+
+fn read_pause() -> Option<i64> {
+    std::fs::read_to_string(pause_path())
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .filter(|&t| t > history::now())
+}
+
+/// The recorder's state, for the process that isn't recording.
+fn share() {
+    let bytes = live(|l| serde_json::to_vec(l).unwrap_or_default());
+    let tmp = live_path().with_extension("tmp");
+    if std::fs::write(&tmp, bytes).is_ok() {
+        let _ = std::fs::rename(&tmp, live_path());
+    }
+}
+
+/// Reads what the recorder shared, if it is recent (a stopped recorder's file is stale).
+fn follow() {
+    let fresh = std::fs::metadata(live_path())
+        .and_then(|m| m.modified())
+        .is_ok_and(|t| t.elapsed().is_ok_and(|e| e.as_secs() < 30));
+    let shared: Option<Live> = fresh
+        .then(|| std::fs::read(live_path()).ok())
+        .flatten()
+        .and_then(|b| serde_json::from_slice(&b).ok());
+    if let Some(l) = shared {
+        *LIVE.lock().unwrap() = Some(l);
+    }
+    if FAST.load(Ordering::Relaxed) {
+        let _ = std::fs::write(watching_path(), b"");
+    }
+}
+
+/// Records if no other process is, else follows the one that does, taking over when it stops.
 pub fn start() {
-    history::close_dangling();
     std::thread::Builder::new()
         .name("monitor".into())
-        .spawn(run)
+        .spawn(|| loop {
+            if try_lock() {
+                RECORDING.store(true, Ordering::SeqCst);
+                history::close_dangling();
+                run();
+            }
+            follow();
+            std::thread::sleep(Duration::from_secs(2));
+        })
         .expect("the monitor thread starts");
 }
 
@@ -326,10 +413,21 @@ fn run() {
         Watch::new("swap", 0, 0, true),
     ];
     loop {
-        let every = if FAST.load(Ordering::Relaxed) { 2 } else { 5 };
+        // Faster while a window is on screen here, or in the other process.
+        let watched = std::fs::metadata(watching_path())
+            .and_then(|m| m.modified())
+            .is_ok_and(|t| t.elapsed().is_ok_and(|e| e.as_secs() < 10));
+        let every = if FAST.load(Ordering::Relaxed) || watched {
+            2
+        } else {
+            5
+        };
         std::thread::sleep(Duration::from_secs(every));
         let now = history::now();
-        if live(|l| l.paused_until.is_some_and(|p| p > now)) {
+        let paused = read_pause();
+        live(|l| l.paused_until = paused);
+        if paused.is_some() {
+            share();
             // Keep the counters current so the first sample after the pause covers 2-5 s, not
             // the whole pause.
             refresh(&mut sys, &mut nets);
@@ -431,6 +529,7 @@ fn run() {
             l.mem_total = mem_total;
             l.apps = apps;
         });
+        share();
     }
 }
 
@@ -644,6 +743,15 @@ pub async fn incidents(days: i64) -> Vec<history::Incident> {
 #[tauri::command]
 pub fn pause_recording(minutes: i64) -> Option<i64> {
     let until = (minutes > 0).then(|| history::now() + minutes * 60);
+    // A file, so the recorder sees it whichever process it is.
+    match until {
+        Some(t) => {
+            let _ = std::fs::write(pause_path(), t.to_string());
+        }
+        None => {
+            let _ = std::fs::remove_file(pause_path());
+        }
+    }
     live(|l| l.paused_until = until);
     until
 }

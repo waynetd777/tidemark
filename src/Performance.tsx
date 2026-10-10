@@ -12,6 +12,7 @@ import { api } from "./api";
 import { Area, Spark, type Pt } from "./charts";
 import { incidentTitle } from "./incidents";
 import { now, usePoll } from "./perf";
+import { index, useRemembered } from "./remember";
 import type { Incident, Live, Minute } from "./types";
 import { fmt, fmtAt, fmtRate, pct } from "./util";
 
@@ -53,7 +54,7 @@ export default function Performance({
   bar: (left: ReactNode) => ReactNode;
   ask: (q: string) => void;
 }) {
-  const [range, setRange] = useState(1);
+  const [range, setRange] = useRemembered("performance.range", 1, index(RANGES.length));
   const secs = RANGES[range].secs;
   const hist = usePoll(() => api.perf(secs, 480), 60_000, [secs]);
   const incidents = usePoll(() => api.incidents(14), 60_000);
