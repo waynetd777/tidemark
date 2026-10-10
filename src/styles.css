@@ -643,8 +643,17 @@ pre,
   background: var(--panel);
   transition: transform 0.15s;
 }
+/* An on/off button looks like any other button; only its switch, in the tide colour, says on. */
+.btn.toggle.on {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--text);
+}
+.btn.toggle.on:hover {
+  background: var(--panel-2);
+}
 .btn.toggle.on .sw {
-  background: var(--good);
+  background: var(--tide);
 }
 .btn.toggle.on .sw::after {
   transform: translateX(9px);

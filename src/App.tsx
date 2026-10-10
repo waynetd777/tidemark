@@ -831,32 +831,6 @@ export default function App() {
                 ))}
               </>
             )}
-
-            <div className="sec">Colour = folder level</div>
-            <div className="legend">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                <div key={i} className={`d${i}`}>
-                  <i />
-                  <span>Level {i}</span>
-                </div>
-              ))}
-              <div className="f">
-                <i />
-                <span>Loose files</span>
-              </div>
-              {showFree && volumeRoot && (
-                <div className="fr">
-                  <i />
-                  <span>Free space</span>
-                </div>
-              )}
-              {growthMaps && growthMaps.landed.size > 0 && (
-                <div className="gr">
-                  <i />
-                  <span>Grew this week</span>
-                </div>
-              )}
-            </div>
           </>
         )}
 
