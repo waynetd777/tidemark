@@ -6,7 +6,7 @@ Tidemark's screens, briefly. The app's own help (press `?`) has the detail.
 
 How your Mac is doing, at a glance.
 
-<a href="images/index.md#features"><picture><source media="(prefers-color-scheme: dark)" srcset="images/now-dark.png"><img alt="The Now screen" src="images/now-light.png" width="900"></picture></a>
+<a href="images/index.md#now"><picture><source media="(prefers-color-scheme: dark)" srcset="images/now-dark.png"><img alt="The Now screen" src="images/now-light.png" width="900"></picture></a>
 
 - A sentence on how the Mac is doing.
 - Eight cards: CPU, GPU, memory, disk I/O, network download, network upload and energy over the last hour; disk space over the last 24 hours.
@@ -17,7 +17,7 @@ How your Mac is doing, at a glance.
 
 Every live measure in detail, over 1 hour to 14 days.
 
-<a href="images/index.md#features"><picture><source media="(prefers-color-scheme: dark)" srcset="images/performance-dark.png"><img alt="The Performance screen" src="images/performance-light.png" width="900"></picture></a>
+<a href="images/index.md#performance"><picture><source media="(prefers-color-scheme: dark)" srcset="images/performance-dark.png"><img alt="The Performance screen" src="images/performance-light.png" width="900"></picture></a>
 
 - CPU, GPU and memory charts, with each point's peak as a band and the week's tidemark.
 - Memory split into apps, wired and compressed.
@@ -30,20 +30,20 @@ Every live measure in detail, over 1 hour to 14 days.
 
 What is using the disk: every folder as a block, sized by what it takes up. See [Disk Map](disk-map.md).
 
-<a href="images/index.md#features"><picture><source media="(prefers-color-scheme: dark)" srcset="images/disk-map-dark.png"><img alt="The Disk Map screen" src="images/disk-map-light.png" width="900"></picture></a>
+<a href="images/index.md#disk-map"><picture><source media="(prefers-color-scheme: dark)" srcset="images/disk-map-dark.png"><img alt="The Disk Map screen" src="images/disk-map-light.png" width="900"></picture></a>
 
 ## Trends (⌘4)
 
 The disk over weeks and months, and when the Mac is busiest.
 
-<a href="images/index.md#features"><picture><source media="(prefers-color-scheme: dark)" srcset="images/trends-dark.png"><img alt="The Trends screen" src="images/trends-light.png" width="900"></picture></a>
+<a href="images/index.md#trends"><picture><source media="(prefers-color-scheme: dark)" srcset="images/trends-dark.png"><img alt="The Trends screen" src="images/trends-light.png" width="900"></picture></a>
 
 - Disk space over 7 days to 12 months: how fast it grows, and when it would be full.
 - The folders that rose, CPU by weekday and hour, and the range's highs.
 
 ## Settings (⌘,)
 
-<a href="images/index.md#features"><picture><source media="(prefers-color-scheme: dark)" srcset="images/settings-dark.png"><img alt="Settings" src="images/settings-light.png" width="900"></picture></a>
+<a href="images/index.md#settings"><picture><source media="(prefers-color-scheme: dark)" srcset="images/settings-dark.png"><img alt="Settings" src="images/settings-light.png" width="900"></picture></a>
 
 | Setting | What it does |
 |---|---|
@@ -57,7 +57,7 @@ The disk over weeks and months, and when the Mac is busiest.
 
 Closing the window keeps Tidemark recording in the menu bar.
 
-<a href="images/index.md#features"><picture><source media="(prefers-color-scheme: dark)" srcset="images/menu-bar-dark.png"><img alt="The menu-bar window" src="images/menu-bar-light.png" width="380"></picture></a>
+<a href="images/index.md#menu-bar"><picture><source media="(prefers-color-scheme: dark)" srcset="images/menu-bar-dark.png"><img alt="The menu-bar window" src="images/menu-bar-light.png" width="380"></picture></a>
 
 - The icon is marked when something needs attention.
 - Click it for the live readings, what is using the most, and the action that helps.
