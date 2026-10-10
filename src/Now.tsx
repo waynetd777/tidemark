@@ -252,8 +252,10 @@ export default function Now({
                 label={`${c.name}, ${c.range.toLowerCase()}`}
               />
               <Legend line={c.line} mark={c.mark ? "Week's tidemark" : undefined} />
-              <div className="row between small">
-                <span className="muted">{c.high}</span>
+              <div className="row between small mfoot">
+                <span className="muted ell" title={c.high}>
+                  {c.high}
+                </span>
                 <button
                   className="link"
                   onClick={() => go(c.to)}

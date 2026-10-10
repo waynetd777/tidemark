@@ -1837,6 +1837,15 @@ pre,
   gap: 10px;
   padding: 20px 22px 16px;
 }
+/* The card's last line (its high and Details) sits at the foot of the card, on one line, so
+   Details is in the same place on every card in a row. */
+.metric .mfoot {
+  margin-top: auto;
+  flex-wrap: nowrap;
+}
+.metric .mfoot .link {
+  flex: none;
+}
 .metric .big .num {
   font-size: 40px;
 }
