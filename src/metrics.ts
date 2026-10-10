@@ -23,6 +23,8 @@ export function metricOf(label: string): Metric {
   if (l.startsWith("cpu")) return "cpu";
   if (l.startsWith("gpu")) return "gpu";
   if (l.startsWith("memory")) return "memory";
+  if (l.startsWith("network download")) return "download";
+  if (l.startsWith("network upload")) return "upload";
   if (l.startsWith("network")) return "network";
   if (l.startsWith("download")) return "download";
   if (l.startsWith("upload")) return "upload";

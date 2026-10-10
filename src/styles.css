@@ -1821,6 +1821,10 @@ pre,
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 18px;
 }
+/* An odd one out at the end takes its row rather than leaving a hole. */
+.cards4 > :last-child:nth-child(3n + 1) {
+  grid-column: 1 / -1;
+}
 .cards3 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

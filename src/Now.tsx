@@ -48,6 +48,9 @@ export default function Now({
   );
   const total = live?.mem_total || day?.points[0]?.mem_total || 1;
 
+  let upHigh: { v: number; t: number } | null = null;
+  for (const m of day?.points ?? [])
+    if (m.ts >= today && (!upHigh || m.net_out > upHigh.v)) upHigh = { v: m.net_out, t: m.ts };
   let ioHigh: { v: number; t: number } | null = null;
   for (const m of day?.points ?? [])
     if (m.ts >= today && (!ioHigh || m.disk_max > ioHigh.v)) ioHigh = { v: m.disk_max, t: m.ts };
@@ -198,18 +201,36 @@ export default function Now({
       to: "performance" as Screen,
     },
     {
-      name: "Network",
+      name: "Network download",
+      focus: "network",
       line: "Download, minute average",
       range: "Last hour",
       value: latest ? fmtRate(latest.net_in).split(" ")[0] : "–",
       unit: latest ? `${fmtRate(latest.net_in).split(" ")[1]} ↓` : "",
-      sub: latest
-        ? `↑ ${fmtRate(latest.net_out)} up · ${fmt(movedToday("net_in"))} down today`
-        : "",
+      sub: latest ? `${fmt(movedToday("net_in"))} down today` : "",
       pts: series("net_in"),
       max: Math.max(1, ...(hour?.points ?? []).map((m) => m.net_in)),
       mark: null,
       high: netHigh ? `Busiest ${fmtRate(netHigh.v)} at ${fmtAt(netHigh.t)}` : "Quiet so far today",
+      fmt: fmtRate,
+      to: "performance" as Screen,
+    },
+    {
+      name: "Network upload",
+      focus: "network",
+      line: "Upload, minute average",
+      range: "Last hour",
+      value: latest ? fmtRate(latest.net_out).split(" ")[0] : "–",
+      unit: latest ? `${fmtRate(latest.net_out).split(" ")[1]} ↑` : "",
+      sub: latest ? `${fmt(movedToday("net_out"))} up today` : "",
+      pts: upToNow(
+        (hour?.points ?? []).map((m) => ({ t: m.ts, v: m.net_out })),
+        latest ? latest.t / 1000 : undefined,
+        latest?.net_out,
+      ),
+      max: Math.max(1, ...(hour?.points ?? []).map((m) => m.net_out)),
+      mark: null,
+      high: upHigh ? `Busiest ${fmtRate(upHigh.v)} at ${fmtAt(upHigh.t)}` : "Quiet so far today",
       fmt: fmtRate,
       to: "performance" as Screen,
     },
@@ -318,7 +339,7 @@ export default function Now({
         </span>
         <button
           className="link"
-          onClick={() => go(c.to, c.name.toLowerCase())}
+          onClick={() => go(c.to, ("focus" in c ? c.focus : undefined) ?? c.name.toLowerCase())}
           title={
             c.to === "trends"
               ? "See the disk over weeks and months"
