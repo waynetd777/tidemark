@@ -976,12 +976,15 @@ pub async fn perf_brief() -> String {
     let energy = history::top_apps(day, now, By::Energy, 6);
     if energy.iter().any(|a| a.energy > 0.0) {
         out.push(format!(
-            "Apps that used the most energy over the last 24 h (average watts while running): {}.",
-            energy
-                .iter()
-                .map(|a| format!("{} {:.1} W", a.app, a.energy))
-                .collect::<Vec<_>>()
-                .join(", ")
+            "Apps' shares of the energy apps used over the last 24 h (the display and macOS use more): {}.",
+            {
+                let total: f64 = energy.iter().map(|a| a.energy).sum::<f64>().max(1e-9);
+                energy
+                    .iter()
+                    .map(|a| format!("{} {:.0}%", a.app, 100.0 * a.energy / total))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            }
         ));
     }
     for sl in history::sleeps(week).iter().take(3) {

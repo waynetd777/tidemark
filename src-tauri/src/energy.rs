@@ -152,9 +152,32 @@ impl Meter {
     }
 }
 
+/// rusage_info_v6 (sys/resource.h, macOS 13+), which libc does not define: v4, then the fields
+/// that carry ri_energy_nj, the energy the kernel measured the process using.
+#[cfg(target_os = "macos")]
+#[repr(C)]
+struct RusageV6 {
+    v4: libc::rusage_info_v4,
+    ri_flags: u64,
+    ri_user_ptime: u64,
+    ri_system_ptime: u64,
+    ri_pinstructions: u64,
+    ri_pcycles: u64,
+    ri_energy_nj: u64,
+    ri_penergy_nj: u64,
+    rest: [u64; 14],
+}
+
+/// The energy a process has used since it started, nanojoules: the kernel's measure where the
+/// Mac has one (v6), else what it bills the process for (v4).
 fn billed_energy(pid: i32) -> Option<u64> {
     #[cfg(target_os = "macos")]
     unsafe {
+        let mut v6: RusageV6 = std::mem::zeroed();
+        if libc::proc_pid_rusage(pid, 6, &mut v6 as *mut _ as *mut libc::rusage_info_t) == 0 {
+            let e = v6.ri_energy_nj;
+            return Some(if e > 0 { e } else { v6.v4.ri_billed_energy });
+        }
         let mut info: libc::rusage_info_v4 = std::mem::zeroed();
         let rc = libc::proc_pid_rusage(
             pid,
@@ -206,8 +229,15 @@ mod tests {
     }
 
     #[test]
-    fn this_process_has_billed_energy() {
+    fn work_shows_as_energy() {
         let pid = std::process::id() as i32;
-        assert!(billed_energy(pid).is_some());
+        let before = billed_energy(pid).unwrap();
+        let t = Instant::now();
+        let mut x = 0u64;
+        while t.elapsed() < Duration::from_millis(300) {
+            x = x.wrapping_mul(31).wrapping_add(7);
+        }
+        std::hint::black_box(x);
+        assert!(billed_energy(pid).unwrap() > before);
     }
 }

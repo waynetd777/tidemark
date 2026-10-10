@@ -157,7 +157,7 @@ export default function Now({
         ? { v: tm.power.value, label: `Tidemark ${fmtW(tm.power.value)} · ${fmtAt(tm.power.at)}` }
         : null,
       high: live?.apps_energy[0]?.energy
-        ? `Most now: ${live.apps_energy[0].app}, ${fmtW(live.apps_energy[0].energy)}`
+        ? `Using the most: ${live.apps_energy[0].app}`
         : "Energy appears after a few readings",
       fmt: fmtW,
       to: "performance" as Screen,

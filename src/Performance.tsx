@@ -403,7 +403,16 @@ export default function Performance({
                     <div className="brow" key={a.app}>
                       <div className="row between">
                         <span className="ell">{a.app}</span>
-                        <b>{fmtW(a.energy)}</b>
+                        <b>
+                          {Math.round(
+                            (100 * a.energy) /
+                              Math.max(
+                                1e-9,
+                                all.reduce((t, x) => t + x.energy, 0),
+                              ),
+                          )}
+                          %
+                        </b>
                       </div>
                       <span className="bar">
                         <i style={{ width: `${(100 * a.energy) / all[0].energy}%` }} />
@@ -411,7 +420,8 @@ export default function Performance({
                     </div>
                   ))}
                 <span className="muted small">
-                  Average while running. Only your own apps can be measured.
+                  Each app's share of the energy your apps used. The display and macOS itself use
+                  more, and only your own apps can be measured.
                 </span>
               </div>
             )}
