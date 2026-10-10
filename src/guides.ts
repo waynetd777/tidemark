@@ -8,7 +8,7 @@ import intro from "./help/intro.md?raw";
 import now from "./help/now.md?raw";
 import charts from "./help/charts.md?raw";
 import performance from "./help/performance.md?raw";
-import disk_space from "./help/disk-space.md?raw";
+import disk_map from "./help/disk-map.md?raw";
 import trends from "./help/trends.md?raw";
 import settings from "./help/settings.md?raw";
 import ask from "./help/ask.md?raw";
@@ -53,7 +53,7 @@ const PAGES = [
   now,
   charts,
   performance,
-  disk_space,
+  disk_map,
   trends,
   settings,
   ask,

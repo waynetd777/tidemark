@@ -1,8 +1,8 @@
-# Disk space
+# Disk Map
 
 What is using the disk, and what grew.
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="images/disk-space-dark.png"><img alt="The Disk Space screen" src="images/disk-space-light.png" width="900"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="images/disk-map-dark.png"><img alt="The Disk Map screen" src="images/disk-map-light.png" width="900"></picture>
 
 ## The map
 

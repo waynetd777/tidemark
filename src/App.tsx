@@ -113,7 +113,7 @@ const NAV: { id: Screen; label: string; key: string; icon: ReactNode }[] = [
   },
   {
     id: "disk",
-    label: "Disk Space",
+    label: "Disk Map",
     key: "⌘3",
     icon: (
       <svg

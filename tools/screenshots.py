@@ -55,7 +55,7 @@ MEM_TOTAL = 24 * GB
 SCENES = [
     {"name": "now", "screen": "now", "height": 1290},
     {"name": "performance", "screen": "performance", "height": 1000},
-    {"name": "disk-space", "screen": "disk", "height": 900},
+    {"name": "disk-map", "screen": "disk", "height": 900},
     {"name": "trends", "screen": "trends", "height": 1180},
     {"name": "settings", "screen": "settings", "height": 640},
     {"name": "menu-bar", "tray": True},

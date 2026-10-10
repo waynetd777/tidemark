@@ -1,4 +1,4 @@
-## Disk Space
+## Disk Map
 
 What is using the disk: every folder as a block inside its parent, sized by what it takes up.
 

@@ -43,7 +43,7 @@ const GUIDE_SECTIONS: [&str; 8] = [
 /// The in-app help's pages (src/help/), whose sections the prompt draws on.
 const HELP: [&str; 4] = [
     include_str!("../../../src/help/performance.md"),
-    include_str!("../../../src/help/disk-space.md"),
+    include_str!("../../../src/help/disk-map.md"),
     include_str!("../../../src/help/trends.md"),
     include_str!("../../../src/help/settings.md"),
 ];

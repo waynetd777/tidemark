@@ -26,11 +26,11 @@ Every live measure in detail, over 1 hour to 14 days.
 - **Incidents**: CPU above 90% for 30 seconds, memory pressure red, or swap up 1 GB in 10 minutes, each with a snapshot.
 - Apps that crashed or hung, from macOS's own reports.
 
-## Disk Space (⌘3)
+## Disk Map (⌘3)
 
-What is using the disk: every folder as a block, sized by what it takes up. See [Disk space](disk-space.md).
+What is using the disk: every folder as a block, sized by what it takes up. See [Disk Map](disk-map.md).
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="images/disk-space-dark.png"><img alt="The Disk Space screen" src="images/disk-space-light.png" width="900"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="images/disk-map-dark.png"><img alt="The Disk Map screen" src="images/disk-map-light.png" width="900"></picture>
 
 ## Trends (⌘4)
 

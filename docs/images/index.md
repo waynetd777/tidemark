@@ -14,13 +14,13 @@ On [Features](../features.md).
 
 - Now: [light](now-light.png) · [dark](now-dark.png)
 - Performance: [light](performance-light.png) · [dark](performance-dark.png)
-- Disk Space: [light](disk-space-light.png) · [dark](disk-space-dark.png)
+- Disk Map: [light](disk-map-light.png) · [dark](disk-map-dark.png)
 - Trends: [light](trends-light.png) · [dark](trends-dark.png)
 - Settings: [light](settings-light.png) · [dark](settings-dark.png)
 - The menu-bar window: [light](menu-bar-light.png) · [dark](menu-bar-dark.png)
 
 ## Disk space
 
-On [Disk space](../disk-space.md).
+On [Disk space](../disk-map.md).
 
-- Disk Space: [light](disk-space-light.png) · [dark](disk-space-dark.png)
+- Disk Map: [light](disk-map-light.png) · [dark](disk-map-dark.png)

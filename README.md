@@ -8,7 +8,7 @@ A macOS app that records what is using your Mac's disk and how hard the Mac is w
 
 - **Now**: CPU, GPU, memory, disk I/O, network, energy and disk space at a glance, with the week's highs.
 - **Performance**: every measure over 1 hour to 14 days, what each app was doing at any moment, incidents and crashes.
-- **Disk Space**: every folder as a block sized by what it takes up, with this week's growth.
+- **Disk Map**: every folder as a block sized by what it takes up, with this week's growth.
 - **Trends**: disk space over 7 days to a year, when it would fill, and when the Mac is busiest.
 - **Menu bar** and a background helper keep it recording; **Ask** puts it all to an AI already signed in on your Mac.
 
@@ -26,7 +26,7 @@ Apple Silicon, macOS 13 or later.
 |---|---|
 | [Features](docs/features.md) | Each screen, briefly, with its screenshot |
 | [Recording](docs/recording.md) | Sampling, the history and what it keeps, the background helper, sleep and gaps, crashes |
-| [Disk space](docs/disk-space.md) | The map, growth, free space, cloud folders, scanning, Full Disk Access |
+| [Disk Map](docs/disk-map.md) | The map, growth, free space, cloud folders, scanning, Full Disk Access |
 | [Development](docs/development.md) | Building, checks, screenshots, signing, where things live |
 
 The app's own help (press `?`) covers every screen in detail.
