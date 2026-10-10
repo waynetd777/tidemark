@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { Pt } from "./charts";
-import type { Live } from "./types";
+import type { Live, Sleep } from "./types";
 
 /// Calls `load` now and every `ms`, keeping the last answer. A failed call keeps what was there.
 /// `deps` restart it (a new range, a new root).
@@ -55,4 +55,38 @@ export const now = () => Math.floor(Date.now() / 1000);
 export function upToNow(pts: Pt[], t: number | undefined, v: number | null | undefined): Pt[] {
   if (t == null || v == null || (pts.length && pts[pts.length - 1].t >= t)) return pts;
   return [...pts, { t, v }];
+}
+
+/// A stretch of a chart with no readings: the Mac asleep, or Tidemark not recording (quit,
+/// paused, or not yet started).
+export interface Gap {
+  from: number;
+  to: number;
+  kind: "sleep" | "off";
+}
+
+/// The gaps in a series of reading times (unix seconds) across `domain`: anywhere readings stop
+/// for more than three of their usual steps (three minutes at least), and before the first. A gap
+/// mostly covered by a recorded sleep is sleep.
+export function gapsOf(ts: number[], domain: [number, number], sleeps: Sleep[]): Gap[] {
+  const diffs = ts
+    .slice(1)
+    .map((t, i) => t - ts[i])
+    .sort((a, b) => a - b);
+  const step = diffs.length ? diffs[Math.floor(diffs.length / 2)] : 60;
+  const min = Math.max(3 * step, 180);
+  const raw: [number, number][] = [];
+  if (!ts.length) raw.push(domain);
+  else {
+    if (ts[0] - domain[0] > min) raw.push([domain[0], ts[0]]);
+    for (let i = 1; i < ts.length; i++)
+      if (ts[i] - ts[i - 1] > min) raw.push([ts[i - 1] + step, ts[i]]);
+  }
+  return raw.map(([from, to]) => {
+    const asleep = sleeps.reduce(
+      (s, sl) => s + Math.max(0, Math.min(to, sl.ended) - Math.max(from, sl.started)),
+      0,
+    );
+    return { from, to, kind: asleep >= 0.5 * (to - from) ? "sleep" : "off" };
+  });
 }

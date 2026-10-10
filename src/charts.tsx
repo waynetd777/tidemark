@@ -5,7 +5,9 @@
 // mark of the period) that runs through the whole app. Drawn as SVG at the measured width so
 // lines stay 2px and markers round.
 
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { Gap } from "./perf";
+import { fmtAt, fmtMins } from "./util";
 
 export interface Pt {
   /// Unix seconds.
@@ -146,6 +148,8 @@ export interface AreaProps {
   /// Each point's peak (the busiest reading inside a minute), drawn as a faint band behind the
   /// line of averages, so a short spike, the peak dot and the tidemark have something to sit on.
   hi?: Pt[];
+  /// Stretches with no readings, shaded and labelled for what they were (gapsOf in perf.ts).
+  gaps?: Gap[];
   /// The time span across the chart (unix seconds): the range asked for, so a reading sits at
   /// its real time and the labels under the chart are true even when the record is shorter.
   domain?: [number, number];
@@ -170,7 +174,9 @@ export function Area({
   axis = true,
   domain,
   hi: band,
+  gaps,
 }: AreaProps) {
+  const hatch = useId();
   const [ref, W] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   const H = height;
@@ -234,6 +240,35 @@ export function Area({
             <line className="gridl" x1={left} x2={W} y1={0.5} y2={0.5} />
             <line className="gridl" x1={left} x2={W} y1={H / 2} y2={H / 2} />
             <line className="basel" x1={left} x2={W} y1={H - 0.5} y2={H - 0.5} />
+            <defs>
+              <pattern id={hatch} width="6" height="6" patternUnits="userSpaceOnUse">
+                <path d="M0 6L6 0" className="hatchl" />
+              </pattern>
+            </defs>
+            {(gaps ?? []).map((g, i) => {
+              const gx = Math.max(left, x(g.from));
+              const gw = Math.max(0, Math.min(W, x(g.to)) - gx);
+              if (gw < 1) return null;
+              const what = g.kind === "sleep" ? "Asleep" : "Not recording";
+              return (
+                <g key={`g${i}`}>
+                  <rect
+                    className={`gap ${g.kind}`}
+                    x={gx}
+                    y={0}
+                    width={gw}
+                    height={H}
+                    fill={g.kind === "off" ? `url(#${hatch})` : undefined}
+                    data-tip={`${what} · ${fmtAt(g.from)} to ${fmtAt(g.to)} · ${fmtMins(Math.round((g.to - g.from) / 60))}`}
+                  />
+                  {gw >= 64 && (
+                    <text className="gaplabel" x={gx + gw / 2} y={14} textAnchor="middle">
+                      {what}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
             {bandPaths.map((d, i) => (
               <path key={`b${i}`} d={d} fill="var(--tide)" fillOpacity={0.1} />
             ))}
@@ -394,7 +429,18 @@ export function Heatmap({ grid, fmt }: { grid: (number | null)[][]; fmt: (v: num
 
 /// What a chart's marks mean: its line (always), the band of each minute's peak and the dashed
 /// tidemark where the chart has them.
-export function Legend({ line, band, mark }: { line: string; band?: string; mark?: string }) {
+export function Legend({
+  line,
+  band,
+  mark,
+  gaps,
+}: {
+  line: string;
+  band?: string;
+  mark?: string;
+  /// The chart's gaps: a key for each kind it has.
+  gaps?: Gap[];
+}) {
   return (
     <span className="chartlegend muted small">
       <span className="lk">
@@ -415,6 +461,18 @@ export function Legend({ line, band, mark }: { line: string; band?: string; mark
             <line className="lkmark" x1="0" x2="18" y1="3" y2="3" strokeDasharray="4 3" />
           </svg>
           {mark}
+        </span>
+      )}
+      {gaps?.some((g) => g.kind === "sleep") && (
+        <span className="lk">
+          <i className="sleepkey" aria-hidden="true" />
+          Asleep
+        </span>
+      )}
+      {gaps?.some((g) => g.kind === "off") && (
+        <span className="lk">
+          <i className="offkey" aria-hidden="true" />
+          Not recording
         </span>
       )}
     </span>

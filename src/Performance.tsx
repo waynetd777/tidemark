@@ -11,7 +11,7 @@ import { metricOf } from "./metrics";
 import { api } from "./api";
 import { Area, Legend, Spark, type Pt } from "./charts";
 import { incidentTitle } from "./incidents";
-import { now, upToNow, usePoll } from "./perf";
+import { gapsOf, now, upToNow, usePoll } from "./perf";
 import { index, useRemembered } from "./remember";
 import type { Incident, Live, Minute } from "./types";
 import { batteryLine, fmt, fmtAt, fmtMins, fmtRate, fmtW, pct } from "./util";
@@ -74,6 +74,12 @@ export default function Performance({
   const rangeApps = usePoll(() => api.appsBetween(now() - secs, now()), 60_000, [secs]);
   const sleeps = usePoll(() => api.sleeps(Math.max(1, Math.ceil(secs / 86400))), 60_000, [secs]);
   const latest = live?.samples[live.samples.length - 1];
+  // Where the record has holes in this range, and why.
+  const gaps = gapsOf(
+    points.map((m) => m.ts),
+    [now() - secs, now()],
+    sleeps ?? [],
+  );
   const total = live?.mem_total || points[0]?.mem_total || 1;
   const tm = hist?.tidemarks ?? {};
 
@@ -240,6 +246,7 @@ export default function Performance({
                   line={`${c.name}, minute average`}
                   band="Each minute's peak"
                   mark="Week's tidemark"
+                  gaps={gaps}
                 />
               </div>
               {c.pts.length ? (
@@ -255,6 +262,7 @@ export default function Performance({
                   extra={c.extra}
                   xLabels={xLabels(secs)}
                   domain={[now() - secs, now()]}
+                  gaps={gaps}
                   label={`${c.name} over the last ${RANGES[range].label}`}
                   onPick={(p) => setPicked({ t: p.t, why: c.why })}
                 />
@@ -277,7 +285,7 @@ export default function Performance({
                   : ""}
               </span>
               <span className="grow" />
-              <Legend line="Average per minute, each way" />
+              <Legend line="Average per minute, each way" gaps={gaps} />
             </div>
             <div className="netpair">
               {net.map((n) => (
@@ -295,6 +303,7 @@ export default function Performance({
                       height={100}
                       peak={netPeak(n.k)}
                       domain={[now() - secs, now()]}
+                      gaps={gaps}
                       xLabels={xLabels(secs, 3)}
                       fmt={fmtRate}
                       fmtT={(t) => fmtAt(t)}
@@ -324,6 +333,7 @@ export default function Performance({
                 line="Power, minute average"
                 band="Each minute's peak"
                 mark="Week's tidemark"
+                gaps={gaps}
               />
             </div>
             <div className="energygrid">
@@ -371,6 +381,7 @@ export default function Performance({
                     fmtT={(t) => fmtAt(t)}
                     name="Power"
                     domain={[now() - secs, now()]}
+                    gaps={gaps}
                     xLabels={xLabels(secs, 4)}
                     label={`Power drawn over the last ${RANGES[range].label}`}
                   />

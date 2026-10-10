@@ -10,7 +10,7 @@ import { metricOf } from "./metrics";
 import { api } from "./api";
 import { Area, Legend, type Pt } from "./charts";
 import { incidentTitle, incidentWhy } from "./incidents";
-import { now, startOfToday, upToNow, usePoll } from "./perf";
+import { gapsOf, now, startOfToday, upToNow, usePoll } from "./perf";
 import type { GrowthInfo, Live, Screen } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
@@ -34,9 +34,15 @@ export default function Now({
   const day = usePoll(() => api.perf(DAY, 288), 60_000);
   const disk = usePoll(() => api.diskTrend(7), 300_000);
   const incidents = usePoll(() => api.incidents(7), 60_000);
+  const sleeps = usePoll(() => api.sleeps(1), 60_000);
   const latest = live?.samples[live.samples.length - 1];
   const today = startOfToday();
   const nowS = now();
+  const dayGaps = gapsOf(
+    (day?.points ?? []).map((m) => m.ts),
+    [nowS - DAY, nowS],
+    sleeps ?? [],
+  );
   const total = live?.mem_total || day?.points[0]?.mem_total || 1;
 
   const series = (k: "cpu" | "mem" | "net_in"): Pt[] =>
@@ -230,13 +236,18 @@ export default function Now({
         height={150}
         axis={false}
         domain={[nowS - (c.range === "Last 7 days" ? 7 : 1) * DAY, nowS]}
+        gaps={c.name === "Disk" ? undefined : dayGaps}
         mark={c.mark}
         fmt={c.fmt}
         fmtT={(t) => fmtAt(t)}
         name={c.name}
         label={`${c.name}, ${c.range.toLowerCase()}`}
       />
-      <Legend line={c.line} mark={c.mark ? "Week's tidemark" : undefined} />
+      <Legend
+        line={c.line}
+        mark={c.mark ? "Week's tidemark" : undefined}
+        gaps={c.name === "Disk" ? undefined : dayGaps}
+      />
       <div className="row between small mfoot">
         <span className="muted ell" title={c.high}>
           {c.high}

@@ -79,7 +79,7 @@ The panel on the right is a **snapshot**: the apps that used the most at the cho
 
 **Incidents** are recorded when something crosses a line: CPU above 90% for 30 seconds, memory pressure going red (critical), or swap growing by 1 GB within 10 minutes. Each keeps a snapshot of what every app was doing at its peak. Click one to jump to it.
 
-Tidemark samples every 2 seconds while a window is open and every 5 seconds otherwise, and keeps one row a minute: the minute's average and its peak, so a short spike is never averaged away. Time the Mac spent asleep is a gap in the charts, not a dip to zero.
+Tidemark samples every 2 seconds while a window is open and every 5 seconds otherwise, and keeps one row a minute: the minute's average and its peak, so a short spike is never averaged away. Time the Mac spent asleep is a gap in the charts, not a dip to zero. Gaps are shaded for what they were: a soft band marked Asleep, or a hatched band marked Not recording (Tidemark was quit or paused, or had not started yet). Point at one for its times.
 
 ## Trends
 
