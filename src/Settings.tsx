@@ -52,6 +52,48 @@ export default function Settings({
           <div className="group">
             <div className="set">
               <span className="t">
+                <span>Keep recording when quit</span>
+                <span className="muted">
+                  {!helper?.available
+                    ? "Available in the installed app (make install-app), not in a development build."
+                    : helper.needs_approval
+                      ? "macOS needs you to allow it: System Settings › General › Login Items › Allow in the Background."
+                      : "A small background helper records while Tidemark is quit, and starts when you log in."}
+                </span>
+              </span>
+              <span className={helper?.available ? "" : "disabled"}>
+                <Switch
+                  label="Keep recording when quit"
+                  on={!!helper?.on}
+                  onChange={(v) => {
+                    if (helper?.available) void api.setHelper(v).then(setHelper);
+                  }}
+                />
+              </span>
+            </div>
+            <div className="set">
+              <span className="t">
+                <span>Open at Login</span>
+                <span className="muted">
+                  {login[0]
+                    ? helper?.on
+                      ? "Opens Tidemark in the menu bar when you log in. The background helper records either way."
+                      : "Tidemark records only while it is running, so this keeps it recording from login."
+                    : "Available in the installed app (make install-app), not in a development build."}
+                </span>
+              </span>
+              <span className={login[0] ? "" : "disabled"}>
+                <Switch
+                  label="Open at Login"
+                  on={login[1]}
+                  onChange={(v) => {
+                    if (login[0]) void api.setLoginItem(v).then((r) => setLogin([true, r]));
+                  }}
+                />
+              </span>
+            </div>
+            <div className="set">
+              <span className="t">
                 <span>Keep history for</span>
                 <span className="muted">
                   Every app, every minute. Disk totals and top folders are kept for a year
@@ -131,48 +173,6 @@ export default function Settings({
                   </button>
                 ))}
               </div>
-            </div>
-            <div className="set">
-              <span className="t">
-                <span>Keep recording when quit</span>
-                <span className="muted">
-                  {!helper?.available
-                    ? "Available in the installed app (make install-app), not in a development build."
-                    : helper.needs_approval
-                      ? "macOS needs you to allow it: System Settings › General › Login Items › Allow in the Background."
-                      : "A small background helper records while Tidemark is quit, and starts when you log in."}
-                </span>
-              </span>
-              <span className={helper?.available ? "" : "disabled"}>
-                <Switch
-                  label="Keep recording when quit"
-                  on={!!helper?.on}
-                  onChange={(v) => {
-                    if (helper?.available) void api.setHelper(v).then(setHelper);
-                  }}
-                />
-              </span>
-            </div>
-            <div className="set">
-              <span className="t">
-                <span>Open at Login</span>
-                <span className="muted">
-                  {login[0]
-                    ? helper?.on
-                      ? "Opens Tidemark in the menu bar when you log in. The background helper records either way."
-                      : "Tidemark records only while it is running, so this keeps it recording from login."
-                    : "Available in the installed app (make install-app), not in a development build."}
-                </span>
-              </span>
-              <span className={login[0] ? "" : "disabled"}>
-                <Switch
-                  label="Open at Login"
-                  on={login[1]}
-                  onChange={(v) => {
-                    if (login[0]) void api.setLoginItem(v).then((r) => setLogin([true, r]));
-                  }}
-                />
-              </span>
             </div>
           </div>
         )}
