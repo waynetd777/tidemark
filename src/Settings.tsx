@@ -158,7 +158,9 @@ export default function Settings({
                 <span>Open at Login</span>
                 <span className="muted">
                   {login[0]
-                    ? "Tidemark records only while it is running."
+                    ? helper?.on
+                      ? "Opens Tidemark in the menu bar when you log in. The background helper records either way."
+                      : "Tidemark records only while it is running, so this keeps it recording from login."
                     : "Available in the installed app (make install-app), not in a development build."}
                 </span>
               </span>
