@@ -15,6 +15,14 @@ const PATHS: Record<Metric, React.ReactNode> = {
       <path d="M6 1.8V4M10 1.8V4M6 12v2.2M10 12v2.2M1.8 6H4M1.8 10H4M12 6h2.2M12 10h2.2" />
     </>
   ),
+  // A graphics card: a board with a fan.
+  gpu: (
+    <>
+      <rect x="1.8" y="3.5" width="12.4" height="8" rx="1.5" />
+      <circle cx="6" cy="7.5" r="2" />
+      <path d="M10 6h2.5M10 9h2.5M3.5 11.5v2" />
+    </>
+  ),
   // A memory module.
   memory: (
     <>

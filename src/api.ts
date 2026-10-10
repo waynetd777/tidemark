@@ -6,6 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AppInfo,
   AppUse,
+  Crash,
   DiskTrend,
   FileEntry,
   GrowthInfo,
@@ -68,6 +69,7 @@ export const api = {
   appsBetween: (from: number, to: number) =>
     invoke<{ by_cpu: AppUse[]; by_mem: AppUse[]; by_energy: AppUse[] }>("perf_apps", { from, to }),
   sleeps: (days: number) => invoke<Sleep[]>("sleeps", { days }),
+  crashes: (days: number) => invoke<Crash[]>("crashes", { days }),
   incidents: (days: number) => invoke<Incident[]>("incidents", { days }),
   pauseRecording: (minutes: number) => invoke<number | null>("pause_recording", { minutes }),
   macInfo: () => invoke<MacInfo>("mac_info"),

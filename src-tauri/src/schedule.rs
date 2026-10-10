@@ -62,6 +62,10 @@ fn upkeep(last_prune: &mut i64, scanning: bool, scan_disk: &dyn Fn()) {
             history::add_disk_used(now, v.used, v.total);
         }
     }
+    // Crash and hang reports, every 5 minutes (a directory listing; only new files are read).
+    if now % 300 < 60 {
+        crate::crashes::collect(settings::get().history_days);
+    }
     if now - *last_prune >= 6 * 3600 {
         history::prune(settings::get().history_days);
         *last_prune = now;

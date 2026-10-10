@@ -14,12 +14,14 @@ export type Metric =
   | "diskio"
   | "thermal"
   | "energy"
-  | "battery";
+  | "battery"
+  | "gpu";
 
 /// The icon for a measure's label ("CPU", "Disk I/O", "Memory high", "Disk used", ...).
 export function metricOf(label: string): Metric {
   const l = label.toLowerCase();
   if (l.startsWith("cpu")) return "cpu";
+  if (l.startsWith("gpu")) return "gpu";
   if (l.startsWith("memory")) return "memory";
   if (l.startsWith("network")) return "network";
   if (l.startsWith("download")) return "download";

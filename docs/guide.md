@@ -25,7 +25,9 @@ Every chart in Tidemark reads the same way, and its legend says what each mark i
 
 ## Performance
 
-CPU and memory over 1 hour, 24 hours, 7 or 14 days (Tidemark remembers the range you chose), with the week's tidemark and the range's peak. Click a chart to see what every app was doing at that moment.
+CPU, memory and, where the Mac reports it, the **GPU** over 1 hour, 24 hours, 7 or 14 days (Tidemark remembers the range you chose), with the week's tidemark and the range's peak. Click a chart to see what every app was doing at that moment.
+
+Memory's line is everything in use; the line under its heading, and the readout at any moment, splits it as Activity Monitor does: memory apps are using, **wired** memory the system keeps for itself and never moves to disk, and **compressed** memory macOS has squeezed to make room. When compressed and swap grow while pressure goes red, the Mac is short of memory. The GPU's line is how busy the graphics processor is, which video, games, 3D and machine-learning work load; apps' shares of it are not shown, because macOS doesn't report them.
 
 **Network** shows download and upload as two charts on the same scale, each with its busiest moment, and how much moved each way in the range. It counts every network interface except the Mac talking to itself.
 
@@ -36,6 +38,8 @@ Smaller tiles show swap, disk reads and writes and the Mac's thermal state.
 The panel on the right is a **snapshot**: the apps that used the most at the chosen moment (the range's CPU peak until you click somewhere). Processes are grouped by the app they belong to, so Chrome's many helpers count as Google Chrome. CPU is a share of the whole Mac, not of one core. **Ask why this happened** puts the moment to Ask; **Activity Monitor** opens macOS's own, live.
 
 **Incidents** are recorded when something crosses a line: CPU above 90% for 30 seconds, memory pressure going red (critical), or swap growing by 1 GB within 10 minutes. Each keeps a snapshot of what every app was doing at its peak. Click one to jump to it.
+
+**Crashes and hangs** lists the apps that crashed or stopped responding in the last 14 days, how often, and when last, from the reports macOS writes (the ones Console shows under Crash Reports). Faults macOS only noted, which the app survived, are left out.
 
 Tidemark samples the whole Mac every 2 seconds while its window is in front or the menu-bar window is open, and every 5 seconds otherwise, when it reads each app only every 15 seconds; behind other windows the screen itself refreshes at most once a minute. It keeps one row a minute: the minute's average and its peak, so a short spike is never averaged away.
 
@@ -116,7 +120,7 @@ At the foot, the range's highs for CPU, memory, swap and the disk, and questions
 
 Everything Tidemark remembers is in one file, ~/Library/Application Support/Tidemark/history.sqlite, on this Mac only:
 
-- Every minute's CPU, memory, swap, memory pressure, disk, network, power and battery, with the busiest apps of that minute, every incident and every sleep, for the days Settings keeps (14 at most).
+- Every minute's CPU, GPU, memory (and what it was made of), swap, memory pressure, disk, network, power and battery, with the busiest apps of that minute, every incident, every sleep and every crash or hang, for the days Settings keeps (14 at most).
 - The disk's used space about every hour, and the folders of 100 MB or more from each scan, for the same days.
 - One row a day of the disk's used space and its biggest folders, for a year whatever the setting, so the Trends screen can go back 12 months.
 

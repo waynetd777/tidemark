@@ -72,6 +72,7 @@ export default function Performance({
   );
   // The range's energy: what used the most, and the times the Mac slept.
   const rangeApps = usePoll(() => api.appsBetween(now() - secs, now()), 60_000, [secs]);
+  const crashList = usePoll(() => api.crashes(14), 300_000);
   const sleeps = usePoll(() => api.sleeps(Math.max(1, Math.ceil(secs / 86400))), 60_000, [secs]);
   const latest = live?.samples[live.samples.length - 1];
   // Where the record has holes in this range, and why.
@@ -128,13 +129,18 @@ export default function Performance({
         ? { v: tm.cpu.value, label: `Tidemark ${pct(tm.cpu.value)} · ${fmtAt(tm.cpu.at)}` }
         : null,
       peak: cpuPeak ? { ...cpuPeak, label: `${pct(cpuPeak.v)} · ${fmtAt(cpuPeak.t)}` } : null,
-      extra: (i: number) => <span>Peak {pct(points[i].cpu_max)}</span>,
+      extra: (i: number) =>
+        points[i] ? <span>Peak {pct(points[i].cpu_max)}</span> : <span>Now</span>,
       why: "cpu",
     },
     {
       name: "Memory",
       now: latest ? fmt(latest.mem) : "–",
-      sub: `of ${fmt(total)} · pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}`,
+      sub:
+        `of ${fmt(total)} · pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}` +
+        (latest?.mem_parts
+          ? ` · apps ${fmt(latest.mem_parts.app)}, wired ${fmt(latest.mem_parts.wired)}, compressed ${fmt(latest.mem_parts.compressed)}`
+          : ""),
       pts: ser("mem"),
       band: ser("mem_max"),
       max: total,
@@ -143,13 +149,63 @@ export default function Performance({
         ? { v: tm.mem.value, label: `Tidemark ${fmt(tm.mem.value)} · ${fmtAt(tm.mem.at)}` }
         : null,
       peak: memPeak ? { ...memPeak, label: `${fmt(memPeak.v)} · ${fmtAt(memPeak.t)}` } : null,
-      extra: (i: number) => (
-        <span>
-          Peak {fmt(points[i].mem_max)} · swap {fmt(points[i].swap_max)}
-        </span>
-      ),
+      extra: (i: number) => {
+        const m = points[i];
+        if (!m) return <span>Now</span>;
+        return (
+          <>
+            <span>
+              Peak {fmt(m.mem_max)} · swap {fmt(m.swap_max)}
+            </span>
+            {m.mem_app != null && (
+              <span>
+                Apps {fmt(m.mem_app)} · wired {fmt(m.mem_wired ?? 0)} · compressed{" "}
+                {fmt(m.mem_comp ?? 0)}
+              </span>
+            )}
+          </>
+        );
+      },
       why: "mem",
     },
+    // The GPU, where one reports how busy it is.
+    ...(points.some((m) => m.gpu != null) || latest?.gpu != null
+      ? [
+          {
+            name: "GPU",
+            now: latest?.gpu != null ? pct(latest.gpu) : "–",
+            sub: "graphics, video and machine learning",
+            pts: upToNow(
+              points.filter((m) => m.gpu != null).map((m) => ({ t: m.ts, v: m.gpu as number })),
+              latest ? latest.t / 1000 : undefined,
+              latest?.gpu,
+            ),
+            band: upToNow(
+              points
+                .filter((m) => m.gpu_max != null)
+                .map((m) => ({ t: m.ts, v: m.gpu_max as number })),
+              latest ? latest.t / 1000 : undefined,
+              latest?.gpu,
+            ),
+            max: 100,
+            fmt: pct,
+            mark: tm.gpu
+              ? { v: tm.gpu.value, label: `Tidemark ${pct(tm.gpu.value)} · ${fmtAt(tm.gpu.at)}` }
+              : null,
+            peak: (() => {
+              const m = points.reduce<Minute | null>(
+                (b, x) => ((x.gpu_max ?? -1) > (b?.gpu_max ?? -1) ? x : b),
+                null,
+              );
+              return m?.gpu_max != null
+                ? { t: m.ts, v: m.gpu_max, label: `${pct(m.gpu_max)} · ${fmtAt(m.ts)}` }
+                : null;
+            })(),
+            extra: () => null,
+            why: "cpu",
+          },
+        ]
+      : []),
   ];
 
   const tail = points.slice(-60);
@@ -575,6 +631,35 @@ export default function Performance({
             <span className="muted small">
               Each one keeps a snapshot of what every app was doing.
             </span>
+          </div>
+          <div className="col gap6">
+            <span className="eyebrow">Crashes and hangs · last 14 days</span>
+            {(() => {
+              const by = new Map<string, { app: string; kind: string; n: number; last: number }>();
+              for (const c of crashList ?? []) {
+                const k = `${c.app}\u0000${c.kind}`;
+                const e = by.get(k) ?? { app: c.app, kind: c.kind, n: 0, last: 0 };
+                e.n += 1;
+                e.last = Math.max(e.last, c.ts);
+                by.set(k, e);
+              }
+              const rows = [...by.values()].sort((a, b) => b.last - a.last);
+              if (!rows.length)
+                return <span className="muted small">None. Nothing crashed or hung.</span>;
+              return rows.slice(0, 6).map((r) => (
+                <div className="incident static" key={`${r.app}${r.kind}`}>
+                  <span>
+                    <b>{r.app}</b>{" "}
+                    <span className="muted">
+                      {r.kind === "hang" ? "hung" : "crashed"}
+                      {r.n > 1 ? ` ${r.n} times` : ""}
+                    </span>
+                  </span>
+                  <span className="muted">{fmtAt(r.last)}</span>
+                </div>
+              ));
+            })()}
+            <span className="muted small">From the reports macOS keeps in Console.</span>
           </div>
           <div className="row wrap gap8">
             <button

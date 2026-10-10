@@ -2243,6 +2243,9 @@ pre,
   text-align: left;
   font-size: 12.5px;
 }
+.incident.static:hover b {
+  color: inherit;
+}
 .incident:hover b {
   color: var(--tide-ink);
 }

@@ -6,6 +6,7 @@
 
 mod assistant;
 mod cache;
+mod crashes;
 mod disk;
 mod energy;
 mod files;
@@ -19,6 +20,7 @@ mod recorder;
 mod scan;
 mod schedule;
 mod settings;
+mod system;
 mod tray;
 mod trends;
 mod volume;
@@ -139,6 +141,7 @@ pub fn run() {
             monitor::perf_apps,
             monitor::incidents,
             monitor::sleeps,
+            crashes::crashes,
             monitor::pause_recording,
             monitor::mac_info,
             monitor::perf_brief,

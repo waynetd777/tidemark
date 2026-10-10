@@ -102,6 +102,22 @@ export interface Sample {
   power: number | null;
   /// Battery charge, 0-100; null without a battery.
   battery: number | null;
+  /// GPU utilisation, 0-100; null if no GPU reports it.
+  gpu: number | null;
+  /// What memory in use is made of, bytes.
+  mem_parts: MemParts | null;
+}
+
+export interface MemParts {
+  app: number;
+  wired: number;
+  compressed: number;
+}
+
+export interface Crash {
+  ts: number;
+  app: string;
+  kind: "crash" | "hang";
 }
 
 export interface Battery {
@@ -175,6 +191,11 @@ export interface Minute {
   power_max: number | null;
   battery: number | null;
   on_ac: boolean;
+  gpu: number | null;
+  gpu_max: number | null;
+  mem_app: number | null;
+  mem_wired: number | null;
+  mem_comp: number | null;
 }
 
 export interface Mark {
@@ -184,7 +205,7 @@ export interface Mark {
 
 export interface PerfHistory {
   points: Minute[];
-  tidemarks: Partial<Record<"cpu" | "mem" | "swap" | "disk" | "net" | "power", Mark>>;
+  tidemarks: Partial<Record<"cpu" | "mem" | "swap" | "disk" | "net" | "power" | "gpu", Mark>>;
   since: number | null;
 }
 

@@ -45,6 +45,12 @@ pub struct Sample {
     /// Battery charge, 0-100; None without a battery.
     #[serde(default)]
     pub battery: Option<f64>,
+    /// GPU utilisation, 0-100; None if no GPU reports it.
+    #[serde(default)]
+    pub gpu: Option<f64>,
+    /// What memory in use is made of.
+    #[serde(default)]
+    pub mem_parts: Option<crate::system::MemParts>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -238,6 +244,8 @@ struct Acc {
     apps: HashMap<String, (f64, f64, f64)>,
     /// Power readings in the minute (not every sample has one) and their sum.
     power_n: f64,
+    gpu_n: f64,
+    parts_n: f64,
 }
 
 impl Acc {
@@ -265,6 +273,17 @@ impl Acc {
         }
         if s.battery.is_some() {
             m.battery = s.battery;
+        }
+        if let Some(g) = s.gpu {
+            m.gpu = Some(m.gpu.unwrap_or(0.0) + g);
+            m.gpu_max = Some(m.gpu_max.unwrap_or(0.0).max(g));
+            self.gpu_n += 1.0;
+        }
+        if let Some(p) = s.mem_parts {
+            m.mem_app = Some(m.mem_app.unwrap_or(0.0) + p.app);
+            m.mem_wired = Some(m.mem_wired.unwrap_or(0.0) + p.wired);
+            m.mem_comp = Some(m.mem_comp.unwrap_or(0.0) + p.compressed);
+            self.parts_n += 1.0;
         }
         for a in apps {
             let e = self.apps.entry(a.app.clone()).or_default();
@@ -297,6 +316,17 @@ impl Acc {
             *p /= self.power_n.max(1.0);
         }
         self.power_n = 0.0;
+        if let Some(g) = m.gpu.as_mut() {
+            *g /= self.gpu_n.max(1.0);
+        }
+        for v in [&mut m.mem_app, &mut m.mem_wired, &mut m.mem_comp]
+            .into_iter()
+            .flatten()
+        {
+            *v /= self.parts_n.max(1.0);
+        }
+        self.gpu_n = 0.0;
+        self.parts_n = 0.0;
         let mut apps: Vec<AppUse> = self
             .apps
             .drain()
@@ -560,6 +590,8 @@ fn run() {
             thermal: thermal(),
             power: battery.as_ref().and_then(|b| b.watts),
             battery: battery.as_ref().map(|b| b.percent),
+            gpu: crate::system::gpu_busy(),
+            mem_parts: crate::system::mem_parts(),
         };
 
         let minute = now / 60;
@@ -810,6 +842,7 @@ pub async fn perf_history(secs: i64, points: Option<i64>, mark_days: Option<i64>
         ("disk", "disk_max"),
         ("net", "net_max"),
         ("power", "power_max"),
+        ("gpu", "gpu_max"),
     ] {
         if let Some((value, at)) = history::high(col, week) {
             tidemarks.insert(k, Mark { value, at });
@@ -1020,6 +1053,49 @@ pub async fn perf_brief() -> String {
                 (sl.ended - sl.started) % 3600 / 60
             ));
         }
+    }
+    if let Some(s) = live(|l| l.samples.back().cloned()) {
+        if let Some(g) = s.gpu {
+            out.push(format!(
+                "GPU {g:.0}% busy now; highest in the last 24 h {}.",
+                history::high("gpu_max", day)
+                    .map(|(v, t)| format!("{v:.0}% at {}", when(t)))
+                    .unwrap_or_else(|| "no record".into())
+            ));
+        }
+        if let Some(m) = s.mem_parts {
+            out.push(format!(
+                "Memory in use is {} of apps, {} wired (the system's own) and {} compressed.",
+                gb(m.app),
+                gb(m.wired),
+                gb(m.compressed)
+            ));
+        }
+    }
+    let crashes = history::crashes(week);
+    if crashes.is_empty() {
+        out.push("No app crashed or hung in the last 7 days.".into());
+    } else {
+        let mut by: std::collections::BTreeMap<(String, String), (usize, i64)> = Default::default();
+        for c in &crashes {
+            let e = by
+                .entry((c.app.clone(), c.kind.clone()))
+                .or_insert((0, c.ts));
+            e.0 += 1;
+            e.1 = e.1.max(c.ts);
+        }
+        out.push(format!(
+            "Crashes and hangs in the last 7 days: {}.",
+            by.iter()
+                .map(|((app, kind), (n, last))| format!(
+                    "{app} {} {n} time{} (last {})",
+                    if kind == "hang" { "hung" } else { "crashed" },
+                    if *n == 1 { "" } else { "s" },
+                    when(*last)
+                ))
+                .collect::<Vec<_>>()
+                .join("; ")
+        ));
     }
     let inc = history::incidents(week);
     if inc.is_empty() {
