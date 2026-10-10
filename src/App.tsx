@@ -111,10 +111,11 @@ const NAV: { id: Screen; label: string; key: string; icon: ReactNode }[] = [
         fill="none"
         stroke="currentColor"
         strokeWidth="1.5"
+        strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <rect x="2" y="2.5" width="12" height="11" rx="2" />
-        <path d="M8.5 2.5v11M8.5 8H14" />
+        <rect x="2" y="3.5" width="12" height="9" rx="2" />
+        <path d="M2 9.5h12M11 11h.01" />
       </svg>
     ),
   },
