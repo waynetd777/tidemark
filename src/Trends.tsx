@@ -165,7 +165,7 @@ export default function Trends({
         </>,
       )}
       <div className="page">
-        <section className="card chart" data-focus="disk">
+        <section className="card chart">
           <div className="row base wrap">
             <b className="cname">
               <Labelled m="disk">Disk space used</Labelled>

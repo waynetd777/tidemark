@@ -211,7 +211,7 @@ CREATE TABLE perf (
   swap REAL, swap_max REAL, pressure INTEGER, disk_r REAL, disk_w REAL, disk_max REAL,
   net_in REAL, net_out REAL, net_max REAL, thermal INTEGER, power REAL, power_max REAL,
   battery REAL, on_ac INTEGER, gpu REAL, gpu_max REAL, mem_app REAL, mem_wired REAL,
-  mem_comp REAL);
+  mem_comp REAL, net_in_max REAL, net_out_max REAL);
 CREATE TABLE procs (ts INTEGER, app TEXT, cpu REAL, mem REAL, energy REAL, PRIMARY KEY (ts, app));
 CREATE TABLE incidents (
   id INTEGER PRIMARY KEY, kind TEXT, started INTEGER, ended INTEGER, peak REAL, peak_at INTEGER,
@@ -313,6 +313,8 @@ def make_demo():
                 mem * 0.62,
                 3.2 * GB,
                 mem * 0.38 - 3.2 * GB + 2.1 * GB,
+                nin * 1.6,
+                nout * 1.6,
             )
         )
         weights = [0.32, 0.26 if work else 0.04, 0.08, 0.1, 0.06, 0.05, 0.03, 0.05]
@@ -320,7 +322,7 @@ def make_demo():
         for a, w, m in zip(APPS, weights, mems, strict=True):
             procs.append((t, a, cpu * w, m * GB, power * w * 0.5))
         t += 60
-    db.executemany("INSERT INTO perf VALUES (" + ",".join("?" * 25) + ")", perf)
+    db.executemany("INSERT INTO perf VALUES (" + ",".join("?" * 27) + ")", perf)
     db.executemany("INSERT INTO procs VALUES (?,?,?,?,?)", procs)
     snap_cpu = json.dumps(
         [

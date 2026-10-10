@@ -55,6 +55,7 @@ fn due(every: ScanEvery, age: Option<i64>) -> bool {
 /// One minute's upkeep, done by whichever process is recording (see monitor.rs): the used
 /// space hourly, pruning, and the scheduled scan of the disk, started by `scan_disk`.
 fn upkeep(last_prune: &mut i64, last_try: &mut i64, scanning: bool, scan_disk: &dyn Fn()) {
+    static LAST_CRASHES: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
     let now = history::now();
     if history::last_disk_used().is_none_or(|t| now - t >= 3600) {
         let v = volume::info("/");
@@ -63,7 +64,8 @@ fn upkeep(last_prune: &mut i64, last_try: &mut i64, scanning: bool, scan_disk: &
         }
     }
     // Crash and hang reports, every 5 minutes (a directory listing; only new files are read).
-    if now % 300 < 60 {
+    if now - LAST_CRASHES.load(Ordering::Relaxed) >= 300 {
+        LAST_CRASHES.store(now, Ordering::Relaxed);
         crate::crashes::collect(settings::get().history_days);
     }
     if now - *last_prune >= 6 * 3600 {

@@ -238,6 +238,18 @@ impl Watch {
     }
 }
 
+/// Ends every incident going on at `at` (the last reading before a pause or a gap), and starts
+/// every watch afresh: nothing carries across time that wasn't recorded.
+fn end_all(at: i64, watches: &mut [Watch]) {
+    for (id, _, _) in live(|l| l.open.drain().map(|(_, v)| v).collect::<Vec<_>>()) {
+        history::close_incident(id, at);
+    }
+    for w in watches.iter_mut() {
+        w.since_on = None;
+        w.since_off = None;
+    }
+}
+
 /// The minute being gathered.
 #[derive(Default)]
 struct Acc {
@@ -268,6 +280,8 @@ impl Acc {
         m.net_in += s.net_in;
         m.net_out += s.net_out;
         m.net_max = m.net_max.max(s.net_in + s.net_out);
+        m.net_in_max = m.net_in_max.max(s.net_in);
+        m.net_out_max = m.net_out_max.max(s.net_out);
         m.thermal = m.thermal.max(s.thermal);
         if let Some(w) = s.power {
             m.power = Some(m.power.unwrap_or(0.0) + w);
@@ -483,6 +497,7 @@ fn run() {
     // The last per-process pass: every app, and the disk's read and write rates it gave.
     let mut apps_then: Vec<AppUse> = Vec::new();
     let mut io_then = (0.0f64, 0.0f64);
+    let mut gpu_then: Option<f64> = None;
     let mut last = Instant::now();
     // Instant stops while the Mac sleeps (CLOCK_UPTIME_RAW), so sleep shows only in wall-clock
     // time: gaps are measured with this, rates with `last`.
@@ -511,6 +526,9 @@ fn run() {
         let paused = read_pause();
         live(|l| l.paused_until = paused);
         if paused.is_some() {
+            if acc.n > 0.0 || !live(|l| l.open.is_empty()) {
+                end_all(last_wall, &mut watches);
+            }
             share();
             // Keep the counters current so the first sample after the pause covers 2-5 s, not
             // the whole pause.
@@ -522,6 +540,7 @@ fn run() {
             for p in sys.processes().keys() {
                 let _ = meter.watts(p.as_u32() as i32, pdt);
             }
+            meter.keep_only(&sys.processes().keys().map(|p| p.as_u32() as i32).collect());
             last = Instant::now();
             last_procs = last;
             last_wall = now;
@@ -531,6 +550,7 @@ fn run() {
         let dt = last.elapsed().as_secs_f64();
         last = Instant::now();
         let wall_dt = (now - last_wall) as f64;
+        let before_gap = last_wall;
         last_wall = now;
         refresh(&mut sys, &mut nets);
         let procs_due = every == 2 || last_procs.elapsed() >= Duration::from_secs(15);
@@ -538,11 +558,8 @@ fn run() {
         // any moment. The gap stays a gap.
         if wall_dt.max(dt) > every as f64 * 3.0 + 5.0 {
             acc.flush();
-            // Nothing that was building up before the gap carries across it.
-            for w in watches.iter_mut() {
-                w.since_on = None;
-                w.since_off = None;
-            }
+            // An incident ends where the record stops; nothing building up carries across.
+            end_all(before_gap, &mut watches);
             // Remember the gap, with the battery either side: what the sleep cost.
             let after = meter.battery().map(|b| b.percent);
             if wall_dt >= 120.0 {
@@ -591,6 +608,11 @@ fn run() {
             io_then = (rd as f64 / dt, wr as f64 / dt);
         }
         let apps = apps_then.clone();
+        // The GPU through ioreg costs a process each time: read with the apps (every sample
+        // while someone is looking, else every 15 s), and carried between.
+        if procs_due {
+            gpu_then = crate::system::gpu_busy();
+        }
         let battery = meter.battery();
         battery_then = battery.as_ref().map(|b| b.percent);
         let (mut nin, mut nout) = (0u64, 0u64);
@@ -614,7 +636,7 @@ fn run() {
             thermal: thermal(),
             power: battery.as_ref().and_then(|b| b.watts),
             battery: battery.as_ref().map(|b| b.percent),
-            gpu: crate::system::gpu_busy(),
+            gpu: gpu_then,
             mem_parts: crate::system::mem_parts(),
             on_ac: battery.as_ref().is_some_and(|b| b.on_ac),
         };
@@ -732,6 +754,34 @@ pub fn status() -> Status {
                 ),
             );
         }
+    }
+    let battery = live(|l| l.battery.clone());
+    if let Some(b) = battery.as_ref().filter(|b| !b.on_ac && b.percent <= 10.0) {
+        return attention(
+            "energy",
+            "critical",
+            "Battery low",
+            "The battery is low".into(),
+            format!(
+                "{:.0}% left{}.",
+                b.percent,
+                b.minutes_left
+                    .map(|m| format!(", about {} min", m))
+                    .unwrap_or_default()
+            ),
+        );
+    }
+    if vol.total > 0 && (vol.free as f64) < vol.total as f64 * 0.05 {
+        return attention(
+            "disk",
+            "critical",
+            "Almost full",
+            "The disk is almost full".into(),
+            format!("{} free of {}.", gb(vol.free as f64), gb(vol.total as f64)),
+        );
+    }
+    // Warnings after anything critical, so a busy CPU never hides a flat battery.
+    if let Some(s) = &latest {
         if let Some((_, started, _)) = open.get("cpu") {
             let mins = ((history::now() - started) / 60).max(1);
             return attention(
@@ -756,32 +806,11 @@ pub fn status() -> Status {
             );
         }
     }
-    let battery = live(|l| l.battery.clone());
-    if let Some(b) = battery.as_ref().filter(|b| !b.on_ac && b.percent <= 10.0) {
-        return attention(
-            "energy",
-            "critical",
-            "Battery low",
-            "The battery is low".into(),
-            format!(
-                "{:.0}% left{}.",
-                b.percent,
-                b.minutes_left
-                    .map(|m| format!(", about {} min", m))
-                    .unwrap_or_default()
-            ),
-        );
-    }
     if vol.total > 0 && (vol.free as f64) < vol.total as f64 * 0.1 {
-        let critical = (vol.free as f64) < vol.total as f64 * 0.05;
         return attention(
             "disk",
-            if critical { "critical" } else { "warn" },
-            if critical {
-                "Almost full"
-            } else {
-                "Nearly full"
-            },
+            "warn",
+            "Nearly full",
             "The disk is nearly full".into(),
             format!("{} free of {}.", gb(vol.free as f64), gb(vol.total as f64)),
         );
@@ -908,8 +937,8 @@ pub async fn perf_history(secs: i64, points: Option<i64>, mark_days: Option<i64>
         ("power", "power_max"),
         ("gpu", "gpu_max"),
         // Download and upload apart: net_max is the busiest moment of both together.
-        ("down", "net_in"),
-        ("up", "net_out"),
+        ("down", "net_in_max"),
+        ("up", "net_out_max"),
     ] {
         if let Some((value, at)) = history::high(col, week) {
             tidemarks.insert(k, Mark { value, at });

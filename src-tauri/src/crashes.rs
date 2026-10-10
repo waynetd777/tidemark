@@ -76,10 +76,17 @@ fn first_line(p: &Path) -> Option<String> {
     Some(line)
 }
 
+/// Reports read and found not to count (simulated, another kind, unreadable): remembered so
+/// they are not opened again every few minutes.
+static SKIPPED: std::sync::Mutex<Option<std::collections::HashSet<String>>> =
+    std::sync::Mutex::new(None);
+
 /// Reads any reports not yet in the history, from the last `days` days.
 pub fn collect(days: u32) {
     let since = history::now() - days as i64 * 86_400;
     let known = history::crash_files();
+    let mut skipped = SKIPPED.lock().unwrap_or_else(|e| e.into_inner());
+    let skipped = skipped.get_or_insert_with(Default::default);
     for dir in folders() {
         let Ok(rd) = std::fs::read_dir(&dir) else {
             continue;
@@ -90,7 +97,7 @@ pub fn collect(days: u32) {
                 continue;
             }
             let file = p.to_string_lossy().to_string();
-            if known.contains(&file) {
+            if known.contains(&file) || skipped.contains(&file) {
                 continue;
             }
             // Old files are skipped without opening them.
@@ -101,9 +108,10 @@ pub fn collect(days: u32) {
             if !recent {
                 continue;
             }
-            if let Some((ts, app, kind)) = first_line(&p).as_deref().and_then(parse_header) {
-                if ts >= since {
-                    history::add_crash(ts, &app, kind, &file);
+            match first_line(&p).as_deref().and_then(parse_header) {
+                Some((ts, app, kind)) if ts >= since => history::add_crash(ts, &app, kind, &file),
+                _ => {
+                    skipped.insert(file);
                 }
             }
         }

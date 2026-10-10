@@ -459,12 +459,14 @@ export default function App() {
         el.classList.remove("flash");
         void el.offsetWidth; // restart the animation
         el.classList.add("flash");
-        timer = window.setTimeout(() => el.classList.remove("flash"), 1600);
+        window.setTimeout(() => el.classList.remove("flash"), 1600);
+        setFocus(null); // once: a later visit to the screen doesn't scroll again
       } else if (tries++ < 20) timer = window.setTimeout(find, 50);
+      else setFocus(null);
     };
     timer = window.setTimeout(find, 0);
     return () => window.clearTimeout(timer);
-  }, [focus, screen]);
+  }, [focus]);
   const go = useCallback(
     (path: string) => {
       setMenu(null);

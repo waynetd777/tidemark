@@ -9,7 +9,7 @@ How your Mac is doing, at a glance.
 <picture><source media="(prefers-color-scheme: dark)" srcset="images/now-dark.png"><img alt="The Now screen" src="images/now-light.png" width="900"></picture>
 
 - A sentence on how the Mac is doing.
-- Eight cards: CPU, GPU, memory, disk I/O, network download, network upload and energy over the last hour; disk space over the week.
+- Eight cards: CPU, GPU, memory, disk I/O, network download, network upload and energy over the last hour; disk space over the last 24 hours.
 - The week's tidemarks (peaks, incidents, crashes) and what grew on the disk.
 - **Details** on a card opens the screen with more.
 

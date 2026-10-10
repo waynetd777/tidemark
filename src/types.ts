@@ -107,6 +107,7 @@ export interface Sample {
   gpu: number | null;
   /// What memory in use is made of, bytes.
   mem_parts: MemParts | null;
+  on_ac: boolean;
 }
 
 export interface MemParts {
@@ -201,6 +202,9 @@ export interface Minute {
   mem_app: number | null;
   mem_wired: number | null;
   mem_comp: number | null;
+  /// The busiest moment of download and of upload, bytes a second.
+  net_in_max: number;
+  net_out_max: number;
 }
 
 export interface Mark {

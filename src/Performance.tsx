@@ -175,7 +175,8 @@ export default function Performance({
                 : null;
             })(),
             extra: () => null,
-            why: "cpu",
+            // macOS doesn't say which apps use the GPU, so a moment on it has no snapshot.
+            why: "",
           },
         ]
       : []),
@@ -260,7 +261,7 @@ export default function Performance({
 
   const pickIncident = (i: Incident) => {
     const age = now() - i.peak_at;
-    const r = RANGES.findIndex((x) => x.secs > age);
+    const r = allowed.findIndex((x) => x.secs > age);
     if (r >= 0) setRange(r);
     setPicked({ t: i.peak_at, why: i.kind === "cpu" ? "cpu" : "mem" });
   };
@@ -316,9 +317,13 @@ export default function Performance({
                 <span className="grow" />
                 <Legend
                   line={`${c.name}, ${per} average`}
-                  band={`Peak of each ${per === "minute" ? "minute" : per.replace("-minute", " minutes")}`}
+                  band={per === "minute" ? "Each minute's peak" : `Each ${per} peak`}
                   mark="Week's tidemark"
-                  gaps={gaps}
+                  gaps={gapsOf(
+                    c.pts.map((p) => p.t),
+                    [now() - secs, now()],
+                    sleeps ?? [],
+                  )}
                 />
               </div>
               {c.pts.length ? (
@@ -337,7 +342,7 @@ export default function Performance({
                   domain={[now() - secs, now()]}
                   sleeps={sleeps ?? []}
                   label={`${c.name} over the last ${RANGES[range].label}`}
-                  onPick={(p) => setPicked({ t: p.t, why: c.why })}
+                  onPick={c.why ? (p) => setPicked({ t: p.t, why: c.why }) : undefined}
                 />
               ) : (
                 <div className="empty small">Recording… the first minute appears shortly.</div>
@@ -350,7 +355,9 @@ export default function Performance({
                 <Labelled m="diskio">Disk I/O</Labelled>
               </b>
               <span className="cnow">
-                {latest ? `${fmtRate(latest.disk_r)} read  ${fmtRate(latest.disk_w)} written` : "–"}
+                {latest
+                  ? `${fmtRate(latest.disk_r)} read · ${fmtRate(latest.disk_w)} written`
+                  : "–"}
               </span>
               <span className="muted small">
                 {points.length
@@ -467,9 +474,13 @@ export default function Performance({
               <span className="grow" />
               <Legend
                 line={`Power, ${per} average`}
-                band={`Peak of each ${per === "minute" ? "minute" : per.replace("-minute", " minutes")}`}
+                band={per === "minute" ? "Each minute's peak" : `Each ${per} peak`}
                 mark="Week's tidemark"
-                gaps={gaps}
+                gaps={gapsOf(
+                  points.filter((m) => m.power != null).map((m) => m.ts),
+                  [now() - secs, now()],
+                  sleeps ?? [],
+                )}
               />
             </div>
             <div className="energygrid">
@@ -624,7 +635,9 @@ export default function Performance({
             </div>
             <div className="crashlist">
               {crashGroups(crashList ?? []).length === 0 && (
-                <span className="muted small">None. Nothing crashed or stopped responding.</span>
+                <span className="muted small">
+                  {crashList == null ? "Reading…" : "None. Nothing crashed or stopped responding."}
+                </span>
               )}
               {crashGroups(crashList ?? [])
                 .slice(0, 10)

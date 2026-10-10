@@ -36,23 +36,21 @@ export default function Now({
   // The charts: the last hour, minute by minute. The day: today's highs and totals.
   const hour = usePoll(() => api.perf(HOUR, 60), 30_000);
   const day = usePoll(() => api.perf(DAY, 288), 60_000);
+  // The disk card's line is the last day; its tidemark and the week's list use the week.
   const disk = usePoll(() => api.diskTrend(7), 300_000);
+  const diskDay = usePoll(() => api.diskTrend(1), 300_000);
   const incidents = usePoll(() => api.incidents(7), 60_000);
   const crashes = usePoll(() => api.crashes(7), 300_000);
   const sleeps = usePoll(() => api.sleeps(1), 60_000);
   const latest = live?.samples[live.samples.length - 1];
   const today = startOfToday();
   const nowS = now();
-  const dayGaps = gapsOf(
-    (hour?.points ?? []).map((m) => m.ts),
-    [nowS - HOUR, nowS],
-    sleeps ?? [],
-  );
   const total = live?.mem_total || day?.points[0]?.mem_total || 1;
 
   let upHigh: { v: number; t: number } | null = null;
   for (const m of day?.points ?? [])
-    if (m.ts >= today && (!upHigh || m.net_out > upHigh.v)) upHigh = { v: m.net_out, t: m.ts };
+    if (m.ts >= today && (!upHigh || m.net_out_max > upHigh.v))
+      upHigh = { v: m.net_out_max, t: m.ts };
   let ioHigh: { v: number; t: number } | null = null;
   for (const m of day?.points ?? [])
     if (m.ts >= today && (!ioHigh || m.disk_max > ioHigh.v)) ioHigh = { v: m.disk_max, t: m.ts };
@@ -78,11 +76,13 @@ export default function Now({
       .reduce((sum, m) => sum + m[k] * (m.minutes || 1) * 60, 0);
   let netHigh: { v: number; t: number } | null = null;
   for (const m of day?.points ?? [])
-    if (m.ts >= today && (!netHigh || m.net_in > netHigh.v)) netHigh = { v: m.net_in, t: m.ts };
+    if (m.ts >= today && (!netHigh || m.net_in_max > netHigh.v))
+      netHigh = { v: m.net_in_max, t: m.ts };
   const cpuHigh = highToday("cpu_max");
   const memHigh = highToday("mem_max");
   const tm = hour?.tidemarks ?? day?.tidemarks ?? {};
   const diskPts: Pt[] = (disk?.points ?? []).map((p) => ({ t: p.ts, v: p.used }));
+  const dayDiskPts: Pt[] = (diskDay?.points ?? []).map((p) => ({ t: p.ts, v: p.used }));
   const diskTotal = disk?.points[disk.points.length - 1]?.total ?? 0;
   const diskNow = diskPts[diskPts.length - 1]?.v ?? 0;
   const busy = (live?.apps_cpu ?? []).filter((a) => a.cpu >= 5).length;
@@ -90,7 +90,13 @@ export default function Now({
   const grewTotal = Math.max(0, growth?.total ?? 0);
   const st = live?.status;
 
-  const marks: { t: number; what: string; why: string; incident: boolean; crash?: boolean }[] = [
+  const marks: {
+    t: number;
+    what: string;
+    why: string;
+    incident: boolean;
+    crash?: "crash" | "hang";
+  }[] = [
     ...(incidents ?? []).map((i) => ({
       t: i.started,
       what: incidentTitle(i),
@@ -101,9 +107,9 @@ export default function Now({
     ...crashGroups(crashes ?? []).map((g) => ({
       t: g.last,
       what: crashTitle(g),
-      why: g.n > 1 ? `The last time ${fmtAt(g.last)}.` : "From the report macOS wrote.",
+      why: g.n > 1 ? `${g.n} reports this week.` : "From the report macOS wrote.",
       incident: false,
-      crash: true,
+      crash: g.kind,
     })),
   ];
   if (disk?.high && diskPts.length > 1)
@@ -275,13 +281,13 @@ export default function Now({
     {
       name: "Disk space",
       line: "Disk space used, hourly",
-      range: "Last 7 days",
+      range: "Last 24 h",
       value: diskTotal ? Math.round((diskTotal - diskNow) / 1e9).toString() : "–",
       unit: "GB free",
       sub: diskTotal ? `${fmt(diskNow)} of ${fmt(diskTotal)} used` : "Recorded hourly",
-      pts: diskPts,
-      max: diskPts.length ? Math.max(...diskPts.map((p) => p.v)) * 1.01 : 1,
-      min: diskPts.length ? Math.min(...diskPts.map((p) => p.v)) * 0.98 : 0,
+      pts: dayDiskPts,
+      max: Math.max(1, ...dayDiskPts.map((p) => p.v), disk?.high?.used ?? 0) * 1.005,
+      min: dayDiskPts.length ? Math.min(...dayDiskPts.map((p) => p.v)) * 0.995 : 0,
       mark: disk?.high
         ? {
             v: disk.high.used,
@@ -336,7 +342,7 @@ export default function Now({
           min={c.min ?? 0}
           height={150}
           axis={false}
-          domain={[nowS - (c.range === "Last 7 days" ? 7 * DAY : HOUR), nowS]}
+          domain={[nowS - (c.range === "Last 24 h" ? DAY : HOUR), nowS]}
           sleeps={c.name === "Disk space" ? undefined : (sleeps ?? [])}
           tone={flag?.tone}
           mark={c.mark}
@@ -348,7 +354,15 @@ export default function Now({
         <Legend
           line={c.line}
           mark={c.mark ? "Week's tidemark" : undefined}
-          gaps={c.name === "Disk space" ? undefined : dayGaps}
+          gaps={
+            c.name === "Disk space"
+              ? undefined
+              : gapsOf(
+                  c.pts.map((p) => p.t),
+                  [nowS - HOUR, nowS],
+                  sleeps ?? [],
+                )
+          }
         />
         <div className="row between small mfoot">
           <span className="muted ell" title={c.high}>
@@ -356,7 +370,14 @@ export default function Now({
           </span>
           <button
             className="link"
-            onClick={() => go(c.to, ("focus" in c ? c.focus : undefined) ?? c.name.toLowerCase())}
+            onClick={() =>
+              go(
+                c.to,
+                c.to === "disk"
+                  ? undefined
+                  : (("focus" in c ? c.focus : undefined) ?? c.name.toLowerCase()),
+              )
+            }
             title={
               c.to === "disk"
                 ? "Open Disk Space: what is using the disk (⌘3)"
@@ -420,7 +441,11 @@ export default function Now({
                   <span className="row wrap">
                     <b>{m.what}</b>
                     {m.incident && <span className="badge warn">Incident · snapshot kept</span>}
-                    {m.crash && <span className="badge warn">Crash report</span>}
+                    {m.crash && (
+                      <span className="badge warn">
+                        {m.crash === "hang" ? "Hang report" : "Crash report"}
+                      </span>
+                    )}
                   </span>
                   <span className="muted small">{m.why}</span>
                 </span>

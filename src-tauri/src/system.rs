@@ -56,8 +56,10 @@ pub fn mem_parts() -> Option<MemParts> {
         let mut count = (std::mem::size_of::<libc::vm_statistics64>()
             / std::mem::size_of::<libc::integer_t>())
             as libc::mach_msg_type_number_t;
+        // One send right for the life of the process, not a new one per reading.
+        static HOST: std::sync::OnceLock<libc::mach_port_t> = std::sync::OnceLock::new();
         #[allow(deprecated)]
-        let host = libc::mach_host_self();
+        let host = *HOST.get_or_init(|| libc::mach_host_self());
         let rc = libc::host_statistics64(
             host,
             libc::HOST_VM_INFO64,
