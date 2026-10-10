@@ -299,7 +299,7 @@ export default function Now({
           ? `Freed ${fmt(disk.high.used - diskNow)} since ${fmtAt(disk.high.ts, false)}`
           : "At its high-water mark",
       fmt,
-      to: "disk" as Screen,
+      to: "performance" as Screen,
     },
   ];
 
@@ -378,11 +378,7 @@ export default function Now({
                   : (("focus" in c ? c.focus : undefined) ?? c.name.toLowerCase()),
               )
             }
-            title={
-              c.to === "disk"
-                ? "Open Disk Space: what is using the disk (⌘3)"
-                : `See ${c.name.toLowerCase()} in detail`
-            }
+            title={`See ${c.name.toLowerCase()} in detail`}
           >
             Details
           </button>
