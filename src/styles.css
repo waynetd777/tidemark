@@ -1814,21 +1814,16 @@ pre,
   margin: 6px 0 0;
   font-size: 14px;
 }
-/* Now: the live measures across the top, then the disk beside the week's tidemarks and
-   what grew. Fewer columns as the window narrows. */
+/* Now: the measures in rows of four (fewer as the window narrows), then the week's tidemarks
+   and what grew. */
 .cards4 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 18px;
 }
-/* An odd one out at the end takes its row rather than leaving a hole. */
-.cards4 > :last-child:nth-child(3n + 1) {
-  grid-column: 1 / -1;
-}
-.cards3 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 18px;
+/* Now's two lists, side by side, half each. */
+.cards2.halves {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
 }
 .cards2 {
   display: grid;

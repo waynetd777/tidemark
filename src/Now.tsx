@@ -374,10 +374,9 @@ export default function Now({
           <p className="muted">{sub || "The first readings arrive in a few seconds."}</p>
         </div>
 
-        <div className="cards4">{cards.filter((c) => c.name !== "Disk").map((c) => card(c))}</div>
+        <div className="cards4">{cards.map((c) => card(c))}</div>
 
-        <div className="cards3">
-          {cards.filter((c) => c.name === "Disk").map((c) => card(c))}
+        <div className="cards2 halves">
           <section className="card list">
             <div className="row between head">
               <span className="eyebrow">This week's tidemarks</span>
