@@ -1,6 +1,6 @@
 # Screenshots
 
-Every screenshot in the docs, by the page it appears on, in light and dark mode. They're taken from demo data by `make screenshots`.
+Every screenshot in the docs at full size, by the page it appears on, in light and dark mode. They're taken from demo data by `make screenshots` (tools/screenshots.py). Click any screenshot in the docs to come here.
 
 ## The README
 
@@ -19,8 +19,8 @@ On [Features](../features.md).
 - Settings: [light](settings-light.png) · [dark](settings-dark.png)
 - The menu-bar window: [light](menu-bar-light.png) · [dark](menu-bar-dark.png)
 
-## Disk space
+## Disk Map
 
-On [Disk space](../disk-map.md).
+On [Disk Map](../disk-map.md).
 
 - Disk Map: [light](disk-map-light.png) · [dark](disk-map-dark.png)

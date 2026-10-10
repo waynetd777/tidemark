@@ -27,6 +27,7 @@ make install-app      # signed build, copied to /Applications
 
 - The pre-commit hook runs `make lint` for any commit that touches code.
 - Screenshots come from demo data, never this Mac's: see [images/index.md](images/index.md).
+- The docs show each screenshot in the reader's theme with a `<picture>` element, linked to [images/index.md](images/index.md), which lists them all in light and dark. A new screenshot goes in that list too.
 
 ## Signing and releasing
 
