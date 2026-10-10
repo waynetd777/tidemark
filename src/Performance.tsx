@@ -94,7 +94,9 @@ export default function Performance({
   // The minute's numeric measures (the ones a chart can draw).
   type Num = { [K in keyof Minute]: Minute[K] extends number ? K : never }[keyof Minute];
   // Each history measure's live counterpart, so the charts run on to the latest reading.
-  const LIVE: Partial<Record<Num, "cpu" | "mem" | "net_in" | "net_out" | "swap">> = {
+  const LIVE: Partial<
+    Record<Num, "cpu" | "mem" | "net_in" | "net_out" | "swap" | "disk_r" | "disk_w">
+  > = {
     cpu: "cpu",
     cpu_max: "cpu",
     mem: "mem",
@@ -102,6 +104,8 @@ export default function Performance({
     net_in: "net_in",
     net_out: "net_out",
     swap: "swap",
+    disk_r: "disk_r",
+    disk_w: "disk_w",
   };
   const ser = (k: Num): Pt[] => {
     const lk = LIVE[k];
@@ -214,18 +218,22 @@ export default function Performance({
   const tail = points.slice(-60);
   // The tiles' span: their last 60 points, up to now.
   const tailDomain: [number, number] = [tail.length ? tail[0].ts : now() - secs, now()];
-  const high = (k: Num) => tail.reduce<Minute | null>((b, m) => (!b || m[k] > b[k] ? m : b), null);
   const swapHigh = tm.swap;
-  const ioHigh = high("disk_max");
   // Network: download and upload as two small charts on one scale (not one chart with two axes),
   // what moved in the range, and each direction's peak.
-  const moved = (k: "net_in" | "net_out") =>
-    points.reduce((s, m) => s + m[k] * (m.minutes || 1) * 60, 0);
+  type Way = "net_in" | "net_out" | "disk_r" | "disk_w";
+  const moved = (k: Way) => points.reduce((s, m) => s + m[k] * (m.minutes || 1) * 60, 0);
   const netTop = Math.max(1, ...points.map((m) => Math.max(m.net_in, m.net_out)));
-  const netPeak = (k: "net_in" | "net_out") => {
+  const netPeak = (k: Way) => {
     const m = points.reduce<Minute | null>((b, x) => (!b || x[k] > b[k] ? x : b), null);
     return m && m[k] > 0 ? { t: m.ts, v: m[k], label: `${fmtRate(m[k])} · ${fmtAt(m.ts)}` } : null;
   };
+  // Disk I/O: reads and writes, the same way as the network.
+  const ioTop = Math.max(1, ...points.map((m) => Math.max(m.disk_r, m.disk_w)));
+  const io = [
+    { name: "Reads", k: "disk_r" as const, now: latest?.disk_r, total: moved("disk_r") },
+    { name: "Writes", k: "disk_w" as const, now: latest?.disk_w, total: moved("disk_w") },
+  ];
   const net = [
     { name: "Download", k: "net_in" as const, now: latest?.net_in, total: moved("net_in") },
     { name: "Upload", k: "net_out" as const, now: latest?.net_out, total: moved("net_out") },
@@ -237,13 +245,6 @@ export default function Performance({
       note: swapHigh ? `Week high ${fmt(swapHigh.value)}, ${fmtAt(swapHigh.at, false)}` : "",
       pts: tail.map((m) => ({ t: m.ts, v: m.swap })),
       max: Math.max(1e9, ...tail.map((m) => m.swap_max)),
-    },
-    {
-      name: "Disk I/O",
-      value: latest ? fmtRate(latest.disk_r + latest.disk_w) : "–",
-      note: ioHigh ? `Peak ${fmtRate(ioHigh.disk_max)} at ${fmtAt(ioHigh.ts)}` : "",
-      pts: tail.map((m) => ({ t: m.ts, v: m.disk_r + m.disk_w })),
-      max: 1,
     },
     {
       name: "Thermal",
@@ -332,6 +333,55 @@ export default function Performance({
               )}
             </section>
           ))}
+          <section className="card chart" data-focus="disk i/o">
+            <div className="row base wrap">
+              <b className="cname">
+                <Labelled m="diskio">Disk I/O</Labelled>
+              </b>
+              <span className="cnow">
+                {latest ? `${fmtRate(latest.disk_r)} read  ${fmtRate(latest.disk_w)} written` : "–"}
+              </span>
+              <span className="muted small">
+                {points.length
+                  ? `${fmt(io[0].total)} read, ${fmt(io[1].total)} written in the last ${RANGES[range].label}`
+                  : ""}
+              </span>
+              <span className="grow" />
+              <Legend
+                line={`Average per ${per.replace("-minute", " minutes")}, each way`}
+                gaps={gaps}
+              />
+            </div>
+            <div className="netpair">
+              {io.map((n) => (
+                <div className="minw0" key={n.k}>
+                  <div className="row between small">
+                    <span className="eyebrow">
+                      <Labelled m="diskio">{n.name}</Labelled>
+                    </span>
+                    <span className="muted">{n.now != null ? `${fmtRate(n.now)} now` : ""}</span>
+                  </div>
+                  {points.length ? (
+                    <Area
+                      pts={ser(n.k)}
+                      max={ioTop}
+                      height={100}
+                      peak={netPeak(n.k)}
+                      domain={[now() - secs, now()]}
+                      sleeps={sleeps ?? []}
+                      xLabels={xLabels(secs, 3)}
+                      fmt={fmtRate}
+                      fmtT={(t) => fmtAt(t)}
+                      name={n.name}
+                      label={`Disk ${n.name.toLowerCase()} over the last ${RANGES[range].label}`}
+                    />
+                  ) : (
+                    <div className="empty small">Recording…</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
           <section className="card chart" data-focus="network">
             <div className="row base wrap">
               <b className="cname">

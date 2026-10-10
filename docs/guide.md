@@ -29,11 +29,13 @@ CPU, the **GPU** (where the Mac reports it) and memory over 1 hour, 24 hours, 7 
 
 Memory's line is everything in use; the line under its heading, and the readout at any moment, splits it as Activity Monitor does: memory apps are using, **wired** memory the system keeps for itself and never moves to disk, and **compressed** memory macOS has squeezed to make room. When compressed and swap grow while pressure goes red, the Mac is short of memory. The GPU's line is how busy the graphics processor is, which video, games, 3D and machine-learning work load; apps' shares of it are not shown, because macOS doesn't report them.
 
+**Disk I/O** shows how fast the disk is being read and written, as two charts on the same scale, each with its busiest moment, and how much was read and written in the range.
+
 **Network** shows download and upload as two charts on the same scale, each with its busiest moment, and how much moved each way in the range. It counts every network interface except the Mac talking to itself.
 
 **Energy** shows the power the whole Mac draws, in watts; the battery's charge over the range, its health (its capacity now against what it was designed to hold) and charge cycles; what the last sleep cost the battery; and the apps that used the most energy. Power and battery come from the battery's own controller, so a Mac without a battery shows only the apps. Each app's energy is shown as its share of what all your apps used: the kernel's per-process count leaves out the display and macOS itself, so its watts would look smaller than they are. Only your own apps can be measured. Tidemark notes the battery either side of each sleep, which is how it knows what a sleep cost.
 
-Smaller tiles show swap, disk reads and writes and the Mac's thermal state.
+Smaller tiles show swap and the Mac's thermal state.
 
 The panel on the right is a **snapshot**: the apps that used the most at the chosen moment (the range's CPU peak until you click somewhere). Processes are grouped by the app they belong to, so Chrome's many helpers count as Google Chrome. CPU is a share of the whole Mac, not of one core. **Ask why this happened** puts the moment to Ask; **Activity Monitor** opens macOS's own, live.
 
