@@ -74,7 +74,7 @@ const FOR_SCREEN: Record<Screen, string[]> = {
   now: ["Now", "Reading the charts", "Ask", "Menu bar", "Keyboard shortcuts"],
   performance: ["Performance", "Reading the charts", "History", "Ask", "Keyboard shortcuts"],
   disk: [
-    "Disk",
+    "Disk Usage",
     "The map",
     "Getting around",
     "Finder and the right-click menu",

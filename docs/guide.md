@@ -1,6 +1,6 @@
 # Tidemark
 
-Tidemark records the high-water marks of your Mac: what is using the disk and how hard the Mac is working, now and over time. It has four screens, in the sidebar: **Now** (⌘1), **Performance** (⌘2), **Disk** (⌘3) and **Trends** (⌘4), with **Settings** (⌘,) at the foot. Tidemark opens on the screen you last had open.
+Tidemark records the high-water marks of your Mac: what is using the disk and how hard the Mac is working, now and over time. It has four screens, in the sidebar: **Now** (⌘1), **Performance** (⌘2), **Disk Usage** (⌘3) and **Trends** (⌘4), with **Settings** (⌘,) at the foot. Tidemark opens on the screen you last had open.
 
 The ‹ › buttons at the top left of every screen (⌘[ and ⌘]) step back and forward through where you have been, across screens and folders, like Finder.
 
@@ -43,7 +43,7 @@ The panel on the right is a **snapshot**: the apps that used the most at the cho
 
 Tidemark samples the whole Mac every 2 seconds while its window is in front or the menu-bar window is open, and every 5 seconds otherwise, when it reads each app only every 15 seconds; behind other windows the screen itself refreshes at most once a minute. It keeps one row a minute: the minute's average and its peak, so a short spike is never averaged away.
 
-## Disk
+## Disk Usage
 
 Every folder as a block inside its parent's block, sized by what it takes up, so the big things are big. The rest of this guide's disk sections (the map, Getting around, Files in a folder, Free space, Cloud folders, Scanning) are about this screen.
 
@@ -163,8 +163,8 @@ Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memor
 | ⌘[ and ⌘] | Back and forward through where you have been, across screens and folders |
 | ⌘K | Ask about the disk or performance |
 | ? or ⌘? | This help (Help › Tidemark Help in the menu bar) |
-| ⌘R | Re-scan what the Disk screen shows: the disk, or the folder you chose |
+| ⌘R | Re-scan what the Disk Usage screen shows: the disk, or the folder you chose |
 | ⌘O | Choose a folder to scan |
-| Esc or ⌘↑ | Up one level on the Disk screen (Esc first closes an open menu or panel) |
+| Esc or ⌘↑ | Up one level on the Disk Usage screen (Esc first closes an open menu or panel) |
 | ⌘⇧R | Reveal the folder on screen in Finder |
 | ⌘-click a block | Reveal that folder in Finder |
