@@ -2,54 +2,68 @@
 
 *The high-water marks of your Mac.*
 
-A small macOS app that shows what is using the disk: every folder as a block inside its parent's
-block, sized by what it takes up, so the big things are big.
+A small macOS app that records what is using your Mac's disk and how hard the Mac is working,
+now and over time, and marks the highs: the tidemarks.
 
 Built with Tauri 2, React and Rust.
 
-![The app showing the whole disk, with its free space](docs/screenshots/app.png)
+![The disk map, showing the whole disk with its free space](docs/screenshots/app.png)
 
 ## What it does
 
-The user guide is [docs/guide.md](docs/guide.md); it is also the app's help (press `?`).
+The user guide is [docs/guide.md](docs/guide.md); it is also the app's help (press `?`, or Help ›
+Tidemark Help). Four screens, in the sidebar:
 
-- **Pick a folder**, or take the whole boot volume (the default). The five most recent roots sit in
-  the sidebar.
-- **Every folder is drawn**, nested, with its name and size where the block is big enough. The
-  files sitting directly in a folder are one grey dashed block; folders too small to draw at the
-  current zoom are folded into a "more folders" block, so a folder's area is always its total.
-- **Free space** is drawn as a dotted green block beside the folders at the top of a whole-disk
-  scan (the boot volume, or a disk under `/Volumes`), so the map shows the whole disk. It is on by
-  default; the **Free space** switch in the title bar hides it, and the app remembers the choice.
-  It is not drawn inside a folder, or for a scan of a single folder.
-- **Colour is nesting level**, in rainbow order: level 1 red, level 2 orange, amber, green, teal,
-  blue, indigo, violet. The level is counted from the scan root, so it does not change as you zoom.
-- **Cloud folders** (OneDrive, iCloud Drive: anything under `~/Library/CloudStorage` or
-  `~/Library/Mobile Documents`) carry a double edge and show two numbers: what is on disk and what
-  is in the cloud.
-- **Click a folder block to zoom in.** Clicking its grey loose-files block opens the same folder.
-  The breadcrumb, Esc or ⌘↑ take you back up, and the ‹ › buttons
-  (⌘[ and ⌘]) step back and forward through where you have been. Hover for the full path, sizes,
-  item count and share of the parent.
-- **Browse individual files** in the current folder's files box, which fills the map area when
-  the folder contains only files. A Finder-style table lists Name, Date Modified, Size, On Disk
-  and Kind. Search by filename using the box at the top, click a column heading to sort, and
-  double-click a file or use its arrow to reveal it in Finder. Search covers files directly in
-  this folder; it does not search subfolders. A folder with thousands of files loads a page at a
-  time as you scroll.
-- **Reveal in Finder**: the arrow on a block's header, ⌘-click on the block, right-click for a menu
-  (Reveal in Finder, Zoom in, Copy path, Get Info…), or the arrow beside the breadcrumb for the
-  folder on screen. ⌘⇧R does the same.
-- **Reload** re-scans (⌘R). While a scan runs the button reads **Stop**; stopping keeps the last
-  completed scan on screen. There is no pause.
-- **Ask** (⌘K) opens a chat about the folder on screen: it puts the scan to an AI and asks where
-  space can be reclaimed safely, with suggested questions to start from. It runs through an AI
-  command-line tool already installed and signed in on the Mac (Claude Code, Codex, Antigravity or
-  GitHub Copilot; no key is set up in the app), the model menu lists every model they offer, and
-  each answer has a **Copy** button for pasting as text or formatted text. The AI sees names, paths
-  and sizes only, and the app deletes nothing.
-- **Help** (`?`) opens the user guide in a drawer beside the map, searchable, with a button to
-  hand a question on to Ask.
+- **Now** (⌘1): how the Mac is doing in a sentence; CPU, memory, network and energy over the last
+  24 hours and disk space over the week, each with its tidemark (the week's high); the week's
+  peaks and incidents; and what grew on the disk.
+- **Performance** (⌘2): CPU and memory over 1 hour to 14 days, as minute averages with each
+  minute's peak as a band behind; network download and upload; energy (the power the Mac draws,
+  battery charge, health and cycles, what the last sleep cost, and each app's share); swap, disk
+  reads and writes and thermal state. Click any moment for a snapshot of what every app was doing.
+  **Incidents** are recorded when CPU stays above 90% for 30 seconds, memory pressure goes red or
+  swap grows by 1 GB in 10 minutes, each with a snapshot.
+- **Disk** (⌘3): every folder as a block inside its parent's, sized by what it takes up. Colour is
+  nesting level; a folder's loose files are one grey dashed block; folders too small to draw fold
+  into a "more folders" block; the disk's free space is a dotted block beside the folders; cloud
+  folders (OneDrive, iCloud Drive) show what is on disk and what is in the cloud. Click to zoom,
+  ‹ › to go back and forward, a Finder-style table for the files in a folder, Reveal in Finder and
+  Get Info from a right-click. **Growth this week** outlines the folders where the disk's growth
+  landed.
+- **Trends** (⌘4): the disk over 14 days to 12 months, with its high-water mark, its biggest rises
+  and when it would be full at that rate; the folders that rose; and CPU by weekday and hour.
+
+Every chart runs up to now (a dotted line), with a legend, and shades its gaps: **Asleep** where
+the Mac slept, hatched **Not recording** where Tidemark was quit or paused.
+
+- **Menu bar**: closing the window keeps Tidemark recording there. Its icon is marked when
+  something needs attention (memory, CPU, swap, a low battery, a nearly full disk); clicking it
+  opens a small window with the live readings, what is using the most, and the action that fixes
+  what needs attention.
+- **Ask** (⌘K) puts what Tidemark knows (the folder on screen, what grew, the performance record)
+  to an AI command-line tool already signed in on the Mac (Claude Code, Codex, Antigravity or
+  GitHub Copilot; no key is set up in the app). Ask why the Mac was slow on Wednesday, or where
+  space can be freed safely. The AI sees names, sizes and figures only, and the app changes nothing.
+- **Settings** (⌘,): keep recording when quit (a background helper), Open at Login, how many days
+  of history to keep, when to scan the disk, and the appearance.
+
+## Recording
+
+Tidemark samples the Mac every 2 seconds while its window is in front or the menu-bar window is
+open; otherwise every 5 seconds, reading each app only every 15. It keeps one row a minute: the
+average and the peak, with the busiest apps of that minute. Power and battery come from the
+battery's controller, read every 10 seconds; each app's energy is the kernel's count for its
+processes.
+
+Everything goes in one SQLite file, `~/Library/Application Support/Tidemark/history.sqlite`: the
+minutes, incidents, sleeps, the disk's used space hourly and the big folders of each scan for 14
+days at most (Settings), and a row a day of disk totals and top folders for a year.
+
+It records while it is running. **Keep recording when quit** (Settings) registers a background
+helper, the app's own binary run as `Tidemark --record` by a launch agent (`SMAppService`; the plist
+is bundled in `Contents/Library/LaunchAgents`). The app and the helper share a lock: whichever holds
+it records, and the other shows what it shares in `live.json`, taking over if it stops. The helper
+also runs the scheduled disk scans.
 
 ## Scanning
 
@@ -65,10 +79,11 @@ vanish, a cloud folder's block is never drawn smaller than 2% of its cloud size;
 folder the blocks are then proportional to cloud size, and the tooltip says so.
 
 Every completed scan is **cached** under `~/Library/Application Support/Tidemark/`,
-one file per root. On launch the cached map is drawn at once and a fresh scan runs behind it; the
-strip under the title bar shows the folder being walked, the items counted so far, and a percentage
-measured against the previous scan's count. The menu-bar item carries the volume's used/total and
-the same progress line while a scan is on.
+one file per root. On launch the cached map is drawn at once, and a fresh scan runs behind it if the
+cached one is more than an hour old; the strip under the title bar shows the folder being walked,
+the items counted so far, and a percentage measured against the previous scan's count. Scheduled
+scans of the disk run daily (when the Mac is idle and on power), hourly or not at all, as Settings
+says; each one's big folders go into the history, which is how growth is known.
 
 The scan total is smaller than the volume's "used" figure in the sidebar: that figure comes from
 the filesystem and includes local Time Machine snapshots, purgeable space and folders the walk
@@ -97,7 +112,9 @@ Apple Silicon Macs, macOS 13 or later. No need to clone anything.
    it can see inside Mail, Safari, Photos and the other protected folders. Without it those folders
    are skipped and a banner in the app says so.
 
-Closing the window hides it; the app stays in the menu bar, and Quit is in that menu.
+Closing the window hides it; the app stays in the menu bar, and Quit is in its menu-bar window. To
+keep recording while it is quit, turn on **Keep recording when quit** in Settings; macOS may ask you
+to allow it under System Settings → General → Login Items.
 
 Instead of step 3 you can clear the download flag in Terminal, which is all Open Anyway does:
 
@@ -121,9 +138,9 @@ make install-app      # signed build, copied to /Applications
 | `make install-app` | Build the signed app and replace the copy in /Applications |
 | `make dmg` | Build the app and pack it into the installer, `dist-release/Tidemark.dmg` |
 | `make check` | Lint, Rust tests and TypeScript type-check |
-| `make lint` | rustfmt and clippy for the Rust, ESLint and Prettier for the TypeScript; fails on any warning |
-| `make fmt` | Reformat the Rust and TypeScript in place |
-| `make dev` | App with hot reload |
+| `make lint` | Every language: rustfmt and clippy (Rust), ESLint and Prettier (TypeScript, CSS, HTML), ruff (Python), shellcheck (scripts, hooks), plutil (plist); fails on any warning. The pre-commit hook runs it |
+| `make fmt` | Reformat the Rust, TypeScript, CSS, HTML and Python in place |
+| `make dev` | App with hot reload (Open at Login and the background helper need the installed app) |
 | `make icons` | Redraw the icon artwork (`tools/make_icons.py`) and regenerate the Tauri icon set |
 | `make screenshots` | Recapture `docs/screenshots/app.png` (needs Screen Recording for the terminal) |
 
@@ -147,8 +164,8 @@ first run asks to let the terminal control Finder.
 codegen units, which takes an incremental build from minutes to about twenty seconds at the cost of
 about a megabyte of binary.
 
-**Startup.** The window appears already painted in the theme colour, with an inline splash until
-the cached scan is read. To see the timings:
+**Startup.** The window appears already painted in the theme colour (or the one Settings chose),
+with an inline splash until the cached scan is read. To see the timings:
 
 ```bash
 TIDEMARK_TIMING=1 "/Applications/Tidemark.app/Contents/MacOS/Tidemark"
@@ -158,13 +175,21 @@ TIDEMARK_TIMING=1 "/Applications/Tidemark.app/Contents/MacOS/Tidemark"
 
 | What | Where |
 |---|---|
-| Cached scans, recent roots, last root | `~/Library/Application Support/Tidemark/` |
-| The scanner | `src-tauri/src/scan.rs` |
+| Cached scans, recent roots, settings, the history | `~/Library/Application Support/Tidemark/` |
+| The scanner, and the disk commands | `src-tauri/src/scan.rs`, `src-tauri/src/disk.rs` |
+| The recorder and its incidents | `src-tauri/src/monitor.rs` |
+| Energy and the battery | `src-tauri/src/energy.rs` |
+| The history and its queries | `src-tauri/src/history.rs`, `src-tauri/src/trends.rs` |
+| Scheduled scans and upkeep | `src-tauri/src/schedule.rs` |
+| The background helper | `src-tauri/src/recorder.rs`, `src-tauri/launchagent/` |
+| The menu-bar window | `src-tauri/src/tray.rs`, `src/Tray.tsx` |
+| The screens | `src/Now.tsx`, `src/Performance.tsx`, `src/Trends.tsx`, `src/Settings.tsx` |
+| The charts | `src/charts.tsx` |
 | The treemap | `src/Treemap.tsx` |
 | The searchable file table | `src/FileTable.tsx` |
 | File metadata listing | `src-tauri/src/files.rs` |
 | Installer layout | `tools/dmg/` (`background.html` is the window's background) |
-| Icon artwork | `design/icon.png` and `src-tauri/icons/tray@2x.png`, drawn by `tools/make_icons.py` |
+| Icon artwork | `design/icon.png`, `src-tauri/icons/tray@2x.png` and `tray-alert@2x.png`, drawn by `tools/make_icons.py` |
 
 ## Licence
 

@@ -1,20 +1,49 @@
 # Tidemark
 
-Tidemark records the high-water marks of your Mac: what is using the disk and how hard the Mac is working, now and over time. It has four screens, in the sidebar: **Now** (⌘1), **Performance** (⌘2), **Disk** (⌘3) and **Trends** (⌘4). This guide is also the app's help: press `?` or the ? button in the title bar, and it opens on the sections for the screen you are on.
+Tidemark records the high-water marks of your Mac: what is using the disk and how hard the Mac is working, now and over time. It has four screens, in the sidebar: **Now** (⌘1), **Performance** (⌘2), **Disk** (⌘3) and **Trends** (⌘4), with **Settings** (⌘,) at the foot. Tidemark opens on the screen you last had open.
 
 The ‹ › buttons at the top left of every screen (⌘[ and ⌘]) step back and forward through where you have been, across screens and folders, like Finder.
 
+This guide is also the app's help: press `?`, the ? button in the title bar, or Help › Tidemark Help, and it opens on the sections for the screen you are on; **The whole guide** at its foot shows every section, and typing searches all of them. Help › Tidemark Website opens tidemark.davies.co.za.
+
 ## Now
 
-How the Mac is doing, in a sentence, and the five things that matter most: CPU, memory, network and energy over the last 24 hours, and disk space over the last week. Each chart has a dashed line across it, the **tidemark**: the highest that measure has been this week. The dot marks the highest point in the chart.
+How the Mac is doing, in a sentence, and the five things that matter most: CPU, memory, network and energy across the top, over the last 24 hours, and disk space over the last week beside **This week's tidemarks** (the week's peaks and incidents, see Performance) and **What grew on disk this week** (the folders where the disk's growth landed). Each card's **Details** opens the screen with more.
 
-Below them, **This week's tidemarks** lists the week's peaks and incidents (see Performance), and **What grew on disk this week** lists the folders where the disk's growth landed. Questions at the foot open Ask with that question typed in.
+Questions at the foot open Ask with that question typed in.
+
+## Reading the charts
+
+Every chart in Tidemark reads the same way, and its legend says what each mark is.
+
+- The **line** is the measure, a minute's average (on Trends, the disk's used space).
+- On Performance, a faint **band** behind the line is each minute's busiest moment, so a spike of a few seconds still shows.
+- The dashed line across is the **tidemark**: the highest that measure has been this week (on Trends, in the range). On Performance a dot and a label mark the range's peak.
+- A dotted line at the right-hand end is **now**; the line runs up to the latest reading.
+- **Gaps** are shaded for what they were: a soft band marked Asleep, or a hatched band marked Not recording (Tidemark was quit or paused, or had not started yet). Nothing runs while the Mac sleeps, Tidemark included, so sleep is a gap, never a dip to zero.
+- Point at a chart to read any moment, or at a gap for its times.
+
+## Performance
+
+CPU and memory over 1 hour, 24 hours, 7 or 14 days (Tidemark remembers the range you chose), with the week's tidemark and the range's peak. Click a chart to see what every app was doing at that moment.
+
+**Network** shows download and upload as two charts on the same scale, each with its busiest moment, and how much moved each way in the range. It counts every network interface except the Mac talking to itself.
+
+**Energy** shows the power the whole Mac draws, in watts; the battery's charge over the range, its health (its capacity now against what it was designed to hold) and charge cycles; what the last sleep cost the battery; and the apps that used the most energy. Power and battery come from the battery's own controller, so a Mac without a battery shows only the apps. Each app's energy is shown as its share of what all your apps used: the kernel's per-process count leaves out the display and macOS itself, so its watts would look smaller than they are. Only your own apps can be measured. Tidemark notes the battery either side of each sleep, which is how it knows what a sleep cost.
+
+Smaller tiles show swap, disk reads and writes and the Mac's thermal state.
+
+The panel on the right is a **snapshot**: the apps that used the most at the chosen moment (the range's CPU peak until you click somewhere). Processes are grouped by the app they belong to, so Chrome's many helpers count as Google Chrome. CPU is a share of the whole Mac, not of one core. **Ask why this happened** puts the moment to Ask; **Activity Monitor** opens macOS's own, live.
+
+**Incidents** are recorded when something crosses a line: CPU above 90% for 30 seconds, memory pressure going red (critical), or swap growing by 1 GB within 10 minutes. Each keeps a snapshot of what every app was doing at its peak. Click one to jump to it.
+
+Tidemark samples the whole Mac every 2 seconds while its window is in front or the menu-bar window is open, and every 5 seconds otherwise, when it reads each app only every 15 seconds; behind other windows the screen itself refreshes at most once a minute. It keeps one row a minute: the minute's average and its peak, so a short spike is never averaged away.
 
 ## Disk
 
 Every folder as a block inside its parent's block, sized by what it takes up, so the big things are big. The rest of this guide's disk sections (the map, Getting around, Files in a folder, Free space, Cloud folders, Scanning) are about this screen.
 
-**Growth this week** outlines the folders that grew in the last week and tags each with how much. A folder is tagged where the growth actually landed: if most of ~/.colima's growth is in one folder inside it, that folder is tagged, not ~/.colima and everything above it. Hovering any folder shows how much it changed this week. Growth needs two scans at least a day apart; the switch hides it.
+**Growth this week** outlines the folders that grew in the last week and tags each with how much. A folder is tagged where the growth actually landed: if most of ~/.colima's growth is in one folder inside it, that folder is tagged, not ~/.colima and everything above it. Hovering any folder shows how much it changed this week. Growth compares two scans at least 20 hours apart, so it shows from the day after the first scan; the switch hides it.
 
 ## The map
 
@@ -65,33 +94,29 @@ So that an online-only cloud folder does not vanish from the map, its block is n
 
 The scan is a parallel walk across every core; a full boot volume of about a million items takes on the order of half a minute on an SSD. It does not follow symlinks, counts a file with several hard links once, and does not descend into /System/Volumes, /Volumes, /dev or the virtual folders.
 
-Every completed scan is **cached**. On launch the cached map is drawn at once and a fresh scan runs behind it; the strip under the title bar shows the folder being walked, the items counted so far and a percentage measured against the previous scan. The title bar says when the scan on screen finished.
+Every completed scan is **cached**. On launch the cached map is drawn at once, and a fresh scan runs behind it if the cached one is more than an hour old. The strip under the title bar shows what is being scanned, the items counted so far and a percentage measured against the previous scan; the title bar says when the scan on screen finished.
 
-## Performance
+The disk is also scanned on the schedule Settings sets (daily by default), by the app or by the background helper; a scan the helper finishes replaces the map on screen.
 
-CPU and memory over 1 hour, 24 hours, 7 or 14 days, with the week's tidemark and the range's peak. The line is each minute's average; the faint band behind it is each minute's busiest moment, which is where the peak and the tidemark sit, so a spike of a few seconds still shows. Move the pointer over a chart to read any moment; click it to see what every app was doing then. **Energy** shows the power the whole Mac draws, in watts, with the week's tidemark and the range's peak; the battery's charge over the range, its health (its capacity now against what it was designed to hold) and charge cycles; what the last sleep cost the battery; and the apps that used the most energy. Power and battery come from the battery's own controller, so a Mac without a battery shows only the apps. Each app's energy is shown as its share of what all your apps used: the kernel's per-process count leaves out the display and macOS itself, so its watts would look smaller than they are. Only your own apps can be measured.
+## Full Disk Access
 
-When the Mac sleeps nothing runs, Tidemark included, so sleep is a gap in the charts. Tidemark notes the battery either side, which is how it knows what a sleep cost.
+Folders the app is not allowed to read are skipped and counted. If any were skipped and the app does not have Full Disk Access, a banner says so and opens System Settings. Grant it under Privacy & Security › Full Disk Access, then Reload, and Mail, Safari, Photos and the other protected folders are included.
 
-**Network** shows download and upload as two charts on the same scale, each with its busiest moment, and how much moved each way in the range. It counts every network interface except the Mac talking to itself. Smaller tiles show swap, disk reads and writes and the Mac's thermal state.
-
-The panel on the right is a **snapshot**: the apps that used the most at the chosen moment (the range's CPU peak until you click somewhere). Processes are grouped by the app they belong to, so Chrome's many helpers count as Google Chrome. CPU is a share of the whole Mac, not of one core.
-
-**Incidents** are recorded when something crosses a line: CPU above 90% for 30 seconds, memory pressure going red (critical), or swap growing by 1 GB within 10 minutes. Each keeps a snapshot of what every app was doing at its peak. Click one to jump to it.
-
-Tidemark samples every 2 seconds while a window is open and every 5 seconds otherwise, and keeps one row a minute: the minute's average and its peak, so a short spike is never averaged away. Time the Mac spent asleep is a gap in the charts, not a dip to zero. Gaps are shaded for what they were: a soft band marked Asleep, or a hatched band marked Not recording (Tidemark was quit or paused, or had not started yet). Point at one for its times.
+Some folders stay unreadable even then: system folders owned by root, such as /private/var/folders. Full Disk Access opens your own protected folders, not those. The sidebar shows how many were skipped.
 
 ## Trends
 
-The disk over 14 days, 30 days, 3 months or 12 months: how much it grew, how fast, and when it would be full at that rate. Its tidemark is the most it has ever held in the range; the list beside it names the biggest one-day rises.
+The disk over 14 days, 30 days, 3 months or 12 months (remembered, like Performance's range): how much it grew, how fast, and when it would be full at that rate. Up to 14 days the line is the used space hourly; beyond, each day's high. Its tidemark is the most it held in the range; the list beside it names the biggest one-day rises.
 
 **Top folders that rose** lists where the growth landed over the range. Up to 14 days this compares scans; beyond that it compares the daily record of the 40 biggest folders, so it is coarser. **When it gets busy** shades each hour of each weekday by its average CPU over the history, darker for busier; point at a cell for its value.
+
+At the foot, the range's highs for CPU, memory, swap and the disk, and questions for Ask.
 
 ## History
 
 Everything Tidemark remembers is in one file, ~/Library/Application Support/Tidemark/history.sqlite, on this Mac only:
 
-- Every minute's CPU, memory, swap, memory pressure, disk and network, with the busiest apps of that minute, and every incident, for the days Settings keeps (14 at most).
+- Every minute's CPU, memory, swap, memory pressure, disk, network, power and battery, with the busiest apps of that minute, every incident and every sleep, for the days Settings keeps (14 at most).
 - The disk's used space about every hour, and the folders of 100 MB or more from each scan, for the same days.
 - One row a day of the disk's used space and its biggest folders, for a year whatever the setting, so the Trends screen can go back 12 months.
 
@@ -107,11 +132,7 @@ A few things to choose (⌘,):
 - **Scan the disk**: Daily (the default) runs one full scan of the disk a day, when the Mac has been idle for 5 minutes and is on power; if it is never on power it still scans once the last scan is two days old. Hourly scans every hour, which costs some battery. Off scans only when you press Reload.
 - **Appearance**: Match the Mac (the default) follows the Mac's light or dark appearance; Light and Dark keep Tidemark that way whatever the Mac does. The menu-bar window follows too.
 
-## Full Disk Access
-
-Folders the app is not allowed to read are skipped and counted. If any were skipped and the app does not have Full Disk Access, a banner says so and opens System Settings. Grant it under Privacy & Security › Full Disk Access, then Reload, and Mail, Safari, Photos and the other protected folders are included.
-
-Some folders stay unreadable even then: system folders owned by root, such as /private/var/folders. Full Disk Access opens your own protected folders, not those. The sidebar shows how many were skipped.
+At the foot, Settings shows how much space the history takes and whether Tidemark has Full Disk Access.
 
 ## Ask
 
@@ -127,7 +148,7 @@ Some folders stay unreadable even then: system folders owned by root, such as /p
 
 Closing the window hides it and takes Tidemark out of the Dock; it keeps recording in the menu bar. The menu-bar icon gets a mark when something needs attention (memory running high, the CPU busy, swap growing, the battery low, the disk nearly full).
 
-Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memory, network, energy and disk with a line for the last 15 minutes (the disk's for the week) and today's high; what is using the most right now; and, when there is something to say, a line about the week (an app holding much of your memory, or the disk growing by a gigabyte or more). When something needs attention, the main action takes you to it (Show what's using memory, say). Below that are Open Tidemark, Settings and Quit. Their shortcuts work while it is open, and Esc closes it.
+Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memory, network, energy and disk with a line for the last 15 minutes (the disk's for the week) and today's high; what is using the most right now; and, when there is something to say, a line about the week (an app holding much of your memory, or the disk growing by a gigabyte or more). When something needs attention, the main action takes you to it (Show what's using memory, say). Below that are Open Tidemark (⌘O), Settings (⌘,) and Quit (⌘Q); ⌘2 and ⌘3 open Performance and Disk. The shortcuts work while it is open, and Esc closes it. Quitting stops the recording unless the background helper is on (Settings).
 
 ## Keyboard shortcuts
 
@@ -135,11 +156,11 @@ Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memor
 |---|---|
 | ⌘1 ⌘2 ⌘3 ⌘4 | Now, Performance, Disk, Trends |
 | ⌘, | Settings |
-| ⌘R | Re-scan the whole tree |
+| ⌘[ and ⌘] | Back and forward through where you have been, across screens and folders |
+| ⌘K | Ask about the disk or performance |
+| ? or ⌘? | This help (Help › Tidemark Help in the menu bar) |
+| ⌘R | Re-scan what the Disk screen shows: the disk, or the folder you chose |
 | ⌘O | Choose a folder to scan |
 | Esc or ⌘↑ | Up one level on the Disk screen (Esc first closes an open menu or panel) |
-| ⌘[ and ⌘] | Back and forward through where you have been, across screens and folders |
 | ⌘⇧R | Reveal the folder on screen in Finder |
 | ⌘-click a block | Reveal that folder in Finder |
-| ⌘K | Ask about the disk or performance |
-| ? or ⌘? | This help (also Help › Tidemark Help in the menu bar; Help › Tidemark Website opens tidemark.davies.co.za) |

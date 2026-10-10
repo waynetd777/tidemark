@@ -71,7 +71,8 @@ function Section({
 /// The guide's sections for each screen, in the order the help shows them. Search still covers
 /// the whole guide, and "The whole guide" at the foot shows every section.
 const FOR_SCREEN: Record<Screen, string[]> = {
-  now: ["Now", "Ask", "Menu bar", "Keyboard shortcuts"],
+  now: ["Now", "Reading the charts", "Ask", "Menu bar", "Keyboard shortcuts"],
+  performance: ["Performance", "Reading the charts", "History", "Ask", "Keyboard shortcuts"],
   disk: [
     "Disk",
     "The map",
@@ -84,8 +85,7 @@ const FOR_SCREEN: Record<Screen, string[]> = {
     "Full Disk Access",
     "Keyboard shortcuts",
   ],
-  performance: ["Performance", "History", "Ask", "Keyboard shortcuts"],
-  trends: ["Trends", "History", "Keyboard shortcuts"],
+  trends: ["Trends", "Reading the charts", "History", "Ask", "Keyboard shortcuts"],
   settings: ["Settings", "History", "Menu bar", "Full Disk Access"],
 };
 
