@@ -51,12 +51,16 @@ export default function Now({
       latest ? latest.t / 1000 : undefined,
       latest?.[k],
     );
-  const highToday = (k: "cpu_max" | "mem_max") => {
+  const highToday = (k: "cpu_max" | "mem_max" | "gpu_max") => {
     let best: { v: number; t: number } | null = null;
-    for (const m of day?.points ?? [])
-      if (m.ts >= today && (!best || m[k] > best.v)) best = { v: m[k], t: m.ts };
+    for (const m of day?.points ?? []) {
+      const v = m[k];
+      if (m.ts >= today && v != null && (!best || v > best.v)) best = { v, t: m.ts };
+    }
     return best;
   };
+  const gpuHigh = highToday("gpu_max");
+  const hasGpu = (day?.points ?? []).some((m) => m.gpu != null) || latest?.gpu != null;
   const movedToday = (k: "net_in" | "net_out") =>
     (day?.points ?? [])
       .filter((m) => m.ts >= today)
@@ -120,6 +124,35 @@ export default function Now({
       fmt: pct,
       to: "performance" as Screen,
     },
+    // The GPU, where the Mac reports how busy it is.
+    ...(hasGpu
+      ? [
+          {
+            name: "GPU",
+            line: "GPU, 5-minute average",
+            range: "Last 24 h",
+            value: latest?.gpu != null ? Math.round(latest.gpu).toString() : "–",
+            unit: "%",
+            sub: "Graphics, video and machine learning",
+            pts: upToNow(
+              (day?.points ?? [])
+                .filter((m) => m.gpu != null)
+                .map((m) => ({ t: m.ts, v: m.gpu as number })),
+              latest ? latest.t / 1000 : undefined,
+              latest?.gpu,
+            ),
+            max: 100,
+            mark: tm.gpu
+              ? { v: tm.gpu.value, label: `Tidemark ${pct(tm.gpu.value)} · ${fmtAt(tm.gpu.at)}` }
+              : null,
+            high: gpuHigh
+              ? `Today's high ${pct(gpuHigh.v)} at ${fmtAt(gpuHigh.t)}`
+              : "No reading today yet",
+            fmt: pct,
+            to: "performance" as Screen,
+          },
+        ]
+      : []),
     {
       name: "Memory",
       line: "Memory used, 5-minute average",

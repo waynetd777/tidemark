@@ -136,41 +136,6 @@ export default function Performance({
         points[i] ? <span>Peak {pct(points[i].cpu_max)}</span> : <span>Now</span>,
       why: "cpu",
     },
-    {
-      name: "Memory",
-      now: latest ? fmt(latest.mem) : "–",
-      sub:
-        `${total > 1 ? `of ${fmt(total)} · ` : ""}pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}` +
-        (latest?.mem_parts
-          ? ` · apps ${fmt(latest.mem_parts.app)}, wired ${fmt(latest.mem_parts.wired)}, compressed ${fmt(latest.mem_parts.compressed)}`
-          : ""),
-      pts: ser("mem"),
-      band: ser("mem_max"),
-      max: total,
-      fmt,
-      mark: tm.mem
-        ? { v: tm.mem.value, label: `Tidemark ${fmt(tm.mem.value)} · ${fmtAt(tm.mem.at)}` }
-        : null,
-      peak: memPeak ? { ...memPeak, label: `${fmt(memPeak.v)} · ${fmtAt(memPeak.t)}` } : null,
-      extra: (i: number) => {
-        const m = points[i];
-        if (!m) return <span>Now</span>;
-        return (
-          <>
-            <span>
-              Peak {fmt(m.mem_max)} · swap {fmt(m.swap_max)}
-            </span>
-            {m.mem_app != null && (
-              <span>
-                Apps {fmt(m.mem_app)} · wired {fmt(m.mem_wired ?? 0)} · compressed{" "}
-                {fmt(m.mem_comp ?? 0)}
-              </span>
-            )}
-          </>
-        );
-      },
-      why: "mem",
-    },
     // The GPU, where one reports how busy it is.
     ...(points.some((m) => m.gpu != null) || latest?.gpu != null
       ? [
@@ -209,6 +174,41 @@ export default function Performance({
           },
         ]
       : []),
+    {
+      name: "Memory",
+      now: latest ? fmt(latest.mem) : "–",
+      sub:
+        `${total > 1 ? `of ${fmt(total)} · ` : ""}pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}` +
+        (latest?.mem_parts
+          ? ` · apps ${fmt(latest.mem_parts.app)}, wired ${fmt(latest.mem_parts.wired)}, compressed ${fmt(latest.mem_parts.compressed)}`
+          : ""),
+      pts: ser("mem"),
+      band: ser("mem_max"),
+      max: total,
+      fmt,
+      mark: tm.mem
+        ? { v: tm.mem.value, label: `Tidemark ${fmt(tm.mem.value)} · ${fmtAt(tm.mem.at)}` }
+        : null,
+      peak: memPeak ? { ...memPeak, label: `${fmt(memPeak.v)} · ${fmtAt(memPeak.t)}` } : null,
+      extra: (i: number) => {
+        const m = points[i];
+        if (!m) return <span>Now</span>;
+        return (
+          <>
+            <span>
+              Peak {fmt(m.mem_max)} · swap {fmt(m.swap_max)}
+            </span>
+            {m.mem_app != null && (
+              <span>
+                Apps {fmt(m.mem_app)} · wired {fmt(m.mem_wired ?? 0)} · compressed{" "}
+                {fmt(m.mem_comp ?? 0)}
+              </span>
+            )}
+          </>
+        );
+      },
+      why: "mem",
+    },
   ];
 
   const tail = points.slice(-60);

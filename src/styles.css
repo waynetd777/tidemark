@@ -1814,11 +1814,11 @@ pre,
   margin: 6px 0 0;
   font-size: 14px;
 }
-/* Now: the four live measures across the top, then the disk beside the week's tidemarks and
+/* Now: the live measures across the top, then the disk beside the week's tidemarks and
    what grew. Fewer columns as the window narrows. */
 .cards4 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 18px;
 }
 .cards3 {

@@ -8,7 +8,7 @@ This guide is also the app's help: press `?`, the ? button in the title bar, or 
 
 ## Now
 
-How the Mac is doing, in a sentence, and the five things that matter most: CPU, memory, network and energy across the top, over the last 24 hours, and disk space over the last week beside **This week's tidemarks** (the week's peaks and incidents, see Performance) and **What grew on disk this week** (the folders where the disk's growth landed). Each card's **Details** opens the screen with more.
+How the Mac is doing, in a sentence, and the things that matter most: CPU, GPU (where the Mac reports it), memory, network and energy across the top, over the last 24 hours, and disk space over the last week beside **This week's tidemarks** (the week's peaks and incidents, see Performance) and **What grew on disk this week** (the folders where the disk's growth landed). Each card's **Details** opens the screen with more.
 
 Questions at the foot open Ask with that question typed in.
 
@@ -25,7 +25,7 @@ Every chart in Tidemark reads the same way, and its legend says what each mark i
 
 ## Performance
 
-CPU, memory and, where the Mac reports it, the **GPU** over 1 hour, 24 hours, 7 or 14 days (Tidemark remembers the range you chose), with the week's tidemark and the range's peak. Click a chart to see what every app was doing at that moment.
+CPU, the **GPU** (where the Mac reports it) and memory over 1 hour, 24 hours, 7 or 14 days (Tidemark remembers the range you chose), with the week's tidemark and the range's peak. Click a chart to see what every app was doing at that moment.
 
 Memory's line is everything in use; the line under its heading, and the readout at any moment, splits it as Activity Monitor does: memory apps are using, **wired** memory the system keeps for itself and never moves to disk, and **compressed** memory macOS has squeezed to make room. When compressed and swap grow while pressure goes red, the Mac is short of memory. The GPU's line is how busy the graphics processor is, which video, games, 3D and machine-learning work load; apps' shares of it are not shown, because macOS doesn't report them.
 
