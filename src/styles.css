@@ -2048,7 +2048,8 @@ pre,
   position: absolute;
   transform: translate(-50%, -150%);
   z-index: 3;
-  background: var(--text);
+  /* Softer than the text colour itself: a light grey on dark, a dark grey on light. */
+  background: color-mix(in srgb, var(--text) 78%, var(--panel));
   color: var(--panel);
   font-size: 11.5px;
   font-weight: 600;
