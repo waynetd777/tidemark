@@ -14,4 +14,14 @@ out=$(python3 -I -S "$W/bin/sift.py" --json lint --staged --only "$only" 2>&1)
 # letting the commit through would make a broken check look like a passing one.
 printf '%s' "$out" | grep -q '"ok":' || { echo "sift: lint failed to run, so this commit was not checked — commit blocked. Run: python3 $W/bin/sift.py lint --staged"; exit 1; }
 printf '%s' "$out" | grep -q '"code": "W1[569]"' && { echo "sift: a secret, an out-of-repo path, or a committed local/ file — commit blocked"; exit 1; }
+# Lint every language before a commit that touches code (make lint). Docs-only commits skip it.
+if git diff --cached --name-only | grep -qvE '^(docs/|_sift/|[^/]*\.md$)'; then
+  make -s lint >/tmp/tidemark-lint.$$ 2>&1 || {
+    cat /tmp/tidemark-lint.$$
+    rm -f /tmp/tidemark-lint.$$
+    echo "lint failed: commit blocked. Fix it, or run make fmt for formatting."
+    exit 1
+  }
+  rm -f /tmp/tidemark-lint.$$
+fi
 exit 0

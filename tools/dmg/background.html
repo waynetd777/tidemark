@@ -5,30 +5,105 @@
 <!-- The DMG window's background, 660×400. make_dmg.py puts the icons on it: the app centred at
      (165, 230), Applications at (495, 230). The dashed tidemark runs behind them at y=230, and the
      same water as the app icon lies along the bottom. Colours are the app's light theme. -->
-<meta charset="utf-8">
+<meta charset="utf-8" />
 <style>
-  html, body { margin: 0; width: 660px; height: 400px; overflow: hidden; }
-  body { background: #fbfbfc; color: #1d1d1f; font-family: -apple-system, "SF Pro Text", sans-serif; position: relative; -webkit-font-smoothing: antialiased; }
-  .sea { position: absolute; inset: 0; }
-  .head { position: absolute; top: 26px; width: 100%; text-align: center; }
-  .name { font-family: "SF Pro Display", -apple-system, sans-serif; font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
-  .tag { font-size: 14px; color: #68686e; margin-top: 2px; }
-  .arrow { position: absolute; left: 250px; top: 206px; width: 160px; height: 48px; }
-  .hint { position: absolute; top: 336px; width: 100%; text-align: center; font-size: 14px; color: #3d3d42; }
-  .hint b { font-weight: 600; color: #1d1d1f; }
+  html,
+  body {
+    margin: 0;
+    width: 660px;
+    height: 400px;
+    overflow: hidden;
+  }
+  body {
+    background: #fbfbfc;
+    color: #1d1d1f;
+    font-family: -apple-system, "SF Pro Text", sans-serif;
+    position: relative;
+    -webkit-font-smoothing: antialiased;
+  }
+  .sea {
+    position: absolute;
+    inset: 0;
+  }
+  .head {
+    position: absolute;
+    top: 26px;
+    width: 100%;
+    text-align: center;
+  }
+  .name {
+    font-family:
+      "SF Pro Display",
+      -apple-system,
+      sans-serif;
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+  .tag {
+    font-size: 14px;
+    color: #68686e;
+    margin-top: 2px;
+  }
+  .arrow {
+    position: absolute;
+    left: 250px;
+    top: 206px;
+    width: 160px;
+    height: 48px;
+  }
+  .hint {
+    position: absolute;
+    top: 336px;
+    width: 100%;
+    text-align: center;
+    font-size: 14px;
+    color: #3d3d42;
+  }
+  .hint b {
+    font-weight: 600;
+    color: #1d1d1f;
+  }
 </style>
 <body>
   <svg class="sea" viewBox="0 0 660 400" aria-hidden="true">
-    <path d="M0 338 Q 55 326 110 338 T 220 338 T 330 338 T 440 338 T 550 338 T 660 338 V 400 H 0 Z" fill="#1b9db3" fill-opacity=".16" />
-    <path d="M0 362 Q 55 352 110 362 T 220 362 T 330 362 T 440 362 T 550 362 T 660 362 V 400 H 0 Z" fill="#13819a" fill-opacity=".18" />
-    <line x1="40" x2="620" y1="230" y2="230" stroke="#0b6e8a" stroke-width="2" stroke-dasharray="8 7" stroke-opacity=".35" />
+    <path
+      d="M0 338 Q 55 326 110 338 T 220 338 T 330 338 T 440 338 T 550 338 T 660 338 V 400 H 0 Z"
+      fill="#1b9db3"
+      fill-opacity=".16"
+    />
+    <path
+      d="M0 362 Q 55 352 110 362 T 220 362 T 330 362 T 440 362 T 550 362 T 660 362 V 400 H 0 Z"
+      fill="#13819a"
+      fill-opacity=".18"
+    />
+    <line
+      x1="40"
+      x2="620"
+      y1="230"
+      y2="230"
+      stroke="#0b6e8a"
+      stroke-width="2"
+      stroke-dasharray="8 7"
+      stroke-opacity=".35"
+    />
   </svg>
   <div class="head">
     <div class="name">Tidemark</div>
     <div class="tag">The high-water marks of your Mac</div>
   </div>
-  <svg class="arrow" viewBox="0 0 160 48" fill="none" stroke="#0b6e8a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M8 24 H146" /><path d="M126 8 L148 24 L126 40" />
+  <svg
+    class="arrow"
+    viewBox="0 0 160 48"
+    fill="none"
+    stroke="#0b6e8a"
+    stroke-width="5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M8 24 H146" />
+    <path d="M126 8 L148 24 L126 40" />
   </svg>
   <div class="hint">Drag <b>Tidemark</b> onto <b>Applications</b> to install it</div>
 </body>

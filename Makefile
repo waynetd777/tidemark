@@ -17,15 +17,22 @@ check: lint
 	cd src-tauri && cargo test --lib
 	npx tsc --noEmit -p tsconfig.json
 
-## rustfmt and clippy for the Rust; ESLint and Prettier for the TypeScript. Fails on any warning.
+## Every language in the repo, failing on any warning: rustfmt and clippy for the Rust; ESLint
+## and Prettier for the TypeScript, CSS, JSON and HTML; ruff for the Python in tools/; shellcheck
+## for the shell scripts and git hooks; plutil for the launch agent's plist.
 lint:
 	cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings
 	npm run lint
+	ruff check tools && ruff format --check tools
+	shellcheck tools/*.sh .githooks/*
+	plutil -lint -s src-tauri/launchagent/*.plist
 
-## Reformat everything in place (rustfmt, Prettier).
+## Reformat everything in place (rustfmt, Prettier, ruff).
 fmt:
 	cd src-tauri && cargo fmt
 	npx prettier --write .
+	ruff format tools
+	ruff check --fix tools
 
 test: check
 

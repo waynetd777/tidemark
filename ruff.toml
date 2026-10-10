@@ -1,0 +1,7 @@
+# Lint and format for the Python in tools/ (make lint, make fmt). The repo's own settings, so the
+# result does not depend on a user-level ruff config.
+line-length = 100
+target-version = "py310"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "PIE", "RUF", "PLW", "EXE"]

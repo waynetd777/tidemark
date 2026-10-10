@@ -4,8 +4,9 @@ src-tauri
 _sift
 node_modules
 package-lock.json
-index.html
-tools
+tools/**/*.py
+tools/**/*.sh
+tools/**/*.swift
 design
 docs
 *.md

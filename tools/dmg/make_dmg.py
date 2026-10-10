@@ -9,7 +9,13 @@ an arrow to Applications on the right, on a background with the app's icon, name
 
 Finder lays out the window, so the first run asks to let the terminal control Finder.
 """
-import os, shutil, subprocess, sys, tempfile, time
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -79,10 +85,27 @@ def main():
         shutil.copy(background(tmp), stage / ".background/background.tiff")
         shutil.copy(APP / "Contents/Resources/icon.icns", stage / ".VolumeIcon.icns")
         rw = tmp / "rw.dmg"
-        run("hdiutil", "create", "-volname", VOLUME, "-srcfolder", str(stage), "-fs", "HFS+", "-format", "UDRW", "-ov", str(rw))
+        run(
+            "hdiutil",
+            "create",
+            "-volname",
+            VOLUME,
+            "-srcfolder",
+            str(stage),
+            "-fs",
+            "HFS+",
+            "-format",
+            "UDRW",
+            "-ov",
+            str(rw),
+        )
         # Detach anything left mounted under the same name, or Finder lays out the wrong window.
         if Path(f"/Volumes/{VOLUME}").exists():
-            subprocess.run(["hdiutil", "detach", f"/Volumes/{VOLUME}", "-force"], capture_output=True)
+            subprocess.run(
+                ["hdiutil", "detach", f"/Volumes/{VOLUME}", "-force"],
+                capture_output=True,
+                check=False,  # nothing to detach is fine
+            )
         dev = run("hdiutil", "attach", "-readwrite", "-noverify", "-noautoopen", str(rw)).split()[0]
         try:
             mount = Path(f"/Volumes/{VOLUME}")
@@ -93,7 +116,18 @@ def main():
         finally:
             run("hdiutil", "detach", dev)
         OUT.parent.mkdir(parents=True, exist_ok=True)
-        run("hdiutil", "convert", str(rw), "-format", "UDZO", "-imagekey", "zlib-level=9", "-ov", "-o", str(OUT))
+        run(
+            "hdiutil",
+            "convert",
+            str(rw),
+            "-format",
+            "UDZO",
+            "-imagekey",
+            "zlib-level=9",
+            "-ov",
+            "-o",
+            str(OUT),
+        )
     print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size / 1e6:.0f} MB)")
 
 

@@ -19,6 +19,7 @@ Lessons learned the hard way:
     make icons                             # does both
 """
 
+import itertools
 import math
 import pathlib
 
@@ -58,7 +59,12 @@ def dashes(d, x0, x1, y, width, dash, gap, fill, scale=px):
     x = x0 + (x1 - x0 - span) / 2
     for _ in range(n):
         d.rounded_rectangle(
-            [scale(x - width / 2), scale(y - width / 2), scale(x + dash + width / 2), scale(y + width / 2)],
+            [
+                scale(x - width / 2),
+                scale(y - width / 2),
+                scale(x + dash + width / 2),
+                scale(y + width / 2),
+            ],
             radius=scale(width / 2),
             fill=fill,
         )
@@ -66,20 +72,25 @@ def dashes(d, x0, x1, y, width, dash, gap, fill, scale=px):
 
 
 def app_icon():
-    art = Image.new("RGBA", (px(S), px(S)), DEEP + (255,))
+    art = Image.new("RGBA", (px(S), px(S)), (*DEEP, 255))
     d = ImageDraw.Draw(art)
     # The older, fainter mark: a thin light line at 35%.
     faint = Image.new("RGBA", art.size, (0, 0, 0, 0))
-    ImageDraw.Draw(faint).rectangle([px(100), px(472 - 7), px(924), px(472 + 7)], fill=OLD_MARK + (89,))
+    ImageDraw.Draw(faint).rectangle(
+        [px(100), px(472 - 7), px(924), px(472 + 7)], fill=(*OLD_MARK, 89)
+    )
     art = Image.alpha_composite(art, faint)
     d = ImageDraw.Draw(art)
     wave(d, 600, 27.5, WAVE)
     wave(d, 710, 22.5, WAVE_LOW)
-    # The design's 64/52 dasharray leaves 6 units between round caps 46 wide; wider gaps read as dashes.
+    # The design's 64/52 dasharray leaves 6 units between round caps 46 wide;
+    # wider gaps read as dashes.
     dashes(d, 230, 794, 370, 46, 34, 70, MARK)
     # Clip to the tile: transparent corners.
     mask = Image.new("L", art.size, 0)
-    ImageDraw.Draw(mask).rounded_rectangle([px(100), px(100), px(924), px(924)], radius=px(186), fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        [px(100), px(100), px(924), px(924)], radius=px(186), fill=255
+    )
     img = Image.new("RGBA", art.size, (0, 0, 0, 0))
     img.paste(art, (0, 0), mask)
     out = ROOT / "design/icon.png"
@@ -97,22 +108,32 @@ def tray_icon(alert):
     img = Image.new("L", (T * ss, T * ss), 0)
     d = ImageDraw.Draw(img)
     w = 1.5 * u
-    d.rounded_rectangle([1.75 * u - w / 2, 1.75 * u - w / 2, 16.25 * u + w / 2, 16.25 * u + w / 2], radius=4.75 * u, fill=255)
-    d.rounded_rectangle([1.75 * u + w / 2, 1.75 * u + w / 2, 16.25 * u - w / 2, 16.25 * u - w / 2], radius=3.25 * u, fill=0)
+    d.rounded_rectangle(
+        [1.75 * u - w / 2, 1.75 * u - w / 2, 16.25 * u + w / 2, 16.25 * u + w / 2],
+        radius=4.75 * u,
+        fill=255,
+    )
+    d.rounded_rectangle(
+        [1.75 * u + w / 2, 1.75 * u + w / 2, 16.25 * u - w / 2, 16.25 * u - w / 2],
+        radius=3.25 * u,
+        fill=0,
+    )
     # The dashed tidemark: 2-unit dashes, 1.6 gaps, round caps, from x=5 to 13 at y=6.5.
     x = 5.0
     while x < 13:
         e = min(x + 2, 13)
-        d.rounded_rectangle([x * u - w / 2, 6.5 * u - w / 2, e * u + w / 2, 6.5 * u + w / 2], radius=w / 2, fill=255)
+        d.rounded_rectangle(
+            [x * u - w / 2, 6.5 * u - w / 2, e * u + w / 2, 6.5 * u + w / 2], radius=w / 2, fill=255
+        )
         x += 3.6
     # The wave: three crests between x=3.2 and 14.9 around y=11.6, stroked.
     pts = []
-    for i in range(0, 1171):
+    for i in range(1171):
         xx = 3.2 + i / 100
         # Crest then trough, each 3.9 units wide (the design's chained curves).
         yy = 11.6 - 0.95 * math.sin(math.pi * (xx - 3.2) / 3.9)
         pts.append((xx * u, yy * u))
-    for a, b in zip(pts, pts[1:]):
+    for a, b in itertools.pairwise(pts):
         d.line([a, b], fill=255, width=round(w))
     for p in (pts[0], pts[-1]):
         d.ellipse([p[0] - w / 2, p[1] - w / 2, p[0] + w / 2, p[1] + w / 2], fill=255)

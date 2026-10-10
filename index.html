@@ -14,8 +14,12 @@
       Keep the two background colours in step with --bg in src/styles.css and lib.rs.
     -->
     <script>
-      if (new URLSearchParams(location.search).get("view") === "tray") document.documentElement.classList.add("tray");
-      try { var t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+      if (new URLSearchParams(location.search).get("view") === "tray")
+        document.documentElement.classList.add("tray");
+      try {
+        var t = localStorage.getItem("theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch (e) {}
     </script>
     <style>
       :root {
@@ -39,27 +43,95 @@
         --splash-dim: #9a9aa2;
         --splash-line: rgba(255, 255, 255, 0.1);
       }
-      html, body { background: var(--splash-bg); margin: 0; }
-      /* The menu-bar window: transparent around its rounded panel, and no splash. */
-      html.tray, html.tray body { background: transparent; }
-      html.tray #splash { display: none; }
-      #splash {
-        position: fixed; inset: 0; z-index: 100;
-        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+      html,
+      body {
         background: var(--splash-bg);
-        font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+        margin: 0;
+      }
+      /* The menu-bar window: transparent around its rounded panel, and no splash. */
+      html.tray,
+      html.tray body {
+        background: transparent;
+      }
+      html.tray #splash {
+        display: none;
+      }
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: var(--splash-bg);
+        font:
+          13px/1.4 -apple-system,
+          BlinkMacSystemFont,
+          "SF Pro Text",
+          sans-serif;
         color: var(--splash-fg);
         transition: opacity 0.18s ease-out;
       }
-      #splash.gone { opacity: 0; pointer-events: none; }
-      #splash .mark { width: 68px; height: 68px; animation: rise 0.35s ease-out both; }
-      #splash .name { font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
-      #splash .what { font-size: 12px; color: var(--splash-dim); margin-top: -8px; }
-      #splash .bar { width: 152px; height: 3px; border-radius: 99px; background: var(--splash-line); overflow: hidden; }
-      #splash .bar i { display: block; width: 40%; height: 100%; border-radius: 99px; background: #0b6e8a; animation: slide 1.1s ease-in-out infinite; }
-      @keyframes slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(360%); } }
-      @keyframes rise { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
-      @media (prefers-reduced-motion: reduce) { #splash .mark, #splash .bar i { animation: none; } }
+      #splash.gone {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #splash .mark {
+        width: 68px;
+        height: 68px;
+        animation: rise 0.35s ease-out both;
+      }
+      #splash .name {
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+      #splash .what {
+        font-size: 12px;
+        color: var(--splash-dim);
+        margin-top: -8px;
+      }
+      #splash .bar {
+        width: 152px;
+        height: 3px;
+        border-radius: 99px;
+        background: var(--splash-line);
+        overflow: hidden;
+      }
+      #splash .bar i {
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: 99px;
+        background: #0b6e8a;
+        animation: slide 1.1s ease-in-out infinite;
+      }
+      @keyframes slide {
+        0% {
+          transform: translateX(-110%);
+        }
+        100% {
+          transform: translateX(360%);
+        }
+      }
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: scale(0.94);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #splash .mark,
+        #splash .bar i {
+          animation: none;
+        }
+      }
     </style>
   </head>
 
@@ -70,8 +142,21 @@
       <!-- The mark (src/Mark.tsx; the app icon is drawn by tools/make_icons.py): the dashed line the water reached, above a wave. -->
       <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
         <rect width="24" height="24" rx="6.5" fill="#0b6e8a" />
-        <path d="M5.5 9.5h13" fill="none" stroke="#fff" stroke-width="1.6" stroke-dasharray="2 2.2" stroke-linecap="round" />
-        <path d="M4.5 15.5c2-2.2 3.6-2.2 5 0s3 2.2 5 0 3.2-2.2 5 0" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" />
+        <path
+          d="M5.5 9.5h13"
+          fill="none"
+          stroke="#fff"
+          stroke-width="1.6"
+          stroke-dasharray="2 2.2"
+          stroke-linecap="round"
+        />
+        <path
+          d="M4.5 15.5c2-2.2 3.6-2.2 5 0s3 2.2 5 0 3.2-2.2 5 0"
+          fill="none"
+          stroke="#fff"
+          stroke-width="1.9"
+          stroke-linecap="round"
+        />
       </svg>
       <div class="name">Tidemark</div>
       <div class="what">The high-water marks of your Mac</div>
