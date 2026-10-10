@@ -24,7 +24,7 @@ lint:
 	cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings
 	npm run lint
 	ruff check tools && ruff format --check tools
-	shellcheck tools/*.sh .githooks/*
+	shellcheck $(wildcard tools/*.sh) .githooks/*
 	plutil -lint -s src-tauri/launchagent/*.plist
 
 ## Reformat everything in place (rustfmt, Prettier, ruff).
@@ -69,11 +69,12 @@ icons:
 	@python3 tools/make_icons.py
 	@npx tauri icon design/icon.png >/dev/null
 	@rm -rf src-tauri/icons/android src-tauri/icons/ios
-	@echo "regenerated src-tauri/icons"
+	@cp src-tauri/icons/128x128@2x.png public/icon.png
+	@echo "regenerated src-tauri/icons and public/icon.png"
 
-## Recapture docs/screenshots/app.png from the installed app (needs Screen Recording on this terminal).
+## Retake docs/images/<name>-light.png and -dark.png from demo data (see docs/images/index.md).
 screenshots:
-	@tools/screenshot.sh
+	@python3 tools/screenshots.py
 
 sign-check:
 	@codesign -dv --verbose=2 "/Applications/Tidemark.app" 2>&1 | grep -E "^(Identifier|Authority|Signature|TeamIdentifier)"

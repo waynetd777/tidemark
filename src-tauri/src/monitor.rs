@@ -444,7 +444,8 @@ pub fn start() {
     std::thread::Builder::new()
         .name("monitor".into())
         .spawn(|| loop {
-            if try_lock() {
+            // Screenshots record nothing: they show the demo's live readings.
+            if !crate::scene::active() && try_lock() {
                 RECORDING.store(true, Ordering::SeqCst);
                 history::close_dangling();
                 // What the previous recorder had open is closed now; forget its copy.

@@ -39,6 +39,13 @@ pub struct Helper {
 }
 
 fn helper() -> Helper {
+    if crate::scene::active() {
+        return Helper {
+            available: true,
+            on: true,
+            needs_approval: false,
+        };
+    }
     #[cfg(target_os = "macos")]
     {
         use crate::login_item::{self, Status};

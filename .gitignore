@@ -25,3 +25,6 @@ dist-release
 # sift: derived state and private notes
 _sift/.cache/
 _sift/local/
+
+# The screenshot tool's demo data (tools/screenshots.py).
+.demo/

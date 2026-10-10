@@ -87,6 +87,9 @@ fn upkeep(last_prune: &mut i64, last_try: &mut i64, scanning: bool, scan_disk: &
 /// The app's schedule. While the background helper records, the helper scans; the app picks
 /// up the scan it leaves in the cache.
 pub fn start(app: AppHandle) {
+    if crate::scene::active() {
+        return;
+    }
     std::thread::Builder::new()
         .name("schedule".into())
         .spawn(move || {

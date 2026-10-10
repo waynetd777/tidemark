@@ -91,6 +91,12 @@ pub struct ProgressInfo {
 }
 
 pub fn home() -> String {
+    // The demo's home in screenshots, so its paths show as ~/...
+    if crate::scene::active() {
+        if let Ok(h) = std::env::var("TIDEMARK_SCENE_HOME") {
+            return h;
+        }
+    }
     std::env::var("HOME").unwrap_or_else(|_| "/".into())
 }
 

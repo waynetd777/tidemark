@@ -6,7 +6,11 @@
 
 import { useCallback, useState } from "react";
 
+/// Screenshots (tools/screenshots.py) show the defaults, not what this Mac's dev build chose.
+export const sceneMode = { on: false };
+
 function load<T>(key: string, fallback: T, ok: (v: unknown) => v is T): T {
+  if (sceneMode.on) return fallback;
   try {
     const raw = localStorage.getItem(key);
     if (raw == null) return fallback;
@@ -28,6 +32,7 @@ export function useRemembered<T>(
   const set = useCallback(
     (nv: T) => {
       setV(nv);
+      if (sceneMode.on) return;
       try {
         localStorage.setItem(key, JSON.stringify(nv));
       } catch {

@@ -137,6 +137,9 @@ fn toggle(app: &AppHandle, rect: tauri::Rect) {
 }
 
 pub fn setup(app: &tauri::App) -> tauri::Result<()> {
+    if crate::scene::active() {
+        return Ok(());
+    }
     let icon = tauri::image::Image::from_bytes(ICON).expect("tray icon is a valid png");
     TrayIconBuilder::with_id("main")
         .icon(icon)
@@ -235,6 +238,10 @@ pub fn quit(app: AppHandle) {
 /// Open at Login: (available, on). Only the installed app can register itself.
 #[tauri::command]
 pub fn login_item() -> (bool, bool) {
+    // Screenshots run the dev build, which can't register; show it as the installed app would.
+    if crate::scene::active() {
+        return (true, true);
+    }
     #[cfg(target_os = "macos")]
     {
         (

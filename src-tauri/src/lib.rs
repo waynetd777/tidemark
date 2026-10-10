@@ -18,6 +18,7 @@ mod login_launch;
 mod monitor;
 mod recorder;
 mod scan;
+mod scene;
 mod schedule;
 mod settings;
 mod system;
@@ -160,6 +161,7 @@ pub fn run() {
             tray::set_login_item,
             recorder::background_helper,
             recorder::set_background_helper,
+            scene::scene,
         ])
         .setup(move |app| {
             stamp("setup() start");
@@ -169,7 +171,7 @@ pub fn run() {
             // answer is in the launch AppleEvent AppKit is dispatching now. A login launch stays
             // in the menu bar.
             #[cfg(target_os = "macos")]
-            let quiet = login_launch::probe();
+            let quiet = login_launch::probe() && !scene::active();
             #[cfg(not(target_os = "macos"))]
             let quiet = false;
             if quiet {
@@ -196,7 +198,7 @@ pub fn run() {
                     }
                     st.loading.store(false, std::sync::atomic::Ordering::SeqCst);
                     stamp("cache loaded");
-                    if !fresh {
+                    if !fresh && !scene::active() {
                         let _ = disk::start_scan_thread(&h, root, true);
                     }
                 });
@@ -206,6 +208,10 @@ pub fn run() {
             schedule::start(handle.clone());
             tray::setup(app)?;
             help_menu(app)?;
+            if scene::active() {
+                scene::setup(app);
+                return Ok(());
+            }
 
             if let Some(w) = app.get_webview_window("main") {
                 // Paint the native window in the theme's background colour before it is shown,

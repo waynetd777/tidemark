@@ -11,3 +11,4 @@ design
 docs
 *.md
 _sift/
+.demo

@@ -12,7 +12,7 @@ import Performance from "./Performance";
 import SettingsPage from "./Settings";
 import Trends from "./Trends";
 import { useLive, usePoll } from "./perf";
-import { useRemembered } from "./remember";
+import { sceneMode, useRemembered } from "./remember";
 import HelpDrawer from "./Help";
 import Tooltips from "./Tooltips";
 import { describeView } from "./context";
@@ -169,6 +169,7 @@ const MIN_FRACTION = 1 / 4000;
 /// Whether the map draws the volume's free space, remembered between launches. On unless turned off.
 const FREE_KEY = "showFree";
 function loadShowFree(): boolean {
+  if (sceneMode.on) return true;
   try {
     return localStorage.getItem(FREE_KEY) !== "0";
   } catch {
@@ -195,6 +196,7 @@ interface Place {
 /// Whether the map marks what grew this week, remembered between launches. On unless turned off.
 const GROWTH_KEY = "showGrowth";
 function loadShowGrowth(): boolean {
+  if (sceneMode.on) return true;
   try {
     return localStorage.getItem(GROWTH_KEY) !== "0";
   } catch {
@@ -473,6 +475,16 @@ export default function App() {
     [push, setScreen],
   );
   const zoomTo = go;
+
+  // A screenshot's scene opens its screen.
+  useEffect(() => {
+    void api
+      .scene()
+      .then((sc) => {
+        if (sc?.screen) setScreen(sc.screen);
+      })
+      .catch(() => {});
+  }, [setScreen]);
 
   // The tray's "navigate" arrives in a listener set up once; it calls the current `show`.
   const showRef = useRef<(s: Screen) => void>(() => {});

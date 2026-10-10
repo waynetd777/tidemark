@@ -39,6 +39,10 @@ pub struct Recent {
 pub const RECENT_MAX: usize = 5;
 
 pub fn dir() -> PathBuf {
+    // The screenshot tool points this at its demo (tools/screenshots.py).
+    if let Some(d) = std::env::var_os("TIDEMARK_DATA").filter(|d| !d.is_empty()) {
+        return PathBuf::from(d);
+    }
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
     Path::new(&home).join("Library/Application Support/Tidemark")
 }

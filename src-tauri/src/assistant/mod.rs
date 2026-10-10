@@ -40,10 +40,18 @@ const GUIDE_SECTIONS: [&str; 8] = [
     "Full Disk Access",
 ];
 
-/// The system prompt: SYSTEM, then the relevant sections of docs/guide.md, built once.
+/// The in-app help's pages (src/help/), whose sections the prompt draws on.
+const HELP: [&str; 4] = [
+    include_str!("../../../src/help/performance.md"),
+    include_str!("../../../src/help/disk-space.md"),
+    include_str!("../../../src/help/trends.md"),
+    include_str!("../../../src/help/settings.md"),
+];
+
+/// The system prompt: SYSTEM, then the relevant sections of the help, built once.
 fn system() -> &'static str {
     static PROMPT: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-        let guide = include_str!("../../../docs/guide.md");
+        let guide = format!("\n{}", HELP.join("\n\n"));
         let picked: Vec<String> = guide
             .split("\n## ")
             .skip(1)

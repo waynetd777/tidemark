@@ -3803,6 +3803,7 @@ dependencies = [
 name = "tidemark"
 version = "1.4.0"
 dependencies = [
+ "block2",
  "chrono",
  "libc",
  "objc2",

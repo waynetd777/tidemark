@@ -9,7 +9,7 @@ import prettier from "eslint-config-prettier";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["dist", "dist-release", "src-tauri", "node_modules", "_sift"] },
+  { ignores: ["dist", "dist-release", "src-tauri", "node_modules", "_sift", ".demo"] },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [js.configs.recommended, ...tseslint.configs.recommendedTypeChecked],

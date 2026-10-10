@@ -48,7 +48,9 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 # To paint the WKWebView's own background before the page's first paint: Tauri's
 # set_background_color does nothing for the webview layer on macOS, so it shows white.
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSColor"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSColor", "NSWindow", "NSResponder"] }
+# The completion handler for the screenshot mode's webview snapshot (scene.rs).
+block2 = "0.6"
 
 # Tuned for how this app is built: from source, by the person using it, after every small
 # change. Thin LTO with parallel codegen units instead of the template's fat LTO / 1 unit.

@@ -85,6 +85,9 @@ export const api = {
   showMain: (screen?: Screen) => invoke<void>("show_main_window", { screen: screen ?? null }),
   openAsk: () => invoke<void>("open_ask"),
   quit: () => invoke<void>("quit"),
+  /// Screenshot mode (tools/screenshots.py): the screen or menu-bar window to show, and the theme.
+  scene: () =>
+    invoke<{ screen?: Screen; tray?: boolean; theme?: "light" | "dark" } | null>("scene"),
   activityMonitor: () => invoke<void>("open_activity_monitor"),
   /// Open at Login: [available, on].
   loginItem: () => invoke<[boolean, boolean]>("login_item"),

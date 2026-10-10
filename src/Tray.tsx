@@ -118,6 +118,13 @@ export default function Tray() {
   }, []);
   useEffect(() => {
     load();
+    // A screenshot of the menu-bar window shows it open.
+    void api
+      .scene()
+      .then((sc) => {
+        if (sc?.tray) setOpen(true);
+      })
+      .catch(() => {});
     const u1 = on("tray-opened", () => {
       setOpen(true);
       load();

@@ -1,10 +1,19 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: MIT (see LICENSE at the repository root)
 
-// The help's text: docs/guide.md, built in, so the help and the guide on GitHub are one copy.
-// Each `##` is a section the drawer can open and search.
+// The help's text: the short pages in src/help/, built in, read in the order the app presents
+// them. Each `##` is a section the drawer can open and search; intro.md carries the title.
 
-import guideMd from "../docs/guide.md?raw";
+import intro from "./help/intro.md?raw";
+import now from "./help/now.md?raw";
+import charts from "./help/charts.md?raw";
+import performance from "./help/performance.md?raw";
+import disk_space from "./help/disk-space.md?raw";
+import trends from "./help/trends.md?raw";
+import settings from "./help/settings.md?raw";
+import ask from "./help/ask.md?raw";
+import menu_bar from "./help/menu-bar.md?raw";
+import keyboard from "./help/keyboard.md?raw";
 
 export interface HelpSection {
   title: string;
@@ -38,7 +47,21 @@ export function parseGuide(md: string): { title: string; intro: string; sections
   return { title, intro: intro.trim(), sections };
 }
 
-export const GUIDE = parseGuide(guideMd);
+/** The pages in order, as one guide. */
+const PAGES = [
+  intro,
+  now,
+  charts,
+  performance,
+  disk_space,
+  trends,
+  settings,
+  ask,
+  menu_bar,
+  keyboard,
+];
+
+export const GUIDE = parseGuide(PAGES.join("\n\n"));
 
 /** Sections with every word of the query, those with words in their heading first. */
 export function searchHelp(q: string): HelpSection[] {

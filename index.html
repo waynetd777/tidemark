@@ -139,25 +139,8 @@
     <div id="root"></div>
 
     <div id="splash">
-      <!-- The mark (src/Mark.tsx; the app icon is drawn by tools/make_icons.py): the dashed line the water reached, above a wave. -->
-      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-        <rect width="24" height="24" rx="6.5" fill="#0b6e8a" />
-        <path
-          d="M5.5 9.5h13"
-          fill="none"
-          stroke="#fff"
-          stroke-width="1.6"
-          stroke-dasharray="2 2.2"
-          stroke-linecap="round"
-        />
-        <path
-          d="M4.5 15.5c2-2.2 3.6-2.2 5 0s3 2.2 5 0 3.2-2.2 5 0"
-          fill="none"
-          stroke="#fff"
-          stroke-width="1.9"
-          stroke-linecap="round"
-        />
-      </svg>
+      <!-- The app icon (public/icon.png, as src/Mark.tsx draws it). -->
+      <img class="mark" src="/icon.png" alt="" />
       <div class="name">Tidemark</div>
       <div class="what">The high-water marks of your Mac</div>
       <div class="bar"><i></i></div>

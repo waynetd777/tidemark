@@ -292,7 +292,7 @@ export default function Trends({
           </section>
         </div>
 
-        <div className="tiles">
+        <div className="tiles four">
           {marks.map((m) => (
             <section className="card tile" key={m.name}>
               <span className="eyebrow">

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT (see LICENSE at the repository root)
 
 // The help drawer: `?` or the title bar's ? button opens it on the right, showing the user guide
-// (docs/guide.md) section by section. Typing searches it; a link in the guide opens its section.
+// (src/help/*.md) section by section. Typing searches it; a link in the guide opens its section.
 // It stays open while you use the map beside it; Esc or × closes it.
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
