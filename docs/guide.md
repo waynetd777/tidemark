@@ -127,7 +127,7 @@ Some folders stay unreadable even then: system folders owned by root, such as /p
 
 Closing the window hides it and takes Tidemark out of the Dock; it keeps recording in the menu bar. The menu-bar icon gets a mark when something needs attention (memory running high, the CPU busy, swap growing, the battery low, the disk nearly full).
 
-Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memory, network, energy and disk with a line for the last 15 minutes (the disk's for the week) and today's high; network download and upload; what is using the most right now; and the week's disk growth. Below are the things worth doing from there: the main one changes with the state (Rescan disk when all is calm, Show what's using memory when memory is short), Ask Tidemark…, pausing recording for an hour, Open at Login, Open Tidemark, Settings and Quit. Their shortcuts work while it is open, and Esc closes it.
+Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memory, network, energy and disk with a line for the last 15 minutes (the disk's for the week) and today's high; what is using the most right now; and, when there is something to say, a line about the week (an app holding much of your memory, or the disk growing by a gigabyte or more). When something needs attention, the main action takes you to it (Show what's using memory, say). Below that are Open Tidemark, Settings and Quit. Their shortcuts work while it is open, and Esc closes it.
 
 ## Keyboard shortcuts
 

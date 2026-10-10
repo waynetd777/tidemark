@@ -80,7 +80,6 @@ export default function Tray() {
   const [disk, setDisk] = useState<DiskTrend | null>(null);
   const [growth, setGrowth] = useState<GrowthInfo | null>(null);
   const [home, setHome] = useState("");
-  const [login, setLogin] = useState<[boolean, boolean]>([false, false]);
   const [helperOn, setHelperOn] = useState(false);
   const [open, setOpen] = useState(true);
 
@@ -101,10 +100,6 @@ export default function Tray() {
     api
       .state()
       .then((s) => setHome(s.home))
-      .catch(() => {});
-    api
-      .loginItem()
-      .then(setLogin)
       .catch(() => {});
     api
       .helper()
@@ -147,14 +142,9 @@ export default function Tray() {
 
   const attention = live?.status.level === "attention";
   const about = live?.status.about ?? "";
-  const rescan = {
-    label: "Rescan disk",
-    keys: "⌘R",
-    run: () => api.startScan(),
-    tip: "Scan the disk again now",
-  };
+  // The one action worth offering from here: what needs attention, if anything does.
   const primary = !attention
-    ? rescan
+    ? null
     : about === "disk"
       ? {
           label: "Show the disk map",
@@ -163,33 +153,15 @@ export default function Tray() {
           tip: "Open the map to see what is filling the disk",
         }
       : {
-          label: `Show what's using ${about === "cpu" ? "the CPU" : "memory"}`,
+          label: `Show what's using ${about === "cpu" ? "the CPU" : about === "energy" ? "energy" : "memory"}`,
           keys: "⌘2",
           run: () => api.showMain("performance"),
           tip: "Open Performance to see which apps are responsible",
-        };
-  const paused = live?.paused_until != null;
-  const third = attention
-    ? rescan
-    : paused
-      ? {
-          label: "Resume recording",
-          keys: "",
-          run: () => api.pauseRecording(0),
-          tip: "Start recording again",
-        }
-      : {
-          label: "Pause recording for an hour",
-          keys: "",
-          run: () => api.pauseRecording(60),
-          tip: "Stop recording for an hour; it resumes by itself",
         };
 
   // The shortcuts the menu shows work while it is open.
   useEffect(() => {
     const keys: Record<string, () => unknown> = {
-      r: () => api.startScan(),
-      k: () => api.openAsk(),
       o: () => api.showMain(),
       ",": () => api.showMain("settings"),
       q: () => api.quit(),
@@ -333,15 +305,16 @@ export default function Tray() {
   const landed = (growth?.landed ?? []).filter((g) => g.delta > 0);
   const grew = Math.max(0, growth?.total ?? 0);
   const memHog = live.apps_mem[0];
+  // The week's row, only when there is something to say: a warning, or real disk growth.
   const week =
     memWarn && memHog && live.mem_total
       ? {
           warn: true,
           text: `${memHog.app} holds ${Math.round((100 * memHog.mem) / live.mem_total)}% of your memory`,
-          note: "Quitting it when you're not using it frees the most. Ask for details.",
+          note: "Quitting it when you're not using it frees the most.",
           go: () => api.showMain("performance"),
         }
-      : grew > 1e8
+      : grew >= 1e9
         ? {
             warn: false,
             text: `Disk grew ${fmt(grew)} this week`,
@@ -350,14 +323,7 @@ export default function Tray() {
               : "Open the map to see where.",
             go: () => api.showMain("disk"),
           }
-        : {
-            warn: false,
-            text: growth?.from ? "The disk held steady this week" : "Disk growth shows after a day",
-            note: growth?.from
-              ? "Nothing grew by more than 100 MB."
-              : "Tidemark compares one scan with the next.",
-            go: () => api.showMain("trends"),
-          };
+        : null;
 
   return (
     <div className="traywin" ref={root}>
@@ -417,49 +383,35 @@ export default function Tray() {
         ))}
       </div>
 
-      <div className="tsec pad8">
-        <button
-          className="menu-item tall"
-          title="Open the details"
-          onClick={() => {
-            void week.go();
-            hide();
-          }}
-        >
-          <span className={`sdot${week.warn ? " warn" : ""}`} />
-          <span className="col grow minw0">
-            <span className="ell">{week.text}</span>
-            <span className="tiny muted ell">{week.note}</span>
-          </span>
-        </button>
-      </div>
+      {week && (
+        <div className="tsec pad8">
+          <button
+            className="menu-item tall"
+            title="Open the details"
+            onClick={() => {
+              void week.go();
+              hide();
+            }}
+          >
+            <span className={`sdot${week.warn ? " warn" : ""}`} />
+            <span className="col grow minw0">
+              <span className="ell">{week.text}</span>
+              <span className="tiny muted ell">{week.note}</span>
+            </span>
+          </button>
+        </div>
+      )}
 
       <div className="tactions">
-        <Item
-          label={primary.label}
-          keys={primary.keys}
-          strong
-          onClick={primary.run}
-          tip={primary.tip}
-        />
-        <Item
-          label="Ask Tidemark…"
-          keys="⌘K"
-          onClick={() => api.openAsk()}
-          tip="Ask an AI about your disk or performance"
-        />
-        <Item label={third.label} keys={third.keys} onClick={third.run} tip={third.tip} />
-        <div className="msep" />
-        {login[0] && (
+        {primary && (
           <>
-            <div className="menu-item static">
-              <span className="grow">Open at Login</span>
-              <Switch
-                label="Open at Login"
-                on={login[1]}
-                onChange={(v) => void api.setLoginItem(v).then((r) => setLogin([true, r]))}
-              />
-            </div>
+            <Item
+              label={primary.label}
+              keys={primary.keys}
+              strong
+              onClick={primary.run}
+              tip={primary.tip}
+            />
             <div className="msep" />
           </>
         )}
@@ -479,7 +431,11 @@ export default function Tray() {
           label="Quit Tidemark"
           keys="⌘Q"
           onClick={() => api.quit()}
-          tip="Quit. Nothing is recorded until Tidemark is opened again"
+          tip={
+            helperOn
+              ? "Quit. The background helper keeps recording"
+              : "Quit. Nothing is recorded until Tidemark is opened again"
+          }
         />
       </div>
       <div className="tfoot">
