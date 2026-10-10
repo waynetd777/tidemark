@@ -4,6 +4,8 @@
 
 A macOS app that records what is using your Mac's disk and how hard the Mac is working, now and over time, and marks the highs. Built with Tauri 2, React and Rust.
 
+See it at [tidemark.davies.co.za](https://tidemark.davies.co.za).
+
 <a href="docs/images/index.md#now"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/now-dark.png"><img alt="The Now screen" src="docs/images/now-light.png" width="900"></picture></a>
 
 - **Now**: CPU, GPU, memory, disk I/O, network, energy and disk space at a glance, with the week's highs.

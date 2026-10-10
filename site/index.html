@@ -1,0 +1,586 @@
+<!doctype html>
+<!-- Copyright (c) 2026 Wayne Davies -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root) -->
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tidemark: the high-water marks of your Mac</title>
+    <meta
+      name="description"
+      content="Tidemark is a free Mac app that records how hard your Mac works and what fills its disk, over time, and marks the highs: CPU, GPU, memory, disk, network, energy and a map of every folder."
+    />
+    <link rel="canonical" href="https://tidemark.davies.co.za/" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0c2a33" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Tidemark" />
+    <meta property="og:url" content="https://tidemark.davies.co.za/" />
+    <meta property="og:title" content="Tidemark: the high-water marks of your Mac" />
+    <meta
+      property="og:description"
+      content="How hard your Mac works and what fills its disk, recorded over time, with the highs marked. Free for Mac."
+    />
+    <meta property="og:image" content="https://tidemark.davies.co.za/img/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Tidemark's Now screen under the headline The high-water marks of your Mac."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Tidemark: the high-water marks of your Mac" />
+    <meta
+      name="twitter:description"
+      content="How hard your Mac works and what fills its disk, recorded over time, with the highs marked. Free for Mac."
+    />
+    <meta name="twitter:image" content="https://tidemark.davies.co.za/img/og.png" />
+    <link rel="icon" href="img/mark.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="img/icon-180.png" />
+    <link rel="preload" href="fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Tidemark",
+        "url": "https://tidemark.davies.co.za/",
+        "description": "A Mac app that records CPU, GPU, memory, disk I/O, network, energy and disk space over time, marks the highs, and maps what is using the disk.",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "macOS 13 or later (Apple silicon)",
+        "downloadUrl": "https://github.com/waynetd777/tidemark/releases/latest/download/Tidemark.dmg",
+        "image": "https://tidemark.davies.co.za/img/og.png",
+        "screenshot": "https://tidemark.davies.co.za/img/now-light.webp",
+        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "codeRepository": "https://github.com/waynetd777/tidemark"
+      }
+    </script>
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="nav-in">
+        <a class="brand" href="#top"
+          ><img src="img/mark.svg" alt="" width="24" height="24" />Tidemark</a
+        >
+        <nav class="nav-links">
+          <a href="#now">Now</a>
+          <a href="#performance">Performance</a>
+          <a href="#disk">Disk Map</a>
+          <a href="#trends">Trends</a>
+          <a href="#faq">Questions</a>
+        </nav>
+        <a class="btn btn-sm" href="#download">Download</a>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- Hero: the sea at night, a live chart, and the tidemark it leaves -->
+      <section class="hero">
+        <div class="hero-sky" aria-hidden="true"><canvas class="stars"></canvas></div>
+        <div class="hero-copy">
+          <p class="eyebrow rise">Tidemark for Mac</p>
+          <h1 class="rise">The high-water marks<br /><span class="grad">of your Mac.</span></h1>
+          <p class="lede rise">
+            How hard your Mac works and what fills its disk, recorded every minute and kept for
+            weeks, with the highs marked.
+          </p>
+          <div class="cta rise">
+            <a class="btn btn-light" href="#download">Download for Mac</a>
+            <a class="link link-light" href="#now"
+              >See how it works <span aria-hidden="true">›</span></a
+            >
+          </div>
+        </div>
+
+        <div
+          class="live rise"
+          aria-label="An example chart: CPU over the last few minutes, with its tidemark"
+        >
+          <div class="live-head">
+            <span class="live-name"><i class="pulse"></i>CPU</span>
+            <span class="live-val"><b data-live-val>12</b>%</span>
+          </div>
+          <svg
+            class="live-chart"
+            viewBox="0 0 600 160"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path class="band" d=""></path>
+            <path class="area" d=""></path>
+            <path class="line" d=""></path>
+            <line class="tm" x1="0" x2="600" y1="40" y2="40"></line>
+          </svg>
+          <span class="live-tm" data-live-tm>Tidemark 64%</span>
+        </div>
+
+        <div class="sea" aria-hidden="true">
+          <svg class="wave w1" viewBox="0 0 1440 120" preserveAspectRatio="none">
+            <path d="M0 60c120-34 240-34 360 0s240 34 360 0 240-34 360 0 240 34 360 0v60H0z" />
+          </svg>
+          <svg class="wave w2" viewBox="0 0 1440 120" preserveAspectRatio="none">
+            <path d="M0 60c120-34 240-34 360 0s240 34 360 0 240-34 360 0 240 34 360 0v60H0z" />
+          </svg>
+          <svg class="wave w3" viewBox="0 0 1440 120" preserveAspectRatio="none">
+            <path d="M0 60c120-34 240-34 360 0s240 34 360 0 240-34 360 0 240 34 360 0v60H0z" />
+          </svg>
+        </div>
+      </section>
+
+      <!-- The Now screen, rising as the tide goes out -->
+      <section class="ebb">
+        <figure class="window ebb-window" data-ebb>
+          <picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/now-dark.webp" />
+            <img
+              src="img/now-light.webp"
+              fetchpriority="high"
+              alt="Tidemark's Now screen: eight cards for CPU, GPU, memory, disk I/O, network download and upload, energy and disk space, each with its week's tidemark"
+              width="1400"
+              height="1129"
+            />
+          </picture>
+        </figure>
+      </section>
+
+      <!-- Statement -->
+      <section class="statement">
+        <p class="words">
+          A spike lasts a second.
+          <span class="dim">A full disk creeps up for months.</span> Tidemark remembers both.
+        </p>
+      </section>
+
+      <!-- Now: eight live measures -->
+      <section id="now" class="feature">
+        <div class="center">
+          <p class="eyebrow reveal">Now</p>
+          <h2 class="reveal">
+            Everything your Mac<br />is doing. <span class="grad">At a glance.</span>
+          </h2>
+          <p class="lede reveal">
+            Eight measures, each with its last hour, its high for the day and the week's tidemark.
+            One sentence says how the Mac is doing.
+          </p>
+        </div>
+        <div class="gauges" data-gauges>
+          <div class="gauge reveal" data-g="cpu">
+            <span class="g-name">CPU</span><span class="g-val"><b>7</b> %</span
+            ><svg viewBox="0 0 120 36" preserveAspectRatio="none"><path /></svg>
+          </div>
+          <div class="gauge reveal" data-g="gpu">
+            <span class="g-name">GPU</span><span class="g-val"><b>11</b> %</span
+            ><svg viewBox="0 0 120 36" preserveAspectRatio="none"><path /></svg>
+          </div>
+          <div class="gauge reveal" data-g="mem">
+            <span class="g-name">Memory</span><span class="g-val"><b>14.1</b> GB</span
+            ><svg viewBox="0 0 120 36" preserveAspectRatio="none"><path /></svg>
+          </div>
+          <div class="gauge reveal" data-g="io">
+            <span class="g-name">Disk I/O</span><span class="g-val"><b>3.4</b> MB/s</span
+            ><svg viewBox="0 0 120 36" preserveAspectRatio="none"><path /></svg>
+          </div>
+          <div class="gauge reveal" data-g="down">
+            <span class="g-name">Download</span><span class="g-val"><b>1.4</b> MB/s</span
+            ><svg viewBox="0 0 120 36" preserveAspectRatio="none"><path /></svg>
+          </div>
+          <div class="gauge reveal" data-g="up">
+            <span class="g-name">Upload</span><span class="g-val"><b>282</b> KB/s</span
+            ><svg viewBox="0 0 120 36" preserveAspectRatio="none"><path /></svg>
+          </div>
+          <div class="gauge reveal" data-g="watts">
+            <span class="g-name">Energy</span><span class="g-val"><b>8.8</b> W</span
+            ><svg viewBox="0 0 120 36" preserveAspectRatio="none"><path /></svg>
+          </div>
+          <div class="gauge reveal" data-g="disk">
+            <span class="g-name">Disk space</span><span class="g-val"><b>165</b> GB free</span
+            ><svg viewBox="0 0 120 36" preserveAspectRatio="none"><path /></svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- Performance: scrub a chart to see what every app was doing -->
+      <section id="performance" class="feature tint">
+        <div class="center">
+          <p class="eyebrow reveal">Performance</p>
+          <h2 class="reveal">Slow on Wednesday?<br /><span class="grad">Find out why.</span></h2>
+          <p class="lede reveal">
+            Every measure over an hour to 14 days. Point at any moment and see what every app was
+            doing.
+          </p>
+        </div>
+        <div class="scrub reveal" data-scrub>
+          <div class="scrub-chart">
+            <div class="scrub-axis">
+              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span>
+            </div>
+            <svg viewBox="0 0 1000 240" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <pattern
+                  id="hatch"
+                  width="8"
+                  height="8"
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(45)"
+                >
+                  <line x1="0" y1="0" x2="0" y2="8" class="hatch" />
+                </pattern>
+              </defs>
+              <g class="sleeps"></g>
+              <path class="band" d=""></path>
+              <path class="area" d=""></path>
+              <path class="line" d=""></path>
+              <line class="tm" x1="0" x2="1000"></line>
+              <line class="cursor" y1="0" y2="240"></line>
+              <circle class="dot" r="5"></circle>
+            </svg>
+            <span class="scrub-tm">Tidemark 96% · Wed 14:57</span>
+          </div>
+          <div class="scrub-card" aria-live="polite">
+            <p class="sc-when">Wed 14:57</p>
+            <p class="sc-big"><b>96%</b> CPU</p>
+            <ul class="sc-apps"></ul>
+            <p class="sc-hint">Move across the chart</p>
+          </div>
+        </div>
+        <div class="incidents">
+          <div class="inc reveal">
+            <time>Wed 14:57</time>
+            <div>
+              <b>CPU reached 96%</b> <span class="tag warn">Incident · snapshot kept</span>
+              <p>4 minutes: mostly Xcode (71%) and Safari (9%).</p>
+            </div>
+          </div>
+          <div class="inc reveal">
+            <time>Thu 17:45</time>
+            <div>
+              <b>Photos hung</b> <span class="tag warn">Hang report</span>
+              <p>From the report macOS wrote.</p>
+            </div>
+          </div>
+          <div class="inc reveal">
+            <time>Fri 11:37</time>
+            <div>
+              <b>Memory pressure went red</b> <span class="tag bad">Incident · snapshot kept</span>
+              <p>22.8 GB used, swap up 1.4 GB in ten minutes.</p>
+            </div>
+          </div>
+        </div>
+        <figure class="window reveal">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/performance-dark.webp" />
+            <img
+              src="img/performance-light.webp"
+              alt="The Performance screen: CPU, GPU and memory over the last day, with peak bands, tidemarks and sleep shaded"
+              width="1400"
+              height="1000"
+              loading="lazy"
+            />
+          </picture>
+        </figure>
+      </section>
+
+      <!-- Disk Map -->
+      <section id="disk" class="feature">
+        <div class="center">
+          <p class="eyebrow reveal">Disk Map</p>
+          <h2 class="reveal">Every folder,<br /><span class="grad">to scale.</span></h2>
+          <p class="lede reveal">
+            Each folder is a block inside its parent, sized by the space it really takes, with this
+            week's growth outlined. The whole disk scans in about half a minute, on every core.
+          </p>
+          <ul class="chips center-chips reveal">
+            <li>Click to zoom in</li>
+            <li>Free space shown</li>
+            <li>Cloud folders on disk and in the cloud</li>
+            <li>Reveal in Finder</li>
+          </ul>
+        </div>
+        <figure class="window reveal">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/disk-map-dark.webp" />
+            <img
+              src="img/disk-map-light.webp"
+              alt="The Disk Map: Users, Applications and System as nested blocks beside the free space, with this week's growth marked"
+              width="1400"
+              height="900"
+              loading="lazy"
+            />
+          </picture>
+        </figure>
+      </section>
+
+      <!-- Trends: when will it fill -->
+      <section id="trends" class="feature tint">
+        <div class="center">
+          <p class="eyebrow reveal">Trends</p>
+          <h2 class="reveal">Know when the disk<br /><span class="grad">will be full.</span></h2>
+          <p class="lede reveal">
+            Disk space over seven days to a year, how fast it's growing, and the folders that grew.
+            And when, in the week, your Mac works hardest.
+          </p>
+        </div>
+        <div class="trend-pair">
+          <div class="panel reveal">
+            <p class="panel-title">Disk space, 12 months</p>
+            <svg class="fill-chart" viewBox="0 0 600 260" aria-hidden="true">
+              <line class="full" x1="0" x2="600" y1="30" y2="30"></line>
+              <text class="full-l" x="6" y="22">494 GB · full</text>
+              <path class="area" d=""></path>
+              <path class="line" d=""></path>
+              <path class="proj" d=""></path>
+              <circle class="hit" r="6"></circle>
+            </svg>
+            <p class="panel-foot">
+              <b data-fill-rate>+11 GB a month</b
+              ><span>Full around <b data-fill-when>March 2027</b></span>
+            </p>
+          </div>
+          <div class="panel reveal">
+            <p class="panel-title">CPU by weekday and hour</p>
+            <div class="heat" data-heat></div>
+            <p class="panel-foot">
+              <span>Busiest: <b>weekdays, 14:00 to 16:00</b></span>
+            </p>
+          </div>
+        </div>
+        <figure class="window reveal">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" srcset="img/trends-dark.webp" />
+            <img
+              src="img/trends-light.webp"
+              alt="The Trends screen: disk space over the year with a projection, the folders that rose and CPU by weekday and hour"
+              width="1400"
+              height="1129"
+              loading="lazy"
+            />
+          </picture>
+        </figure>
+      </section>
+
+      <!-- Menu bar and Ask -->
+      <section class="duo">
+        <article class="card card-tray reveal">
+          <div class="card-copy">
+            <p class="eyebrow">Menu bar</p>
+            <h3>Always recording.<br />Even when it's quit.</h3>
+            <p>
+              Close the window and Tidemark carries on in the menu bar. Its icon gets a mark when
+              something needs you. A small helper keeps recording while the app is quit.
+            </p>
+          </div>
+          <div class="menubar" aria-hidden="true">
+            <span class="mb-time">Sun 11 Oct 09:41</span>
+            <img class="mb-icon" src="img/mark.svg" alt="" width="18" height="18" />
+          </div>
+          <figure class="tray-drop">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="img/menu-bar-dark.webp" />
+              <img
+                src="img/menu-bar-light.webp"
+                alt="The menu-bar window: live readings, what is using the most, and actions"
+                width="720"
+                height="1346"
+                loading="lazy"
+              />
+            </picture>
+          </figure>
+        </article>
+        <article class="card card-ask reveal">
+          <div class="card-copy">
+            <p class="eyebrow">Ask <kbd>⌘K</kbd></p>
+            <h3>Ask why.</h3>
+            <p>
+              Chat about your Mac with the AI you already use. It sees names, sizes and figures, and
+              Tidemark changes nothing.
+            </p>
+            <ul class="chips">
+              <li>Claude Code</li>
+              <li>Codex</li>
+              <li>Copilot</li>
+              <li>Antigravity</li>
+            </ul>
+          </div>
+          <div class="chat" data-chat>
+            <p class="bubble me">Why was my Mac slow on Wednesday afternoon?</p>
+            <p class="bubble ai"><span data-typed></span><span class="caret"></span></p>
+          </div>
+        </article>
+      </section>
+
+      <!-- Trust -->
+      <section class="trust">
+        <h2 class="center reveal">
+          Your Mac's story.<br /><span class="grad">Kept on your Mac.</span>
+        </h2>
+        <div class="tiles">
+          <div class="tile reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="12" rx="2" />
+              <path d="M8 20h8M12 16v4" />
+            </svg>
+            <h3>Nothing leaves.</h3>
+            <p>The history is one file on your Mac. No account, no server, no tracking.</p>
+          </div>
+          <div class="tile reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M13 3L5 14h6l-1 7 8-11h-6z" />
+            </svg>
+            <h3>Light on its feet.</h3>
+            <p>
+              Written in Rust. It reads every few seconds and slows down when you're not looking.
+            </p>
+          </div>
+          <div class="tile reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 7v5l3 2" />
+              <circle cx="12" cy="12" r="9" />
+            </svg>
+            <h3>Never averaged away.</h3>
+            <p>Each minute keeps its average and its peak, so a short spike still shows.</p>
+          </div>
+          <div class="tile reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 12c3-3 5-3 9 0s6 3 9 0M3 17c3-3 5-3 9 0s6 3 9 0" />
+              <path d="M5 7h2M10 7h2M15 7h2" stroke-linecap="round" />
+            </svg>
+            <h3>Sleep isn't a dip.</h3>
+            <p>Time asleep or not recording is shaded, never drawn as zero.</p>
+          </div>
+          <div class="tile reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.2v.1" />
+            </svg>
+            <h3>Help on every screen.</h3>
+            <p>Press <kbd>?</kbd> anywhere for that screen's help.</p>
+          </div>
+          <div class="tile reveal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
+            </svg>
+            <h3>Free, and open.</h3>
+            <p>Free software under the GPL. Read the code, change it, share it.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Questions -->
+      <section id="faq" class="faq">
+        <h2 class="center reveal">Questions.</h2>
+        <div class="qs">
+          <details class="reveal">
+            <summary>How is it different from Activity Monitor?</summary>
+            <p>
+              Activity Monitor shows this moment. Tidemark records every minute for up to 14 days,
+              and a daily disk total for a year, so you can go back to Wednesday afternoon and see
+              what was happening. It also maps the disk and marks the week's highs.
+            </p>
+          </details>
+          <details class="reveal">
+            <summary>Does it slow my Mac down?</summary>
+            <p>
+              It reads every 2 seconds while you're watching and every 5 when you're not, and
+              redraws at most once a minute when its window is behind others. Disk scans run when
+              the Mac is idle and on power, or when you ask.
+            </p>
+          </details>
+          <details class="reveal">
+            <summary>Why does it want Full Disk Access?</summary>
+            <p>
+              To see inside Mail, Safari, Photos and other protected folders on the Disk Map.
+              Without it those folders are skipped and counted, and a banner says so. Everything
+              else works without it.
+            </p>
+          </details>
+          <details class="reveal">
+            <summary>Where is my history kept?</summary>
+            <p>
+              In one SQLite file in your Library folder, on this Mac only. Choose 3, 7 or 14 days of
+              detail in Settings; a daily total of disk space is kept for a year.
+            </p>
+          </details>
+          <details class="reveal">
+            <summary>Does Ask send my data anywhere?</summary>
+            <p>
+              Only when you ask, and only to the AI tool you chose, signed in with your own account.
+              It sees names, sizes and figures, not the contents of your files. Tidemark works fully
+              without it.
+            </p>
+          </details>
+          <details class="reveal">
+            <summary>Is it free? Does it run on Intel or Windows?</summary>
+            <p>
+              It's free and open source under the GNU GPL. For now it's for Apple silicon Macs with
+              macOS 13 or later.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <!-- Download -->
+      <section id="download" class="download center">
+        <div class="dl-sea" aria-hidden="true">
+          <svg class="wave w1" viewBox="0 0 1440 120" preserveAspectRatio="none">
+            <path d="M0 60c120-34 240-34 360 0s240 34 360 0 240-34 360 0 240 34 360 0v60H0z" />
+          </svg>
+          <svg class="wave w2" viewBox="0 0 1440 120" preserveAspectRatio="none">
+            <path d="M0 60c120-34 240-34 360 0s240 34 360 0 240-34 360 0 240 34 360 0v60H0z" />
+          </svg>
+        </div>
+        <img class="big-mark reveal" src="img/mark.svg" alt="" width="96" height="96" />
+        <h2 class="reveal">Know your Mac.</h2>
+        <p class="lede reveal">Install it once and it keeps watch from the menu bar.</p>
+        <div class="cta reveal">
+          <a
+            class="btn"
+            href="https://github.com/waynetd777/tidemark/releases/latest/download/Tidemark.dmg"
+            >Download for Mac</a
+          >
+          <a class="link" href="https://github.com/waynetd777/tidemark"
+            >View on GitHub <span aria-hidden="true">›</span></a
+          >
+        </div>
+        <p class="fine reveal">Apple silicon (M1 or later), macOS 13 or later.</p>
+        <ol class="install reveal">
+          <li>Open the disk image and drag Tidemark onto Applications.</li>
+          <li>
+            Open it once. macOS says it can't check the app, because it isn't notarised by Apple.
+            Click Done.
+          </li>
+          <li>
+            In System Settings › Privacy &amp; Security, click Open Anyway. It opens normally after
+            that.
+          </li>
+          <li>
+            For the whole Disk Map, turn Tidemark on under Privacy &amp; Security › Full Disk
+            Access, then press Reload.
+          </li>
+          <li>
+            To keep recording while it's quit, turn on Keep recording when quit in Settings, and
+            allow Tidemark under General › Login Items if macOS asks.
+          </li>
+        </ol>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <nav class="foot-links">
+        <a href="https://github.com/waynetd777/tidemark#readme">Guide</a>
+        <a href="https://github.com/waynetd777/tidemark/releases">Releases</a>
+        <a href="https://github.com/waynetd777/tidemark/blob/main/LICENSE">Licence</a>
+      </nav>
+      <p class="copy">
+        © 2026 Wayne Davies. Free software under the GNU General Public License, version 3 or later.
+      </p>
+    </footer>
+
+    <script src="main.js"></script>
+  </body>
+</html>
