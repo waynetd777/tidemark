@@ -117,3 +117,18 @@ export function batteryLine(b: {
   if (b.on_ac) return `On power · ${p}`;
   return `${p}${b.minutes_left ? ` · ${fmtMins(b.minutes_left)} left` : ""}`;
 }
+
+/// A count, compactly: "999", "12K", "2.6M", "1.2B".
+export function fmtCount(n: number): string {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e4) return `${Math.round(n / 1e3)}K`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return `${Math.round(n)}`;
+}
+
+/// What one point of a bucketed series stands for: "minute", "5-minute", "42-minute".
+export function bucketWord(secs: number): string {
+  const m = Math.max(1, Math.round(secs / 60));
+  return m === 1 ? "minute" : `${m}-minute`;
+}

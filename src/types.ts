@@ -86,6 +86,7 @@ export interface FileEntry {
 
 /// One reading of the Mac, every 2-5 s. Bytes, bytes a second, CPU as % of the whole machine.
 export interface Sample {
+  /// Unix milliseconds (a chart's Pt.t is seconds).
   t: number;
   cpu: number;
   mem: number;

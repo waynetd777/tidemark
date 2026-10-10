@@ -46,31 +46,40 @@ impl Default for Settings {
     }
 }
 
-static CURRENT: Mutex<Option<Settings>> = Mutex::new(None);
+/// The settings as last read, and the file's modification time then: the app and the
+/// background helper each read settings.json, so a change made in one reaches the other.
+static CURRENT: Mutex<Option<(Settings, Option<std::time::SystemTime>)>> = Mutex::new(None);
 
 fn path() -> std::path::PathBuf {
     crate::cache::dir().join("settings.json")
 }
 
+fn modified() -> Option<std::time::SystemTime> {
+    std::fs::metadata(path()).and_then(|m| m.modified()).ok()
+}
+
 pub fn get() -> Settings {
-    let mut cur = CURRENT.lock().unwrap();
-    if cur.is_none() {
-        *cur = Some(
-            std::fs::read(path())
-                .ok()
-                .and_then(|b| serde_json::from_slice(&b).ok())
-                .unwrap_or_default(),
-        );
+    let mut cur = CURRENT.lock().unwrap_or_else(|e| e.into_inner());
+    let m = modified();
+    if cur.as_ref().is_none_or(|(_, seen)| *seen != m) {
+        let s = std::fs::read(path())
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
+        *cur = Some((s, m));
     }
-    cur.clone().unwrap()
+    cur.as_ref().map(|(s, _)| s.clone()).unwrap_or_default()
 }
 
 pub fn set(mut s: Settings) -> Result<Settings, String> {
     s.history_days = s.history_days.clamp(1, 14);
     let bytes = serde_json::to_vec_pretty(&s).map_err(|e| e.to_string())?;
     std::fs::create_dir_all(crate::cache::dir()).map_err(|e| e.to_string())?;
-    std::fs::write(path(), bytes).map_err(|e| e.to_string())?;
-    *CURRENT.lock().unwrap() = Some(s.clone());
+    // Written whole and renamed into place, so the other process never reads half of it.
+    let tmp = path().with_extension(format!("json.{}.tmp", std::process::id()));
+    std::fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path()).map_err(|e| e.to_string())?;
+    *CURRENT.lock().unwrap_or_else(|e| e.into_inner()) = Some((s.clone(), modified()));
     Ok(s)
 }
 

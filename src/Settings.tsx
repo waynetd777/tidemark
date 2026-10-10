@@ -64,9 +64,14 @@ export default function Settings({
               <span className={helper?.available ? "" : "disabled"}>
                 <Switch
                   label="Keep recording when quit"
+                  disabled={!helper?.available}
                   on={!!helper?.on}
                   onChange={(v) => {
-                    if (helper?.available) void api.setHelper(v).then(setHelper);
+                    if (helper?.available)
+                      void api
+                        .setHelper(v)
+                        .then(setHelper)
+                        .catch(() => {});
                   }}
                 />
               </span>
@@ -85,9 +90,14 @@ export default function Settings({
               <span className={login[0] ? "" : "disabled"}>
                 <Switch
                   label="Open at Login"
+                  disabled={!login[0]}
                   on={login[1]}
                   onChange={(v) => {
-                    if (login[0]) void api.setLoginItem(v).then((r) => setLogin([true, r]));
+                    if (login[0])
+                      void api
+                        .setLoginItem(v)
+                        .then((r) => setLogin([true, r]))
+                        .catch(() => {});
                   }}
                 />
               </span>

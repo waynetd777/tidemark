@@ -16,8 +16,8 @@ Questions at the foot open Ask with that question typed in.
 
 Every chart in Tidemark reads the same way, and its legend says what each mark is.
 
-- The **line** is the measure, a minute's average (on Trends, the disk's used space).
-- On Performance, a faint **band** behind the line is each minute's busiest moment, so a spike of a few seconds still shows.
+- The **line** is the measure's average over each point: a minute on the 1-hour range, a few minutes on longer ones (the legend says how many), and on Trends the disk's used space. The newest point is the live reading, so the line reaches now.
+- On Performance, a faint **band** behind the line is the busiest moment within each point, so a spike of a few seconds still shows.
 - The dashed line across is the **tidemark**: the highest that measure has been this week (on Trends, in the range). On Performance a dot and a label mark the range's peak.
 - A dotted line at the right-hand end is **now**; the line runs up to the latest reading.
 - **Gaps** are shaded for what they were: a soft band marked Asleep, or a hatched band marked Not recording (Tidemark was quit or paused, or had not started yet). Nothing runs while the Mac sleeps, Tidemark included, so sleep is a gap, never a dip to zero.

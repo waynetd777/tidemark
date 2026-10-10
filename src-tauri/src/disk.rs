@@ -159,7 +159,7 @@ pub fn get_progress(state: State<AppState>) -> ProgressInfo {
 
 /// The subtree under `path`, pruned to what can be drawn. `min_fraction` is the smallest
 /// folder worth a block, as a share of the folder being viewed (the UI passes ~1/4000).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_tree(
     state: State<AppState>,
     path: String,
@@ -279,9 +279,11 @@ pub fn start_scan_thread(app: &AppHandle, root: String, show: bool) -> Result<()
                     *cur = Some(Arc::new(s.clone()));
                 }
             }
+            // Kept first (cache, history), then announced: whoever reloads on scan-finished, and
+            // the schedule watching `scanning`, must find it saved.
+            keep(&s);
             scanning.store(false, Ordering::SeqCst);
             let _ = handle.emit("scan-finished", &root);
-            keep(&s);
         } else {
             scanning.store(false, Ordering::SeqCst);
             let _ = handle.emit("scan-finished", &root);
@@ -290,7 +292,7 @@ pub fn start_scan_thread(app: &AppHandle, root: String, show: bool) -> Result<()
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn start_scan(app: AppHandle, root: Option<String>) -> Result<(), String> {
     let state: State<AppState> = app.state();
     let root = match root {
@@ -306,7 +308,7 @@ pub fn stop_scan(state: State<AppState>) {
     state.progress.cancel.store(true, Ordering::SeqCst);
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn reveal(path: String) -> Result<(), String> {
     if !Path::new(&path).exists() {
         return Err(format!("{path} does not exist"));
@@ -320,7 +322,7 @@ pub fn reveal(path: String) -> Result<(), String> {
 }
 
 /// Finder's Get Info window for a path, via AppleScript (there is no URL scheme for it).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_info(path: String) -> Result<(), String> {
     if !Path::new(&path).exists() {
         return Err(format!("{path} does not exist"));
@@ -337,7 +339,7 @@ pub fn get_info(path: String) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn open_privacy_settings() -> Result<(), String> {
     Command::new("/usr/bin/open")
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")

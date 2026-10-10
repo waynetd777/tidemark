@@ -218,7 +218,8 @@ pub fn open_ask(app: AppHandle) {
     let _ = app.emit("open-ask", ());
 }
 
-#[tauri::command]
+/// Off the main thread (async), so waiting for `open` holds nothing up.
+#[tauri::command(async)]
 pub fn open_activity_monitor() {
     let _ = std::process::Command::new("/usr/bin/open")
         .args(["-a", "Activity Monitor"])

@@ -19,12 +19,19 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
   useEffect(() => {
     let alive = true;
     let last = 0;
+    // A slow answer must not overwrite a newer one.
+    let asked = 0;
+    let shown = 0;
     const tick = () => {
       last = Date.now();
+      const n = ++asked;
       return fn
         .current()
         .then((r) => {
-          if (alive) setV(r);
+          if (alive && n > shown) {
+            shown = n;
+            setV(r);
+          }
         })
         .catch(() => {});
     };

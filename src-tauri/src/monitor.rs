@@ -51,6 +51,9 @@ pub struct Sample {
     /// What memory in use is made of.
     #[serde(default)]
     pub mem_parts: Option<crate::system::MemParts>,
+    /// On a power adapter.
+    #[serde(default)]
+    pub on_ac: bool,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -74,7 +77,7 @@ static LIVE: Mutex<Option<Live>> = Mutex::new(None);
 pub static FAST: AtomicBool = AtomicBool::new(true);
 
 fn live<T>(f: impl FnOnce(&mut Live) -> T) -> T {
-    let mut g = LIVE.lock().unwrap();
+    let mut g = LIVE.lock().unwrap_or_else(|e| e.into_inner());
     f(g.get_or_insert_with(Live::default))
 }
 
@@ -274,6 +277,7 @@ impl Acc {
         if s.battery.is_some() {
             m.battery = s.battery;
         }
+        m.on_ac |= s.on_ac;
         if let Some(g) = s.gpu {
             m.gpu = Some(m.gpu.unwrap_or(0.0) + g);
             m.gpu_max = Some(m.gpu_max.unwrap_or(0.0).max(g));
@@ -428,7 +432,7 @@ fn follow() {
         .flatten()
         .and_then(|b| serde_json::from_slice(&b).ok());
     if let Some(l) = shared {
-        *LIVE.lock().unwrap() = Some(l);
+        *LIVE.lock().unwrap_or_else(|e| e.into_inner()) = Some(l);
     }
     if FAST.load(Ordering::Relaxed) {
         let _ = std::fs::write(watching_path(), b"");
@@ -443,6 +447,8 @@ pub fn start() {
             if try_lock() {
                 RECORDING.store(true, Ordering::SeqCst);
                 history::close_dangling();
+                // What the previous recorder had open is closed now; forget its copy.
+                live(|l| l.open.clear());
                 run();
             }
             follow();
@@ -477,6 +483,9 @@ fn run() {
     let mut apps_then: Vec<AppUse> = Vec::new();
     let mut io_then = (0.0f64, 0.0f64);
     let mut last = Instant::now();
+    // Instant stops while the Mac sleeps (CLOCK_UPTIME_RAW), so sleep shows only in wall-clock
+    // time: gaps are measured with this, rates with `last`.
+    let mut last_wall = history::now();
     let mut acc = Acc::default();
     let mut meter = Meter::new();
     // The battery when the last sample was taken, for what a sleep cost.
@@ -506,24 +515,38 @@ fn run() {
             // the whole pause.
             refresh(&mut sys, &mut nets);
             refresh_procs(&mut sys);
+            // The energy counters too, or the first reading after the pause would count the
+            // whole pause's energy as a few seconds'.
+            let pdt = last_procs.elapsed().as_secs_f64();
+            for p in sys.processes().keys() {
+                let _ = meter.watts(p.as_u32() as i32, pdt);
+            }
             last = Instant::now();
             last_procs = last;
+            last_wall = now;
             acc.flush();
             continue;
         }
         let dt = last.elapsed().as_secs_f64();
         last = Instant::now();
+        let wall_dt = (now - last_wall) as f64;
+        last_wall = now;
         refresh(&mut sys, &mut nets);
         let procs_due = every == 2 || last_procs.elapsed() >= Duration::from_secs(15);
         // Asleep in between: the counters span the sleep, so this sample says nothing about
         // any moment. The gap stays a gap.
-        if dt > every as f64 * 3.0 + 5.0 {
+        if wall_dt.max(dt) > every as f64 * 3.0 + 5.0 {
             acc.flush();
+            // Nothing that was building up before the gap carries across it.
+            for w in watches.iter_mut() {
+                w.since_on = None;
+                w.since_off = None;
+            }
             // Remember the gap, with the battery either side: what the sleep cost.
             let after = meter.battery().map(|b| b.percent);
-            if dt >= 120.0 {
+            if wall_dt >= 120.0 {
                 history::add_sleep(&history::Sleep {
-                    started: now - dt as i64,
+                    started: now - wall_dt as i64,
                     ended: now,
                     battery_before: battery_then,
                     battery_after: after,
@@ -578,7 +601,7 @@ fn run() {
         }
         let mem_total = sys.total_memory() as f64;
         let s = Sample {
-            t: now * 1000 + (chrono::Local::now().timestamp_subsec_millis() as i64),
+            t: chrono::Local::now().timestamp_millis(),
             cpu: (sys.global_cpu_usage() as f64).clamp(0.0, 100.0),
             mem: sys.used_memory() as f64,
             swap: sys.used_swap() as f64,
@@ -592,6 +615,7 @@ fn run() {
             battery: battery.as_ref().map(|b| b.percent),
             gpu: crate::system::gpu_busy(),
             mem_parts: crate::system::mem_parts(),
+            on_ac: battery.as_ref().is_some_and(|b| b.on_ac),
         };
 
         let minute = now / 60;
@@ -752,12 +776,25 @@ pub fn status() -> Status {
         .and_hms_opt(0, 0, 0)
         .and_then(|d| d.and_local_timezone(chrono::Local).single())
         .map_or(history::now() - 86_400, |d| d.timestamp());
-    let near = [("cpu_max", "CPU"), ("mem_max", "memory")]
-        .into_iter()
-        .find(|(col, _)| {
-            matches!((history::high(col, today), history::high(col, week)),
-                (Some((t, _)), Some((w, _))) if w > 0.0 && t >= 0.9 * w)
-        });
+    // Four scans of a week of minutes: worked out once a minute, not on every call (the menu
+    // bar asks every few seconds).
+    static NEAR: Mutex<Option<(i64, Option<&'static str>)>> = Mutex::new(None);
+    let minute = history::now() / 60;
+    let cached = *NEAR.lock().unwrap_or_else(|e| e.into_inner());
+    let near = match cached {
+        Some((m, n)) if m == minute => n,
+        _ => {
+            let n = [("cpu_max", "CPU"), ("mem_max", "memory")]
+                .into_iter()
+                .find(|(col, _)| {
+                    matches!((history::high(col, today), history::high(col, week)),
+                        (Some((t, _)), Some((w, _))) if w > 0.0 && t >= 0.9 * w)
+                })
+                .map(|(_, what)| what);
+            *NEAR.lock().unwrap_or_else(|e| e.into_inner()) = Some((minute, n));
+            n
+        }
+    };
     Status {
         level: "calm",
         about: "",
@@ -768,7 +805,7 @@ pub fn status() -> Status {
         },
         sub: match near {
             _ if latest.is_none() => "The first readings arrive in a few seconds.".into(),
-            Some((_, what)) => format!("Today reached this week's {what} tidemark."),
+            Some(what) => format!("Today reached this week's {what} tidemark."),
             None => "Nothing today is near this week's tidemarks.".into(),
         },
     }

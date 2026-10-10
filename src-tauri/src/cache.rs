@@ -61,7 +61,9 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if let Some(p) = path.parent() {
         fs::create_dir_all(p)?;
     }
-    let tmp = path.with_extension("json.tmp");
+    // A temp name of this process's own: the app and the background helper can save the same
+    // file at once.
+    let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
     fs::write(&tmp, bytes)?;
     fs::rename(tmp, path)
 }

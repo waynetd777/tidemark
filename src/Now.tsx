@@ -104,7 +104,7 @@ export default function Now({
   const cards = [
     {
       name: "CPU",
-      line: "CPU, minute average",
+      line: "CPU, 5-minute average",
       range: "Last 24 h",
       value: latest ? Math.round(latest.cpu).toString() : "–",
       unit: "%",
@@ -122,10 +122,10 @@ export default function Now({
     },
     {
       name: "Memory",
-      line: "Memory used, minute average",
+      line: "Memory used, 5-minute average",
       range: "Last 24 h",
       value: latest ? (latest.mem / 1e9).toFixed(1) : "–",
-      unit: `of ${fmt(total)}`,
+      unit: total > 1 ? `of ${fmt(total)}` : "",
       sub: latest
         ? `Pressure ${latest.pressure >= 4 ? "critical" : latest.pressure >= 2 ? "raised" : "normal"} · swap ${fmt(latest.swap)}`
         : "",
@@ -142,7 +142,7 @@ export default function Now({
     },
     {
       name: "Network",
-      line: "Download, minute average",
+      line: "Download, 5-minute average",
       range: "Last 24 h",
       value: latest ? fmtRate(latest.net_in).split(" ")[0] : "–",
       unit: latest ? `${fmtRate(latest.net_in).split(" ")[1]} ↓` : "",
@@ -158,11 +158,15 @@ export default function Now({
     },
     {
       name: "Energy",
-      line: "Power drawn, minute average",
+      line: "Power drawn, 5-minute average",
       range: "Last 24 h",
       value: latest?.power != null ? fmtW(latest.power).split(" ")[0] : "–",
       unit: latest?.power != null ? "W" : "",
-      sub: live?.battery ? `Battery ${batteryLine(live.battery)}` : "No battery on this Mac",
+      sub: live?.battery
+        ? `Battery ${batteryLine(live.battery)}`
+        : live
+          ? "No battery on this Mac"
+          : "",
       pts: upToNow(
         (day?.points ?? [])
           .filter((m) => m.power != null)
@@ -207,7 +211,10 @@ export default function Now({
 
   const questions = [
     marks.find((m) => m.incident)
-      ? `Why was my Mac slow ${fmtAt(marks.filter((m) => m.incident).slice(-1)[0].t).replace(/ \d.*/, "")}?`
+      ? `Why was my Mac slow ${(() => {
+          const d = fmtAt(marks.filter((m) => m.incident).slice(-1)[0].t, false);
+          return d === "today" || d === "yesterday" ? d : `on ${d}`;
+        })()}?`
       : "Is anything slowing my Mac down?",
     landed[0]
       ? `What can I clear in ${abbrev(landed[0].path, home)}?`

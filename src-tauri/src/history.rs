@@ -105,9 +105,8 @@ fn open() -> Connection {
 /// worth having, never worth stopping the app for.
 fn with<T: Default>(f: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> T {
     let db = DB.get_or_init(|| Mutex::new(open()));
-    let Ok(c) = db.lock() else {
-        return T::default();
-    };
+    // A query that panicked mid-way leaves the lock poisoned; the connection is still sound.
+    let c = db.lock().unwrap_or_else(|e| e.into_inner());
     f(&c).unwrap_or_else(|e| {
         eprintln!("history: {e}");
         T::default()
@@ -269,7 +268,10 @@ pub fn high(col: &str, from: i64) -> Option<(f64, i64)> {
     .contains(&col));
     with(|c| {
         c.query_row(
-            &format!("SELECT {col}, ts FROM perf WHERE ts >= ?1 ORDER BY {col} DESC LIMIT 1"),
+            &format!(
+                "SELECT {col}, ts FROM perf WHERE ts >= ?1 AND {col} IS NOT NULL
+                 ORDER BY {col} DESC LIMIT 1"
+            ),
             params![from],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )

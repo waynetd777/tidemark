@@ -20,7 +20,17 @@ import { useAssistant } from "./assistant";
 import { hideSplash } from "./main";
 import Treemap, { REVEAL, type Block } from "./Treemap";
 import type { AppInfo, GrowthInfo, Progress, Screen, Settings, View } from "./types";
-import { abbrev, fmt, fmtDelta, fmtDuration, fmtN, fmtUptime, fmtWhen, parentPath } from "./util";
+import {
+  abbrev,
+  fmt,
+  fmtCount,
+  fmtDelta,
+  fmtDuration,
+  fmtN,
+  fmtUptime,
+  fmtWhen,
+  parentPath,
+} from "./util";
 
 const RELOAD_ICON = (
   <svg
@@ -419,11 +429,16 @@ export default function App() {
     });
   }, []);
   /// Changes screen, as a step back and forward can retrace.
+  // The folder on the map, for a step back to the Disk screen to return to it.
+  const viewPathRef = useRef<string | null>(null);
+  useEffect(() => {
+    viewPathRef.current = viewPath;
+  });
   const show = useCallback(
     (s: Screen) => {
       setMenu(null);
       setScreen(s);
-      push({ screen: s, path: null });
+      push({ screen: s, path: s === "disk" ? viewPathRef.current : null });
     },
     [push, setScreen],
   );
@@ -529,13 +544,16 @@ export default function App() {
       multiple: false,
       defaultPath: info?.root ?? "/",
       title: "Choose a folder to scan",
+    }).catch((e: unknown) => {
+      say(String(e));
+      return null;
     });
     if (typeof picked === "string" && picked) {
       if (scanning) await api.stopScan().catch(() => {});
       // Give the running scan a moment to notice the cancel before the new one starts.
       window.setTimeout(() => startScan(picked), scanning ? 300 : 0);
     }
-  }, [info, scanning, startScan]);
+  }, [info, scanning, startScan, say]);
 
   // Shortcuts: ⌘R rescan, ⌘O choose a folder, ⌘↑ / Esc up a level, ⌘⇧R reveal the folder on
   // screen, ⌘K Ask.
@@ -564,7 +582,8 @@ export default function App() {
           setHelpOpen(false);
           return;
         }
-        if (screen === "disk") up();
+        if (screen === "disk" && !(e.target as HTMLElement)?.closest?.("input, textarea, select"))
+          up();
         return;
       }
       // ? outside a text box opens and closes the help, with or without ⌘.
@@ -593,7 +612,11 @@ export default function App() {
       } else if (e.key === "]") {
         e.preventDefault();
         forward();
-      } else if (e.key === "ArrowUp" && screen === "disk") {
+      } else if (
+        e.key === "ArrowUp" &&
+        screen === "disk" &&
+        !(e.target as HTMLElement)?.closest?.("input, textarea, select")
+      ) {
         e.preventDefault();
         up();
       }
@@ -993,7 +1016,7 @@ export default function App() {
                 <div className="nums">
                   {fmtN(progress.items)}
                   {progress.expected_items
-                    ? ` of ~${fmt(progress.expected_items).replace(/ .*/, "")}${progress.expected_items >= 1e6 ? "M" : progress.expected_items >= 1e3 ? "K" : ""} items`
+                    ? ` of ~${fmtCount(progress.expected_items)} items`
                     : " items"}
                   {pct !== null ? ` · ${pct}%` : ""} · {fmtDuration(progress.elapsed_ms)}
                 </div>

@@ -55,14 +55,17 @@ export function Switch({
   on,
   label,
   onChange,
+  disabled,
 }: {
   on: boolean;
   label: string;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       className={`switch${on ? " on" : ""}`}
+      disabled={disabled}
       title={`${label}: ${on ? "on" : "off"}`}
       role="switch"
       aria-checked={on}
@@ -82,7 +85,8 @@ export default function Tray() {
   const [home, setHome] = useState("");
   const [helperOn, setHelperOn] = useState(false);
   const [sleeps, setSleeps] = useState<Sleep[]>([]);
-  const [open, setOpen] = useState(true);
+  // The window is created hidden; "tray-opened" opens it. Closed, it reads nothing live.
+  const [open, setOpen] = useState(false);
 
   // Everything but the live readings, read again each time the menu opens.
   const load = useCallback(() => {

@@ -14,7 +14,7 @@ import { incidentTitle } from "./incidents";
 import { gapsOf, now, upToNow, usePoll } from "./perf";
 import { index, useRemembered } from "./remember";
 import type { Incident, Live, Minute } from "./types";
-import { batteryLine, fmt, fmtAt, fmtMins, fmtRate, fmtW, pct } from "./util";
+import { batteryLine, bucketWord, fmt, fmtAt, fmtMins, fmtRate, fmtW, pct } from "./util";
 
 const RANGES = [
   { label: "1 hour", secs: 3600 },
@@ -54,14 +54,21 @@ export default function Performance({
   bar: (left: ReactNode) => ReactNode;
   ask: (q: string) => void;
 }) {
-  const [range, setRange] = useRemembered("performance.range", 1, index(RANGES.length));
+  const [chosen, setRange] = useRemembered("performance.range", 1, index(RANGES.length));
+  // Ranges longer than the history kept are not offered; a remembered one is held to what is.
+  const allowed = RANGES.filter(
+    (r) => r.secs <= Math.max(historyDays, 1) * 86400 || r.secs <= 86400,
+  );
+  const range = Math.min(chosen, allowed.length - 1);
   const secs = RANGES[range].secs;
   const hist = usePoll(() => api.perf(secs, 480), 60_000, [secs]);
   const incidents = usePoll(() => api.incidents(14), 60_000);
   // The moment the snapshot is of: picked on a chart, else the range's CPU peak.
   const [picked, setPicked] = useState<{ t: number; why: string } | null>(null);
   const points = useMemo(() => hist?.points ?? [], [hist]);
-  const bucket = points.length > 1 ? points[1].ts - points[0].ts : 60;
+  // What one point stands for, as the history folds the range (perf_history's 480 points).
+  const bucket = Math.max(60, Math.floor(secs / 480));
+  const per = bucketWord(bucket);
   const cpuPeak = peakOf(points, "cpu_max");
   const memPeak = peakOf(points, "mem_max");
   const at = picked ?? (cpuPeak ? { t: cpuPeak.t, why: "cpu" } : null);
@@ -112,10 +119,6 @@ export default function Performance({
   const blame = (blameByMem ? apps?.by_mem : apps?.by_cpu) ?? [];
   const top = blame[0];
   const atValue = atPoint ? (blameByMem ? atPoint.mem_max : atPoint.cpu_max) : null;
-  const allowed = RANGES.filter(
-    (r) => r.secs <= Math.max(historyDays, 1) * 86400 || r.secs <= 86400,
-  );
-
   const charts = [
     {
       name: "CPU",
@@ -137,7 +140,7 @@ export default function Performance({
       name: "Memory",
       now: latest ? fmt(latest.mem) : "–",
       sub:
-        `of ${fmt(total)} · pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}` +
+        `${total > 1 ? `of ${fmt(total)} · ` : ""}pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}` +
         (latest?.mem_parts
           ? ` · apps ${fmt(latest.mem_parts.app)}, wired ${fmt(latest.mem_parts.wired)}, compressed ${fmt(latest.mem_parts.compressed)}`
           : ""),
@@ -301,8 +304,8 @@ export default function Performance({
                 <span className="muted small">{c.sub}</span>
                 <span className="grow" />
                 <Legend
-                  line={`${c.name}, minute average`}
-                  band="Each minute's peak"
+                  line={`${c.name}, ${per} average`}
+                  band={`Peak of each ${per === "minute" ? "minute" : per.replace("-minute", " minutes")}`}
                   mark="Week's tidemark"
                   gaps={gaps}
                 />
@@ -343,7 +346,10 @@ export default function Performance({
                   : ""}
               </span>
               <span className="grow" />
-              <Legend line="Average per minute, each way" gaps={gaps} />
+              <Legend
+                line={`Average per ${per.replace("-minute", " minutes")}, each way`}
+                gaps={gaps}
+              />
             </div>
             <div className="netpair">
               {net.map((n) => (
@@ -384,12 +390,14 @@ export default function Performance({
               <span className="muted small">
                 {live?.battery
                   ? `battery ${batteryLine(live.battery)}`
-                  : "no battery on this Mac: apps only"}
+                  : live
+                    ? "no battery on this Mac: apps only"
+                    : ""}
               </span>
               <span className="grow" />
               <Legend
-                line="Power, minute average"
-                band="Each minute's peak"
+                line={`Power, ${per} average`}
+                band={`Peak of each ${per === "minute" ? "minute" : per.replace("-minute", " minutes")}`}
                 mark="Week's tidemark"
                 gaps={gaps}
               />

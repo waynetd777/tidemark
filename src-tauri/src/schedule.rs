@@ -54,7 +54,7 @@ fn due(every: ScanEvery, age: Option<i64>) -> bool {
 
 /// One minute's upkeep, done by whichever process is recording (see monitor.rs): the used
 /// space hourly, pruning, and the scheduled scan of the disk, started by `scan_disk`.
-fn upkeep(last_prune: &mut i64, scanning: bool, scan_disk: &dyn Fn()) {
+fn upkeep(last_prune: &mut i64, last_try: &mut i64, scanning: bool, scan_disk: &dyn Fn()) {
     let now = history::now();
     if history::last_disk_used().is_none_or(|t| now - t >= 3600) {
         let v = volume::info("/");
@@ -70,12 +70,16 @@ fn upkeep(last_prune: &mut i64, scanning: bool, scan_disk: &dyn Fn()) {
         history::prune(settings::get().history_days);
         *last_prune = now;
     }
+    // A scan that was stopped or failed leaves last_scan where it was; give it an hour before
+    // trying again rather than starting over every minute.
     if !scanning
+        && now - *last_try >= 3600
         && due(
             settings::get().scan,
             history::last_scan("/").map(|t| now - t),
         )
     {
+        *last_try = now;
         scan_disk();
     }
 }
@@ -87,13 +91,19 @@ pub fn start(app: AppHandle) {
         .name("schedule".into())
         .spawn(move || {
             let mut last_prune = 0i64;
+            let mut last_try = 0i64;
             let mut seen: Option<SystemTime> = None;
             loop {
                 let st: tauri::State<AppState> = app.state();
                 if monitor::recording() {
-                    upkeep(&mut last_prune, st.scanning.load(Ordering::SeqCst), &|| {
-                        let _ = disk::start_scan_thread(&app, "/".into(), false);
-                    });
+                    upkeep(
+                        &mut last_prune,
+                        &mut last_try,
+                        st.scanning.load(Ordering::SeqCst),
+                        &|| {
+                            let _ = disk::start_scan_thread(&app, "/".into(), false);
+                        },
+                    );
                 } else {
                     reload_if_newer(&app, &mut seen);
                 }
@@ -137,10 +147,12 @@ pub fn start_headless() {
         .name("schedule".into())
         .spawn(|| {
             let mut last_prune = 0i64;
+            let mut last_try = 0i64;
             loop {
                 if monitor::recording() {
                     upkeep(
                         &mut last_prune,
+                        &mut last_try,
                         HEADLESS_SCANNING.load(Ordering::SeqCst),
                         &|| {
                             HEADLESS_SCANNING.store(true, Ordering::SeqCst);
