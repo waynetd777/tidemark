@@ -1,6 +1,6 @@
 [package]
 name = "tidemark"
-version = "1.4.0"
+version = "2.0.0"
 description = "The high-water marks of your Mac: what is using the disk"
 authors = ["Wayne Davies"]
 license = "MIT"
