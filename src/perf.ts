@@ -18,18 +18,28 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
   });
   useEffect(() => {
     let alive = true;
-    const tick = () =>
-      fn
+    let last = 0;
+    const tick = () => {
+      last = Date.now();
+      return fn
         .current()
         .then((r) => {
           if (alive) setV(r);
         })
         .catch(() => {});
+    };
     void tick();
-    const id = window.setInterval(tick, ms);
+    // Behind other windows (or hidden), at most once a minute: nothing on screen to redraw,
+    // and redrawing charts every few seconds costs energy. Back in front, at once.
+    const id = window.setInterval(() => {
+      if (document.hasFocus() || Date.now() - last >= Math.max(ms, 60_000)) void tick();
+    }, ms);
+    const onFocus = () => void tick();
+    window.addEventListener("focus", onFocus);
     return () => {
       alive = false;
       window.clearInterval(id);
+      window.removeEventListener("focus", onFocus);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ms, ...deps]);

@@ -167,15 +167,18 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
         });
     }
 
-    // The icon follows the status; the recorder samples faster while a window is on screen.
+    // The icon follows the status; the recorder samples faster while a window is in front.
     let h = app.handle().clone();
     std::thread::spawn(move || {
         let mut alert = false;
         loop {
-            let seen = ["main", "tray"].iter().any(|l| {
-                h.get_webview_window(l)
-                    .is_some_and(|w| w.is_visible().unwrap_or(false))
-            });
+            // Fast sampling only while someone is looking: the window in front, or the
+            // menu-bar window open.
+            let seen = h
+                .get_webview_window("main")
+                .is_some_and(|w| w.is_focused().unwrap_or(false))
+                || h.get_webview_window("tray")
+                    .is_some_and(|w| w.is_visible().unwrap_or(false));
             monitor::FAST.store(seen, Ordering::Relaxed);
             let now = monitor::status().level == "attention";
             if now != alert {

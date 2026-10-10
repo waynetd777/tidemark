@@ -430,13 +430,22 @@ fn run() {
         .with_memory()
         .with_disk_usage()
         .with_exe(UpdateKind::OnlyIfNotSet);
+    // The whole Mac (cheap) every sample; every process (the costly part) every sample while
+    // someone is looking, else every 15 seconds.
     let refresh = |sys: &mut System, nets: &mut Networks| {
         sys.refresh_cpu_usage();
         sys.refresh_memory();
-        sys.refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
         nets.refresh(true);
     };
+    let refresh_procs = |sys: &mut System| {
+        sys.refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
+    };
     refresh(&mut sys, &mut nets);
+    refresh_procs(&mut sys);
+    let mut last_procs = Instant::now();
+    // The last per-process pass: every app, and the disk's read and write rates it gave.
+    let mut apps_then: Vec<AppUse> = Vec::new();
+    let mut io_then = (0.0f64, 0.0f64);
     let mut last = Instant::now();
     let mut acc = Acc::default();
     let mut meter = Meter::new();
@@ -466,13 +475,16 @@ fn run() {
             // Keep the counters current so the first sample after the pause covers 2-5 s, not
             // the whole pause.
             refresh(&mut sys, &mut nets);
+            refresh_procs(&mut sys);
             last = Instant::now();
+            last_procs = last;
             acc.flush();
             continue;
         }
         let dt = last.elapsed().as_secs_f64();
         last = Instant::now();
         refresh(&mut sys, &mut nets);
+        let procs_due = every == 2 || last_procs.elapsed() >= Duration::from_secs(15);
         // Asleep in between: the counters span the sleep, so this sample says nothing about
         // any moment. The gap stays a gap.
         if dt > every as f64 * 3.0 + 5.0 {
@@ -488,33 +500,45 @@ fn run() {
                 });
             }
             battery_then = after;
-            // The energy counters span the gap too.
+            // The per-process counters span the gap too: start them afresh.
+            refresh_procs(&mut sys);
+            let pdt = last_procs.elapsed().as_secs_f64();
+            last_procs = Instant::now();
             for p in sys.processes().keys() {
-                let _ = meter.watts(p.as_u32() as i32, dt);
+                let _ = meter.watts(p.as_u32() as i32, pdt);
             }
             continue;
         }
 
-        let mut by_app: HashMap<String, AppUse> = HashMap::new();
-        let (mut rd, mut wr) = (0u64, 0u64);
-        for p in sys.processes().values() {
-            let d = p.disk_usage();
-            rd += d.read_bytes;
-            wr += d.written_bytes;
-            let name = app_of(p.exe(), &p.name().to_string_lossy());
-            let e = by_app.entry(name.clone()).or_insert_with(|| AppUse {
-                app: name,
-                ..Default::default()
-            });
-            e.cpu += p.cpu_usage() as f64 / cores;
-            e.mem += p.memory() as f64;
-            e.energy += meter.watts(p.pid().as_u32() as i32, dt).unwrap_or(0.0);
+        if procs_due {
+            refresh_procs(&mut sys);
+            // Rates over the time since the last per-process pass, whatever the sample rate.
+            let dt = last_procs.elapsed().as_secs_f64();
+            last_procs = Instant::now();
+            let mut by_app: HashMap<String, AppUse> = HashMap::new();
+            let (mut rd, mut wr) = (0u64, 0u64);
+            for p in sys.processes().values() {
+                let d = p.disk_usage();
+                rd += d.read_bytes;
+                wr += d.written_bytes;
+                let name = app_of(p.exe(), &p.name().to_string_lossy());
+                let e = by_app.entry(name.clone()).or_insert_with(|| AppUse {
+                    app: name,
+                    ..Default::default()
+                });
+                e.cpu += p.cpu_usage() as f64 / cores;
+                e.mem += p.memory() as f64;
+                e.energy += meter.watts(p.pid().as_u32() as i32, dt).unwrap_or(0.0);
+            }
+            meter.keep_only(&sys.processes().keys().map(|p| p.as_u32() as i32).collect());
+            let mut apps: Vec<AppUse> = by_app.into_values().collect();
+            apps.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
+            apps_then = apps;
+            io_then = (rd as f64 / dt, wr as f64 / dt);
         }
-        meter.keep_only(&sys.processes().keys().map(|p| p.as_u32() as i32).collect());
+        let apps = apps_then.clone();
         let battery = meter.battery();
         battery_then = battery.as_ref().map(|b| b.percent);
-        let mut apps: Vec<AppUse> = by_app.into_values().collect();
-        apps.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
         let (mut nin, mut nout) = (0u64, 0u64);
         for (name, n) in nets.iter() {
             if name != "lo0" {
@@ -529,8 +553,8 @@ fn run() {
             mem: sys.used_memory() as f64,
             swap: sys.used_swap() as f64,
             pressure: pressure(),
-            disk_r: rd as f64 / dt,
-            disk_w: wr as f64 / dt,
+            disk_r: io_then.0,
+            disk_w: io_then.1,
             net_in: nin as f64 / dt,
             net_out: nout as f64 / dt,
             thermal: thermal(),

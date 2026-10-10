@@ -181,12 +181,21 @@ pub fn run() {
                 std::thread::spawn(move || {
                     let st: State<disk::AppState> = h.state();
                     let cached = cache::load_scan(&root).map(Arc::new);
+                    // A scan under an hour old is shown as it is: rescanning the whole disk on
+                    // every launch costs a minute of every core for next to nothing new.
+                    let fresh = cached.as_ref().is_some_and(|c| {
+                        chrono::DateTime::parse_from_rfc3339(&c.finished).is_ok_and(|t| {
+                            chrono::Local::now().signed_duration_since(t).num_minutes() < 60
+                        })
+                    });
                     if let Ok(mut s) = st.scan.lock() {
                         *s = cached;
                     }
                     st.loading.store(false, std::sync::atomic::Ordering::SeqCst);
                     stamp("cache loaded");
-                    let _ = disk::start_scan_thread(&h, root, true);
+                    if !fresh {
+                        let _ = disk::start_scan_thread(&h, root, true);
+                    }
                 });
             }
 
