@@ -153,6 +153,13 @@ export default function Performance({
   ];
 
   const tail = points.slice(-60);
+  // The tiles' span: their last 60 points, up to now.
+  const tailDomain: [number, number] = [tail.length ? tail[0].ts : now() - secs, now()];
+  const tailGaps = gapsOf(
+    tail.map((m) => m.ts),
+    tailDomain,
+    sleeps ?? [],
+  );
   const high = (k: Num) => tail.reduce<Minute | null>((b, m) => (!b || m[k] > b[k] ? m : b), null);
   const swapHigh = tm.swap;
   const ioHigh = high("disk_max");
@@ -409,6 +416,8 @@ export default function Performance({
                         max={100}
                         width={160}
                         height={24}
+                        gaps={gaps}
+                        domain={[now() - secs, now()]}
                         label="Battery charge over the range"
                       />
                       <span className="muted small">{batteryLine(live.battery)}</span>
@@ -489,6 +498,8 @@ export default function Performance({
                 <Spark
                   pts={t.pts}
                   max={t.max}
+                  gaps={tailGaps}
+                  domain={tailDomain}
                   width={150}
                   height={26}
                   label={`${t.name}, recent`}

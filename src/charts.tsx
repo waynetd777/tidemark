@@ -65,6 +65,8 @@ export function Spark({
   height = 26,
   tone = "tide",
   label,
+  gaps,
+  domain,
 }: {
   pts: Pt[];
   min?: number;
@@ -74,12 +76,17 @@ export function Spark({
   height?: number;
   tone?: "tide" | "warn";
   label: string;
+  /// Stretches with no readings, shaded as on the big charts (no labels at this size).
+  gaps?: Gap[];
+  /// The time span across the line, so gaps and readings sit at their real times.
+  domain?: [number, number];
 }) {
+  const hatch = useId();
   const lo = Math.min(min, ...pts.map((p) => p.v));
   const hi = Math.max(max, mark ?? 0, ...pts.map((p) => p.v));
   const span = hi - lo || 1;
-  const t0 = pts.length ? pts[0].t : 0;
-  const t1 = pts.length ? pts[pts.length - 1].t : 1;
+  const t0 = domain?.[0] ?? (pts.length ? pts[0].t : 0);
+  const t1 = domain?.[1] ?? (pts.length ? pts[pts.length - 1].t : 1);
   const x = (t: number) => ((t - t0) / (t1 - t0 || 1)) * width;
   const y = (v: number) => height - 1 - ((v - lo) / span) * (height - 2);
   const paths = runs(pts, gapMin(step(pts))).map((r) => {
@@ -100,6 +107,26 @@ export function Spark({
       aria-label={label}
       data-tip={label}
     >
+      <defs>
+        <pattern id={hatch} width="5" height="5" patternUnits="userSpaceOnUse">
+          <path d="M0 5L5 0" className="hatchl" />
+        </pattern>
+      </defs>
+      {(gaps ?? []).map((g, i) => {
+        const gx = Math.max(0, x(g.from));
+        const gw = Math.max(0, Math.min(width, x(g.to)) - gx);
+        return gw < 1 ? null : (
+          <rect
+            key={`g${i}`}
+            className={`gap ${g.kind}`}
+            x={gx}
+            y={0}
+            width={gw}
+            height={height}
+            fill={g.kind === "off" ? `url(#${hatch})` : undefined}
+          />
+        );
+      })}
       {paths.map((p, i) => (
         <g key={i}>
           <path d={p.area} fill={color} fillOpacity={0.14} />

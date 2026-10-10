@@ -1957,10 +1957,10 @@ pre,
 }
 /* Gaps: the Mac asleep (a soft shade) or Tidemark not recording (hatched). Neutral, so they
    never read as a measure. */
-.area .gap.sleep {
+.gap.sleep {
   fill: color-mix(in srgb, var(--muted) 14%, transparent);
 }
-.area .hatchl {
+.hatchl {
   stroke: color-mix(in srgb, var(--muted) 40%, transparent);
   stroke-width: 1;
 }

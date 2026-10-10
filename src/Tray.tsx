@@ -16,8 +16,8 @@ import { api, on } from "./api";
 import { Spark, type Pt } from "./charts";
 import { Mark } from "./Mark";
 import Tooltips from "./Tooltips";
-import { startOfToday } from "./perf";
-import type { DiskTrend, GrowthInfo, Live, PerfHistory } from "./types";
+import { gapsOf, startOfToday } from "./perf";
+import type { DiskTrend, GrowthInfo, Live, PerfHistory, Sleep } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
 const WIDTH = 360;
@@ -81,6 +81,7 @@ export default function Tray() {
   const [growth, setGrowth] = useState<GrowthInfo | null>(null);
   const [home, setHome] = useState("");
   const [helperOn, setHelperOn] = useState(false);
+  const [sleeps, setSleeps] = useState<Sleep[]>([]);
   const [open, setOpen] = useState(true);
 
   // Everything but the live readings, read again each time the menu opens.
@@ -100,6 +101,10 @@ export default function Tray() {
     api
       .state()
       .then((s) => setHome(s.home))
+      .catch(() => {});
+    api
+      .sleeps(1)
+      .then(setSleeps)
       .catch(() => {});
     api
       .helper()
@@ -200,6 +205,15 @@ export default function Tray() {
   if (!live) return <div className="traywin" ref={root} />;
 
   const latest = live.samples[live.samples.length - 1];
+  // The live lines cover the last 15 minutes, with their gaps (the Mac asleep, say).
+  const liveDomain: [number, number] = latest
+    ? [latest.t / 1000 - 15 * 60, latest.t / 1000]
+    : [0, 1];
+  const liveGaps = gapsOf(
+    live.samples.map((x) => x.t / 1000),
+    liveDomain,
+    sleeps,
+  );
   const today = startOfToday();
   const highToday = (k: "cpu_max" | "mem_max") => {
     let best: { v: number; t: number } | null = null;
@@ -227,6 +241,8 @@ export default function Tray() {
       value: latest ? pct(latest.cpu) : "–",
       spark: (
         <Spark
+          gaps={liveGaps}
+          domain={liveDomain}
           pts={series("cpu")}
           max={100}
           mark={tm.cpu?.value}
@@ -246,6 +262,8 @@ export default function Tray() {
       value: latest ? fmt(latest.mem) : "–",
       spark: (
         <Spark
+          gaps={liveGaps}
+          domain={liveDomain}
           pts={series("mem")}
           max={live.mem_total}
           mark={tm.mem?.value}
@@ -261,6 +279,8 @@ export default function Tray() {
       value: latest ? `↓ ${fmtRate(latest.net_in)}` : "–",
       spark: (
         <Spark
+          gaps={liveGaps}
+          domain={liveDomain}
           pts={live.samples.map((x) => ({ t: x.t / 1000, v: x.net_in }))}
           max={Math.max(1, ...live.samples.map((x) => x.net_in))}
           label="Download, last 15 minutes"
@@ -274,6 +294,8 @@ export default function Tray() {
       value: latest?.power != null ? fmtW(latest.power) : "–",
       spark: (
         <Spark
+          gaps={liveGaps}
+          domain={liveDomain}
           pts={live.samples
             .filter((x) => x.power != null)
             .map((x) => ({ t: x.t / 1000, v: x.power as number }))}
