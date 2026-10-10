@@ -10,7 +10,7 @@ import { metricOf } from "./metrics";
 import { flagFor } from "./status";
 import { api } from "./api";
 import { Area, Legend, type Pt } from "./charts";
-import { incidentTitle, incidentWhy } from "./incidents";
+import { crashGroups, crashTitle, incidentTitle, incidentWhy } from "./incidents";
 import { gapsOf, now, startOfToday, upToNow, usePoll } from "./perf";
 import type { GrowthInfo, Live, Screen } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
@@ -38,6 +38,7 @@ export default function Now({
   const day = usePoll(() => api.perf(DAY, 288), 60_000);
   const disk = usePoll(() => api.diskTrend(7), 300_000);
   const incidents = usePoll(() => api.incidents(7), 60_000);
+  const crashes = usePoll(() => api.crashes(7), 300_000);
   const sleeps = usePoll(() => api.sleeps(1), 60_000);
   const latest = live?.samples[live.samples.length - 1];
   const today = startOfToday();
@@ -89,12 +90,20 @@ export default function Now({
   const grewTotal = Math.max(0, growth?.total ?? 0);
   const st = live?.status;
 
-  const marks: { t: number; what: string; why: string; incident: boolean }[] = [
+  const marks: { t: number; what: string; why: string; incident: boolean; crash?: boolean }[] = [
     ...(incidents ?? []).map((i) => ({
       t: i.started,
       what: incidentTitle(i),
       why: incidentWhy(i),
       incident: true,
+    })),
+    // Crashes and hangs this week, one line per app.
+    ...crashGroups(crashes ?? []).map((g) => ({
+      t: g.last,
+      what: crashTitle(g),
+      why: g.n > 1 ? `The last time ${fmtAt(g.last)}.` : "From the report macOS wrote.",
+      incident: false,
+      crash: true,
     })),
   ];
   if (disk?.high && diskPts.length > 1)
@@ -411,6 +420,7 @@ export default function Now({
                   <span className="row wrap">
                     <b>{m.what}</b>
                     {m.incident && <span className="badge warn">Incident · snapshot kept</span>}
+                    {m.crash && <span className="badge warn">Crash report</span>}
                   </span>
                   <span className="muted small">{m.why}</span>
                 </span>

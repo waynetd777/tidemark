@@ -11,7 +11,7 @@ import { metricOf } from "./metrics";
 import { flagFor } from "./status";
 import { api } from "./api";
 import { Area, Legend, Spark, type Pt } from "./charts";
-import { incidentTitle } from "./incidents";
+import { crashGroups, crashTitle, incidentTitle } from "./incidents";
 import { gapsOf, now, upToNow, usePoll } from "./perf";
 import { index, useRemembered } from "./remember";
 import type { Incident, Live, Minute } from "./types";
@@ -617,6 +617,30 @@ export default function Performance({
               </div>
             )}
           </section>
+          <section className="card chart" data-focus="crashes">
+            <div className="row base wrap">
+              <b className="cname">Crashes and hangs</b>
+              <span className="muted small">last 14 days, from the reports macOS keeps</span>
+            </div>
+            <div className="crashlist">
+              {crashGroups(crashList ?? []).length === 0 && (
+                <span className="muted small">None. Nothing crashed or stopped responding.</span>
+              )}
+              {crashGroups(crashList ?? [])
+                .slice(0, 10)
+                .map((g) => (
+                  <div className="rowline" key={`${g.app}${g.kind}`}>
+                    <span className="mono muted when">{fmtAt(g.last)}</span>
+                    <span className="col grow minw0">
+                      <b>{crashTitle(g)}</b>
+                      <span className="muted small">
+                        {g.n > 1 ? `${g.n} reports, the last ${fmtAt(g.last)}` : "One report"}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </section>
           <div className="tiles">
             {tiles.map((t) => (
               <section className="card tile" key={t.name} data-focus={t.name.toLowerCase()}>
@@ -709,35 +733,6 @@ export default function Performance({
             <span className="muted small">
               Each one keeps a snapshot of what every app was doing.
             </span>
-          </div>
-          <div className="col gap6">
-            <span className="eyebrow">Crashes and hangs · last 14 days</span>
-            {(() => {
-              const by = new Map<string, { app: string; kind: string; n: number; last: number }>();
-              for (const c of crashList ?? []) {
-                const k = `${c.app}\u0000${c.kind}`;
-                const e = by.get(k) ?? { app: c.app, kind: c.kind, n: 0, last: 0 };
-                e.n += 1;
-                e.last = Math.max(e.last, c.ts);
-                by.set(k, e);
-              }
-              const rows = [...by.values()].sort((a, b) => b.last - a.last);
-              if (!rows.length)
-                return <span className="muted small">None. Nothing crashed or hung.</span>;
-              return rows.slice(0, 6).map((r) => (
-                <div className="incident static" key={`${r.app}${r.kind}`}>
-                  <span>
-                    <b>{r.app}</b>{" "}
-                    <span className="muted">
-                      {r.kind === "hang" ? "hung" : "crashed"}
-                      {r.n > 1 ? ` ${r.n} times` : ""}
-                    </span>
-                  </span>
-                  <span className="muted">{fmtAt(r.last)}</span>
-                </div>
-              ));
-            })()}
-            <span className="muted small">From the reports macOS keeps in Console.</span>
           </div>
           <div className="row wrap gap8">
             <button

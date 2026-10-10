@@ -20,18 +20,18 @@
   --warn-soft: #fff3e0;
   --bad: #c62828;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
-  /* One hue per nesting level, in rainbow order: red, orange, amber, green, teal, blue, indigo,
-     violet. Neighbouring hues are close, but a level is always nested inside the one above it
-     with its own header strip and a gap, so colour never has to separate siblings. The hue is
-     the header strip and the edge and tints the body; header text is white (dark on amber). */
-  --h1: #d7263d;
-  --h2: #e8590c;
-  --h3: #d99a00;
-  --h4: #1a9e4b;
-  --h5: #0e9aa7;
-  --h6: #1e7fe0;
-  --h7: #3d3fbf;
-  --h8: #9a3fd6;
+  /* The map's nesting levels in the tide colour: deepest at level 1, lighter going in, then a
+     greyer set for levels 5-8 so neighbours stay apart. Nesting itself is shown by blocks inside
+     blocks, so colour never has to separate siblings. Header text is white on 1, 2, 5, 6 and ink
+     on 3, 4, 7, 8 (all at 3.7:1 or better). */
+  --h1: #0a4d61;
+  --h2: #0b6e8a;
+  --h3: #2a8ea8;
+  --h4: #6fb6c8;
+  --h5: #2f5f6b;
+  --h6: #4a7d8a;
+  --h7: #7aa4ae;
+  --h8: #a9c7ce;
   --mix: 34%;
   --hdtext: #fff;
   --h3text: #1d1d1f;
@@ -69,14 +69,14 @@
     --warn-soft: #3a2c16;
     --bad: #ef6b60;
     /* The same hues, muted for the dark surface. */
-    --h1: #c4525a;
-    --h2: #c8703a;
-    --h3: #b58a2e;
-    --h4: #3f9a63;
-    --h5: #2f9ea8;
-    --h6: #4f8fd4;
-    --h7: #6062bd;
-    --h8: #9569c9;
+    --h1: #17576a;
+    --h2: #22758a;
+    --h3: #3393aa;
+    --h4: #6ec1d3;
+    --h5: #284f58;
+    --h6: #3b6d78;
+    --h7: #5a8f9a;
+    --h8: #8db8c1;
     --mix: 28%;
     --files: #7c7c82;
     --tide: #56bdd3;
@@ -108,14 +108,14 @@
   --warn-soft: #3a2c16;
   --bad: #ef6b60;
   /* The same hues, muted for the dark surface. */
-  --h1: #c4525a;
-  --h2: #c8703a;
-  --h3: #b58a2e;
-  --h4: #3f9a63;
-  --h5: #2f9ea8;
-  --h6: #4f8fd4;
-  --h7: #6062bd;
-  --h8: #9569c9;
+  --h1: #17576a;
+  --h2: #22758a;
+  --h3: #3393aa;
+  --h4: #6ec1d3;
+  --h5: #284f58;
+  --h6: #3b6d78;
+  --h7: #5a8f9a;
+  --h8: #8db8c1;
   --mix: 28%;
   --files: #7c7c82;
   --tide: #56bdd3;
@@ -808,7 +808,10 @@ pre,
 .blk > .hd > * {
   color: var(--hdtext);
 }
-.blk.d3 > .hd > * {
+.blk.d3 > .hd > *,
+.blk.d4 > .hd > *,
+.blk.d7 > .hd > *,
+.blk.d8 > .hd > * {
   color: var(--h3text);
 }
 .blk > .hd .n {
@@ -850,7 +853,10 @@ pre,
   justify-content: center;
   padding: 0;
 }
-.blk.d3 > .hd .rv {
+.blk.d3 > .hd .rv,
+.blk.d4 > .hd .rv,
+.blk.d7 > .hd .rv,
+.blk.d8 > .hd .rv {
   background: rgba(0, 0, 0, 0.12);
 }
 .blk > .hd .rv svg {
@@ -882,17 +888,17 @@ pre,
 .blk.more > .hd .n {
   font-weight: 500;
 }
-/* Free space: empty room, so no fill to speak of and a dotted edge, in the "good" green. */
+/* Free space: empty room, so no fill to speak of and a dotted, neutral edge: not a folder. */
 .blk.free {
   border-style: dotted;
-  color: var(--good);
-  background: color-mix(in srgb, var(--good) 8%, var(--panel));
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 6%, var(--panel));
 }
 .blk.free > .hd {
   background: transparent;
 }
 .blk.free > .hd > * {
-  color: var(--good);
+  color: var(--muted);
 }
 .blk.cloud {
   box-shadow:
@@ -2349,8 +2355,9 @@ pre,
 }
 
 /* ---- the map's growth layer ---- */
+/* Growth in ink, so it stands out on the tide-coloured map. */
 .blk.grew {
-  outline: 2px solid var(--tide);
+  outline: 2px solid var(--text);
   outline-offset: -2px;
 }
 .blk > .gtag {
@@ -2359,8 +2366,8 @@ pre,
   bottom: 4px;
   padding: 1px 7px;
   border-radius: 8px;
-  background: var(--tide);
-  color: var(--on-tide);
+  background: var(--text);
+  color: var(--panel);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;

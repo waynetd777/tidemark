@@ -8,7 +8,7 @@ This guide is also the app's help: press `?`, the ? button in the title bar, or 
 
 ## Now
 
-How the Mac is doing, in a sentence, and the things that matter most: CPU, GPU (where the Mac reports it), memory, disk reads and writes, network download and upload, and energy over the last hour, and disk space over the last week, in rows of four; below them, side by side, **This week's tidemarks** (the week's peaks and incidents, see Performance) and **What grew on disk this week** (the folders where the disk's growth landed). Each card's **Details** opens the screen with more and brings that measure into view: Performance for the live measures, Disk Space for the disk.
+How the Mac is doing, in a sentence, and the things that matter most: CPU, GPU (where the Mac reports it), memory, disk reads and writes, network download and upload, and energy over the last hour, and disk space over the last week, in rows of four; below them, side by side, **This week's tidemarks** (the week's peaks, incidents, and apps that crashed or hung, see Performance) and **What grew on disk this week** (the folders where the disk's growth landed). Each card's **Details** opens the screen with more and brings that measure into view: Performance for the live measures, Disk Space for the disk.
 
 Questions at the foot open Ask with that question typed in.
 
@@ -42,7 +42,7 @@ The panel on the right is a **snapshot**: the apps that used the most at the cho
 
 **Incidents** are recorded when something crosses a line: CPU above 90% for 30 seconds, memory pressure going red (critical), or swap growing by 1 GB within 10 minutes. Each keeps a snapshot of what every app was doing at its peak. Click one to jump to it.
 
-**Crashes and hangs** lists the apps that crashed or stopped responding in the last 14 days, how often, and when last, from the reports macOS writes (the ones Console shows under Crash Reports). Faults macOS only noted, which the app survived, are left out.
+The **Crashes and hangs** card lists the apps that crashed or stopped responding in the last 14 days, how often, and when last, from the reports macOS writes (the ones Console shows under Crash Reports). Faults macOS only noted, which the app survived, are left out.
 
 Tidemark samples the whole Mac every 2 seconds while its window is in front or the menu-bar window is open, and every 5 seconds otherwise, when it reads each app only every 15 seconds; behind other windows the screen itself refreshes at most once a minute. It keeps one row a minute: the minute's average and its peak, so a short spike is never averaged away.
 
@@ -50,7 +50,7 @@ Tidemark samples the whole Mac every 2 seconds while its window is in front or t
 
 Every folder as a block inside its parent's block, sized by what it takes up, so the big things are big. The rest of this guide's disk sections (the map, Getting around, Files in a folder, Free space, Cloud folders, Scanning) are about this screen.
 
-**Growth this week** outlines the folders that grew in the last week and tags each with how much. A folder is tagged where the growth actually landed: if most of ~/.colima's growth is in one folder inside it, that folder is tagged, not ~/.colima and everything above it. Hovering any folder shows how much it changed this week. Growth compares two scans at least 20 hours apart, so it shows from the day after the first scan; the switch hides it.
+**Growth this week** outlines in black (white in dark mode) the folders that grew in the last week and tags each with how much. A folder is tagged where the growth actually landed: if most of ~/.colima's growth is in one folder inside it, that folder is tagged, not ~/.colima and everything above it. Hovering any folder shows how much it changed this week. Growth compares two scans at least 20 hours apart, so it shows from the day after the first scan; the switch hides it.
 
 ## The map
 
@@ -58,7 +58,7 @@ Every folder is drawn nested inside its parent, with its name and size where the
 
 - The files sitting directly in a folder are one grey dashed block, labelled with their count.
 - Folders too small to draw at the current zoom are folded into a **more folders** block, so a folder's area is always its total.
-- **Colour is nesting level**, in rainbow order from the scan root: red, orange, amber, green, teal, blue, indigo, violet. The level is counted from the root, so a folder keeps its colour as you zoom.
+- **Colour is nesting level**, in shades of the tide colour: deepest at the first level below the scan root and lighter going in, then a greyer set from the fifth level on. The level is counted from the root, so a folder keeps its colour as you zoom.
 - Hover a block for its full path, size on disk, item count and share of its parent.
 
 ## Getting around
@@ -85,7 +85,7 @@ When a folder holds files directly, a files box lists them, and it fills the map
 
 ## Free space
 
-At the top of a whole-disk scan (the boot volume, or a disk under /Volumes) the disk's free space is drawn as a dotted green block beside the folders, so the map shows the whole disk. The **Free space** switch in the title bar hides it, and the app remembers the choice. It is not drawn inside a folder, or for a scan of a single folder.
+At the top of a whole-disk scan (the boot volume, or a disk under /Volumes) the disk's free space is drawn as a dotted grey block beside the folders, so the map shows the whole disk. The **Free space** switch in the title bar hides it, and the app remembers the choice. It is not drawn inside a folder, or for a scan of a single folder.
 
 The sidebar's used figure comes from the filesystem and is larger than the scan total: it includes local Time Machine snapshots, purgeable space, swap, the recovery volume and folders the scan skips or cannot read. Hover the bar for the breakdown.
 
