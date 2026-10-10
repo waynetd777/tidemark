@@ -15,6 +15,7 @@ import type { GrowthInfo, Live, Screen } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
 const DAY = 86400;
+const HOUR = 3600;
 
 export default function Now({
   live,
@@ -31,6 +32,8 @@ export default function Now({
   go: (s: Screen, target?: string) => void;
   ask: (q: string) => void;
 }) {
+  // The charts: the last hour, minute by minute. The day: today's highs and totals.
+  const hour = usePoll(() => api.perf(HOUR, 60), 30_000);
   const day = usePoll(() => api.perf(DAY, 288), 60_000);
   const disk = usePoll(() => api.diskTrend(7), 300_000);
   const incidents = usePoll(() => api.incidents(7), 60_000);
@@ -39,15 +42,15 @@ export default function Now({
   const today = startOfToday();
   const nowS = now();
   const dayGaps = gapsOf(
-    (day?.points ?? []).map((m) => m.ts),
-    [nowS - DAY, nowS],
+    (hour?.points ?? []).map((m) => m.ts),
+    [nowS - HOUR, nowS],
     sleeps ?? [],
   );
   const total = live?.mem_total || day?.points[0]?.mem_total || 1;
 
   const series = (k: "cpu" | "mem" | "net_in"): Pt[] =>
     upToNow(
-      (day?.points ?? []).map((m) => ({ t: m.ts, v: m[k] })),
+      (hour?.points ?? []).map((m) => ({ t: m.ts, v: m[k] })),
       latest ? latest.t / 1000 : undefined,
       latest?.[k],
     );
@@ -60,7 +63,7 @@ export default function Now({
     return best;
   };
   const gpuHigh = highToday("gpu_max");
-  const hasGpu = (day?.points ?? []).some((m) => m.gpu != null) || latest?.gpu != null;
+  const hasGpu = (hour?.points ?? []).some((m) => m.gpu != null) || latest?.gpu != null;
   const movedToday = (k: "net_in" | "net_out") =>
     (day?.points ?? [])
       .filter((m) => m.ts >= today)
@@ -70,7 +73,7 @@ export default function Now({
     if (m.ts >= today && (!netHigh || m.net_in > netHigh.v)) netHigh = { v: m.net_in, t: m.ts };
   const cpuHigh = highToday("cpu_max");
   const memHigh = highToday("mem_max");
-  const tm = day?.tidemarks ?? {};
+  const tm = hour?.tidemarks ?? day?.tidemarks ?? {};
   const diskPts: Pt[] = (disk?.points ?? []).map((p) => ({ t: p.ts, v: p.used }));
   const diskTotal = disk?.points[disk.points.length - 1]?.total ?? 0;
   const diskNow = diskPts[diskPts.length - 1]?.v ?? 0;
@@ -108,8 +111,8 @@ export default function Now({
   const cards = [
     {
       name: "CPU",
-      line: "CPU, 5-minute average",
-      range: "Last 24 h",
+      line: "CPU, minute average",
+      range: "Last hour",
       value: latest ? Math.round(latest.cpu).toString() : "–",
       unit: "%",
       sub: `${live?.cores ?? "–"} cores · ${busy} app${busy === 1 ? "" : "s"} busy`,
@@ -129,13 +132,13 @@ export default function Now({
       ? [
           {
             name: "GPU",
-            line: "GPU, 5-minute average",
-            range: "Last 24 h",
+            line: "GPU, minute average",
+            range: "Last hour",
             value: latest?.gpu != null ? Math.round(latest.gpu).toString() : "–",
             unit: "%",
             sub: "Graphics, video and machine learning",
             pts: upToNow(
-              (day?.points ?? [])
+              (hour?.points ?? [])
                 .filter((m) => m.gpu != null)
                 .map((m) => ({ t: m.ts, v: m.gpu as number })),
               latest ? latest.t / 1000 : undefined,
@@ -155,8 +158,8 @@ export default function Now({
       : []),
     {
       name: "Memory",
-      line: "Memory used, 5-minute average",
-      range: "Last 24 h",
+      line: "Memory used, minute average",
+      range: "Last hour",
       value: latest ? (latest.mem / 1e9).toFixed(1) : "–",
       unit: total > 1 ? `of ${fmt(total)}` : "",
       sub: latest
@@ -175,15 +178,15 @@ export default function Now({
     },
     {
       name: "Network",
-      line: "Download, 5-minute average",
-      range: "Last 24 h",
+      line: "Download, minute average",
+      range: "Last hour",
       value: latest ? fmtRate(latest.net_in).split(" ")[0] : "–",
       unit: latest ? `${fmtRate(latest.net_in).split(" ")[1]} ↓` : "",
       sub: latest
         ? `↑ ${fmtRate(latest.net_out)} up · ${fmt(movedToday("net_in"))} down today`
         : "",
       pts: series("net_in"),
-      max: Math.max(1, ...(day?.points ?? []).map((m) => m.net_in)),
+      max: Math.max(1, ...(hour?.points ?? []).map((m) => m.net_in)),
       mark: null,
       high: netHigh ? `Busiest ${fmtRate(netHigh.v)} at ${fmtAt(netHigh.t)}` : "Quiet so far today",
       fmt: fmtRate,
@@ -191,8 +194,8 @@ export default function Now({
     },
     {
       name: "Energy",
-      line: "Power drawn, 5-minute average",
-      range: "Last 24 h",
+      line: "Power drawn, minute average",
+      range: "Last hour",
       value: latest?.power != null ? fmtW(latest.power).split(" ")[0] : "–",
       unit: latest?.power != null ? "W" : "",
       sub: live?.battery
@@ -201,13 +204,13 @@ export default function Now({
           ? "No battery on this Mac"
           : "",
       pts: upToNow(
-        (day?.points ?? [])
+        (hour?.points ?? [])
           .filter((m) => m.power != null)
           .map((m) => ({ t: m.ts, v: m.power as number })),
         latest ? latest.t / 1000 : undefined,
         latest?.power,
       ),
-      max: Math.max(1, ...(day?.points ?? []).map((m) => m.power ?? 0)),
+      max: Math.max(1, ...(hour?.points ?? []).map((m) => m.power ?? 0)),
       mark: tm.power
         ? { v: tm.power.value, label: `Tidemark ${fmtW(tm.power.value)} · ${fmtAt(tm.power.at)}` }
         : null,
@@ -275,7 +278,7 @@ export default function Now({
         min={c.min ?? 0}
         height={150}
         axis={false}
-        domain={[nowS - (c.range === "Last 7 days" ? 7 : 1) * DAY, nowS]}
+        domain={[nowS - (c.range === "Last 7 days" ? 7 * DAY : HOUR), nowS]}
         sleeps={c.name === "Disk" ? undefined : (sleeps ?? [])}
         mark={c.mark}
         fmt={c.fmt}
