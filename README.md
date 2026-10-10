@@ -33,4 +33,4 @@ The app's own help (press `?`) covers every screen in detail.
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+Free software under the GNU General Public License, version 3 or later. See [LICENSE](LICENSE).

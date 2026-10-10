@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! Ask: runs an AI coding CLI already installed and signed in on this Mac — Claude Code, Codex,
 //! Antigravity or GitHub Copilot — non-interactively, and streams its answer back to the window

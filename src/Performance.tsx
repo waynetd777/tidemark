@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // Performance: CPU and memory over a range with the week's tidemark and the range's peak,
 // smaller tiles for swap, disk, network and heat, and what every app was doing at a chosen

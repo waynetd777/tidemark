@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // The help drawer: `?` or the title bar's ? button opens it on the right, showing the user guide
 // (src/help/*.md) section by section. Typing searches it; a link in the guide opens its section.

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! The last scan of each root, kept so the next launch can draw it at once while a fresh scan
 //! runs behind it; and the short list of roots scanned recently.

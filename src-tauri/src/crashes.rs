@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! Crashes and hangs, from the reports macOS writes: one .ips file per event in
 //! ~/Library/Logs/DiagnosticReports (this user's apps) and /Library/Logs/DiagnosticReports (the

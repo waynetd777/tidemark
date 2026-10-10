@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // The menu-bar window: how the Mac is doing in a sentence, CPU, memory and disk with their
 // sparklines and today's highs, what is using the most, the week's disk growth, and the few

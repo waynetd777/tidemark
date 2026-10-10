@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // The help's text: the short pages in src/help/, built in, read in the order the app presents
 // them. Each `##` is a section the drawer can open and search; intro.md carries the title.

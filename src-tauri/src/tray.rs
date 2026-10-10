@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! The menu bar: an icon (with a mark when something needs attention) that opens a small
 //! window under it, the "tray" window (src/Tray.tsx), rather than a native menu. With the main

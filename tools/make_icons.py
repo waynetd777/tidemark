@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 Wayne Davies
-# SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+# SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 """Draw the app's artwork: design/icon.png (the Dock icon source) and the menu-bar template images
 src-tauri/icons/tray@2x.png and tray-alert@2x.png.

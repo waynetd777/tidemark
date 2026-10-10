@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! Puts the app together: the disk side (disk.rs, scan.rs), the recorder (monitor.rs), the
 //! history and its schedule (history.rs, schedule.rs, trends.rs), the menu bar (tray.rs) and Ask.

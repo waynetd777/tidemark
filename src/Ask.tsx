@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // Ask: a chat panel over the map that puts the scan to Claude Code and asks where space can be
 // reclaimed. The first message carries the folder on screen and its biggest folders; a follow-up

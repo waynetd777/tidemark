@@ -3,7 +3,7 @@ name = "tidemark"
 version = "2.0.0"
 description = "The high-water marks of your Mac: what is using the disk"
 authors = ["Wayne Davies"]
-license = "MIT"
+license = "GPL-3.0-or-later"
 edition = "2021"
 
 [lib]

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! The disk's history, kept up behind the window: the boot volume's used space about hourly
 //! (statfs, near free), a full scan of the disk on the schedule Settings sets, and pruning.

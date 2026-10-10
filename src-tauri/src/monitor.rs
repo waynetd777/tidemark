@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! The performance recorder. A thread samples the Mac every few seconds (2 s while a window is
 //! open, 5 s otherwise), keeps the last 15 minutes in memory for the live charts, writes one row

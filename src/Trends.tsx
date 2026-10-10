@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // Trends: the disk over weeks and months with its high-water mark and its big jumps, the folders
 // that rose, when the Mac is usually busy, and the range's highs. Disk totals go back a year;

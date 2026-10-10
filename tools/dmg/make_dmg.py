@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 Wayne Davies
-# SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+# SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 """Packs the release build into a DMG laid out like other Mac installers: the app on the left,
 an arrow to Applications on the right, on a background with the app's icon, name and a hint.

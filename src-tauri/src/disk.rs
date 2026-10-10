@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! The disk side: the scan on screen, scanning, and the Finder commands the map offers. A
 //! finished scan is also handed to the history, which is how the app knows what grew.

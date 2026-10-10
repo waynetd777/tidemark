@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // The charts: one series each, in the tide colour, with the dashed tidemark line (the high-water
 // mark of the period) that runs through the whole app. Drawn as SVG at the measured width so

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // Choices remembered between launches: a range picked, the screen last open. Per Mac, in
 // localStorage; a choice that can't be read back (a private window, an old value) is the default.

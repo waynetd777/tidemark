@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 use serde::Serialize;
 use std::{fs, os::unix::fs::MetadataExt, path::Path, time::UNIX_EPOCH};

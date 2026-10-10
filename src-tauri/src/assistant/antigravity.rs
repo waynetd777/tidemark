@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! Antigravity CLI (`agy -p --output-format stream-json`), Google's successor to Gemini CLI.
 //! It has no flag to limit its tools, and some it would use unasked (web search); but a custom

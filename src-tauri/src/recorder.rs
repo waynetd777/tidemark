@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! The background helper: the app's own binary run as `Tidemark --record` by a launch agent, so
 //! the record goes on while the app is quit. It has no window and no Dock icon; it records

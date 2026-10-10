@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! What the history says over days and months: the disk's used space and its high-water mark,
 //! the folders that grew, one folder's size over time, and when the Mac is usually busy.

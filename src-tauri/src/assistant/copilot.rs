@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! GitHub Copilot CLI (`copilot -p --output-format json --stream on`). Only its view tool exists
 //! (`--available-tools=view`; an empty list would mean every tool, web_fetch included), in an

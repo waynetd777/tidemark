@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! Claude Code in print mode, streaming JSON: text arrives as deltas while it is written. Run
 //! with no tools at all and no MCP servers.

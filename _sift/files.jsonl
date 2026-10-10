@@ -1,5 +1,5 @@
 {"desc": "Git ignore rules", "hash": "690f12cd7001b02a", "path": ".gitignore", "ts": "2026-09-16T17:07:22Z", "who": "114321799+waynetd777@users.noreply.github.com"}
-{"desc": "MIT license text", "hash": "64c93bbeeb5662da", "path": "LICENSE", "ts": "2026-09-16T17:07:22Z", "who": "114321799+waynetd777@users.noreply.github.com"}
+{"desc": "GNU GPL v3 licence text", "hash": "f288702d2fa16d3c", "path": "LICENSE", "ts": "2026-10-10T23:25:54Z", "who": "114321799+waynetd777@users.noreply.github.com"}
 {"desc": "Disk Usage — build, sign and install the app. Same shape as backup-manager's Makefile.", "hash": "e82d1f7f3051c0ce", "path": "Makefile", "ts": "2026-09-16T16:33:27Z", "who": "114321799+waynetd777@users.noreply.github.com"}
 {"desc": "Project documentation", "hash": "aa35c7c9562e018e", "path": "README.md", "ts": "2026-09-16T16:33:27Z", "who": "114321799+waynetd777@users.noreply.github.com"}
 {"desc": "The user guide, also the app's help drawer; one copy of the help text", "hash": "889ba639ecda83c4", "path": "docs/guide.md", "ts": "2026-10-08T13:19:00Z", "who": "114321799+waynetd777@users.noreply.github.com"}

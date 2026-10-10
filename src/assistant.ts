@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // Which AI CLIs are installed and the models they offer. Ask needs Claude Code, Codex,
 // Antigravity or GitHub Copilot on this Mac; with none, the Ask button is disabled and says why.

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 //! Codex (`codex exec --json`): messages arrive whole, not as deltas, so the answer is sent once,
 //! at the end. The user's own Codex config (MCP servers, hooks, rules) is left out; sign-in still

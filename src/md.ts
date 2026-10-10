@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // Just enough Markdown for an answer: headings, paragraphs, bullet and numbered lists, fenced
 // code, inline code, bold and italics. Everything is escaped first, so the answer can't inject

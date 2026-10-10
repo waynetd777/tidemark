@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Wayne Davies
-// SPDX-License-Identifier: MIT (see LICENSE at the repository root)
+// SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // Tooltips everywhere in the app, in place of macOS's plain ones. Any element with a title gets
 // one: the title moves to data-tip on first hover so the native tooltip never shows as well.
