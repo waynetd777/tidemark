@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
 import { api } from "./api";
-import { Area, type Pt } from "./charts";
+import { Area, Legend, type Pt } from "./charts";
 import { incidentTitle, incidentWhy } from "./incidents";
 import { now, startOfToday, usePoll } from "./perf";
 import type { GrowthInfo, Live, Screen } from "./types";
@@ -94,6 +94,7 @@ export default function Now({
   const cards = [
     {
       name: "CPU",
+      line: "CPU, minute average",
       range: "Last 24 h",
       value: latest ? Math.round(latest.cpu).toString() : "–",
       unit: "%",
@@ -111,6 +112,7 @@ export default function Now({
     },
     {
       name: "Memory",
+      line: "Memory used, minute average",
       range: "Last 24 h",
       value: latest ? (latest.mem / 1e9).toFixed(1) : "–",
       unit: `of ${fmt(total)}`,
@@ -130,6 +132,7 @@ export default function Now({
     },
     {
       name: "Network",
+      line: "Download, minute average",
       range: "Last 24 h",
       value: latest ? fmtRate(latest.net_in).split(" ")[0] : "–",
       unit: latest ? `${fmtRate(latest.net_in).split(" ")[1]} ↓` : "",
@@ -145,6 +148,7 @@ export default function Now({
     },
     {
       name: "Energy",
+      line: "Power drawn, minute average",
       range: "Last 24 h",
       value: latest?.power != null ? fmtW(latest.power).split(" ")[0] : "–",
       unit: latest?.power != null ? "W" : "",
@@ -164,6 +168,7 @@ export default function Now({
     },
     {
       name: "Disk",
+      line: "Disk used, hourly",
       range: "Last 7 days",
       value: diskTotal ? Math.round((diskTotal - diskNow) / 1e9).toString() : "–",
       unit: "GB free",
@@ -246,6 +251,7 @@ export default function Now({
                 name={c.name}
                 label={`${c.name}, ${c.range.toLowerCase()}`}
               />
+              <Legend line={c.line} mark={c.mark ? "Week's tidemark" : undefined} />
               <div className="row between small">
                 <span className="muted">{c.high}</span>
                 <button

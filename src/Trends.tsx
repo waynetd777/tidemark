@@ -9,7 +9,7 @@ import { type ReactNode } from "react";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
 import { api } from "./api";
-import { Area, Heatmap, Spark, type Pt } from "./charts";
+import { Area, Heatmap, Legend, Spark, type Pt } from "./charts";
 import { now, usePoll } from "./perf";
 import { index, useRemembered } from "./remember";
 import type { DiskPoint, Growth, Screen } from "./types";
@@ -205,6 +205,12 @@ export default function Trends({
                   xLabels={xl}
                   domain={[t0, t1]}
                   label={`Disk used over the last ${RANGES[range].label}`}
+                />
+              ) : null}
+              {pts.length > 1 ? (
+                <Legend
+                  line={days > 14 ? "Disk used, each day's high" : "Disk used, hourly"}
+                  mark="Tidemark: the range's high"
                 />
               ) : (
                 <div className="empty small">

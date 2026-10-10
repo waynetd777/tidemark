@@ -380,3 +380,32 @@ export function Heatmap({ grid, fmt }: { grid: (number | null)[][]; fmt: (v: num
     </div>
   );
 }
+
+/// What a chart's marks mean: its line (always), the band of each minute's peak and the dashed
+/// tidemark where the chart has them.
+export function Legend({ line, band, mark }: { line: string; band?: string; mark?: string }) {
+  return (
+    <span className="chartlegend muted small">
+      <span className="lk">
+        <svg width="18" height="6" aria-hidden="true">
+          <line className="lkline" x1="0" x2="18" y1="3" y2="3" />
+        </svg>
+        {line}
+      </span>
+      {band && (
+        <span className="lk">
+          <i className="bandkey" aria-hidden="true" />
+          {band}
+        </span>
+      )}
+      {mark && (
+        <span className="lk">
+          <svg width="18" height="6" aria-hidden="true">
+            <line className="lkmark" x1="0" x2="18" y1="3" y2="3" strokeDasharray="4 3" />
+          </svg>
+          {mark}
+        </span>
+      )}
+    </span>
+  );
+}

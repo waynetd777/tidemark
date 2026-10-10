@@ -2034,7 +2034,27 @@ pre,
   align-items: center;
   gap: 6px;
 }
-.legend-tm .bandkey {
+.chartlegend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+.chartlegend .lk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.chartlegend .lkline {
+  stroke: var(--tide);
+  stroke-width: 2;
+}
+.chartlegend .lkmark {
+  stroke: var(--mark);
+  opacity: 0.6;
+}
+.bandkey {
   display: inline-block;
   width: 14px;
   height: 9px;

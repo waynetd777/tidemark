@@ -9,7 +9,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
 import { api } from "./api";
-import { Area, Spark, type Pt } from "./charts";
+import { Area, Legend, Spark, type Pt } from "./charts";
 import { incidentTitle } from "./incidents";
 import { now, usePoll } from "./perf";
 import { index, useRemembered } from "./remember";
@@ -219,16 +219,11 @@ export default function Performance({
                 <span className="cnow">{c.now}</span>
                 <span className="muted small">{c.sub}</span>
                 <span className="grow" />
-                <span className="muted small legend-tm">
-                  <svg width="18" height="6" aria-hidden="true">
-                    <line x1="0" x2="18" y1="3" y2="3" strokeDasharray="4 3" />
-                  </svg>
-                  Week's tidemark
-                </span>
-                <span className="muted small legend-tm">
-                  <i className="bandkey" aria-hidden="true" />
-                  Each minute's peak
-                </span>
+                <Legend
+                  line={`${c.name}, minute average`}
+                  band="Each minute's peak"
+                  mark="Week's tidemark"
+                />
               </div>
               {c.pts.length ? (
                 <Area
@@ -264,6 +259,8 @@ export default function Performance({
                   ? `${fmt(net[0].total)} down, ${fmt(net[1].total)} up in the last ${RANGES[range].label}`
                   : ""}
               </span>
+              <span className="grow" />
+              <Legend line="Average per minute, each way" />
             </div>
             <div className="netpair">
               {net.map((n) => (
@@ -305,6 +302,12 @@ export default function Performance({
                   ? `battery ${batteryLine(live.battery)}`
                   : "no battery on this Mac: apps only"}
               </span>
+              <span className="grow" />
+              <Legend
+                line="Power, minute average"
+                band="Each minute's peak"
+                mark="Week's tidemark"
+              />
             </div>
             <div className="energygrid">
               <div className="minw0">
