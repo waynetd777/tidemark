@@ -263,7 +263,9 @@ pub fn high(col: &str, from: i64) -> Option<(f64, i64)> {
         "disk_max",
         "net_max",
         "power_max",
-        "gpu_max"
+        "gpu_max",
+        "net_in",
+        "net_out"
     ]
     .contains(&col));
     with(|c| {

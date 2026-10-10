@@ -1,6 +1,6 @@
 # Tidemark
 
-Tidemark records the high-water marks of your Mac: what is using the disk and how hard the Mac is working, now and over time. It has four screens, in the sidebar: **Now** (⌘1), **Performance** (⌘2), **Disk Usage** (⌘3) and **Trends** (⌘4), with **Settings** (⌘,) at the foot. Tidemark opens on the screen you last had open.
+Tidemark records the high-water marks of your Mac: what is using the disk and how hard the Mac is working, now and over time. It has four screens, in the sidebar: **Now** (⌘1), **Performance** (⌘2), **Disk Space** (⌘3) and **Trends** (⌘4), with **Settings** (⌘,) at the foot. Tidemark opens on the screen you last had open.
 
 The ‹ › buttons at the top left of every screen (⌘[ and ⌘]) step back and forward through where you have been, across screens and folders, like Finder.
 
@@ -8,7 +8,7 @@ This guide is also the app's help: press `?`, the ? button in the title bar, or 
 
 ## Now
 
-How the Mac is doing, in a sentence, and the things that matter most: CPU, GPU (where the Mac reports it), memory, disk reads and writes, network download and upload, and energy over the last hour, and disk space over the last week, in rows of four; below them, side by side, **This week's tidemarks** (the week's peaks and incidents, see Performance) and **What grew on disk this week** (the folders where the disk's growth landed). Each card's **Details** opens the screen with more and brings that measure into view: Performance for the live measures, Disk Usage for the disk.
+How the Mac is doing, in a sentence, and the things that matter most: CPU, GPU (where the Mac reports it), memory, disk reads and writes, network download and upload, and energy over the last hour, and disk space over the last week, in rows of four; below them, side by side, **This week's tidemarks** (the week's peaks and incidents, see Performance) and **What grew on disk this week** (the folders where the disk's growth landed). Each card's **Details** opens the screen with more and brings that measure into view: Performance for the live measures, Disk Space for the disk.
 
 Questions at the foot open Ask with that question typed in.
 
@@ -45,7 +45,7 @@ The panel on the right is a **snapshot**: the apps that used the most at the cho
 
 Tidemark samples the whole Mac every 2 seconds while its window is in front or the menu-bar window is open, and every 5 seconds otherwise, when it reads each app only every 15 seconds; behind other windows the screen itself refreshes at most once a minute. It keeps one row a minute: the minute's average and its peak, so a short spike is never averaged away.
 
-## Disk Usage
+## Disk Space
 
 Every folder as a block inside its parent's block, sized by what it takes up, so the big things are big. The rest of this guide's disk sections (the map, Getting around, Files in a folder, Free space, Cloud folders, Scanning) are about this screen.
 
@@ -112,11 +112,11 @@ Some folders stay unreadable even then: system folders owned by root, such as /p
 
 ## Trends
 
-The disk over 14 days, 30 days, 3 months or 12 months (remembered, like Performance's range): how much it grew, how fast, and when it would be full at that rate. Up to 14 days the line is the used space hourly; beyond, each day's high. Its tidemark is the most it held in the range; the list beside it names the biggest one-day rises.
+The disk's space over 14 days, 30 days, 3 months or 12 months (remembered, like Performance's range): how much it grew, how fast, and when it would be full at that rate. Up to 14 days the line is the used space hourly; beyond, each day's high. Its tidemark is the most it held in the range; the list beside it names the biggest one-day rises.
 
 **Top folders that rose** lists where the growth landed over the range. Up to 14 days this compares scans; beyond that it compares the daily record of the 40 biggest folders, so it is coarser. **When it gets busy** shades each hour of each weekday by its average CPU over the history, darker for busier; point at a cell for its value.
 
-At the foot, the range's highs for CPU, memory, swap and the disk, and questions for Ask.
+At the foot, the range's highs in Now's order: CPU, GPU (where the Mac reports it), memory, disk I/O, download, upload, energy and disk space; the first seven go back as far as the history setting keeps (14 days at most), disk space as far as the range. Then questions for Ask.
 
 ## History
 
@@ -165,8 +165,8 @@ Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memor
 | ⌘[ and ⌘] | Back and forward through where you have been, across screens and folders |
 | ⌘K | Ask about the disk or performance |
 | ? or ⌘? | This help (Help › Tidemark Help in the menu bar) |
-| ⌘R | Re-scan what the Disk Usage screen shows: the disk, or the folder you chose |
+| ⌘R | Re-scan what the Disk Space screen shows: the disk, or the folder you chose |
 | ⌘O | Choose a folder to scan |
-| Esc or ⌘↑ | Up one level on the Disk Usage screen (Esc first closes an open menu or panel) |
+| Esc or ⌘↑ | Up one level on the Disk Space screen (Esc first closes an open menu or panel) |
 | ⌘⇧R | Reveal the folder on screen in Finder |
 | ⌘-click a block | Reveal that folder in Finder |

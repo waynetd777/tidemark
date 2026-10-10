@@ -880,6 +880,9 @@ pub async fn perf_history(secs: i64, points: Option<i64>, mark_days: Option<i64>
         ("net", "net_max"),
         ("power", "power_max"),
         ("gpu", "gpu_max"),
+        // Download and upload apart: net_max is the busiest moment of both together.
+        ("down", "net_in"),
+        ("up", "net_out"),
     ] {
         if let Some((value, at)) = history::high(col, week) {
             tidemarks.insert(k, Mark { value, at });

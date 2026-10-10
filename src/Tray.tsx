@@ -305,7 +305,7 @@ export default function Tray() {
       ),
     },
     {
-      name: "Disk",
+      name: "Disk space",
       note: diskToday > 1e8 ? `${fmtDelta(diskToday)} today` : "Steady today",
       warn: about === "disk",
       value: diskTotal ? `${fmt(diskTotal - diskNow)} free` : "–",
@@ -316,7 +316,7 @@ export default function Tray() {
           max={diskPts.length ? Math.max(...diskPts.map((p) => p.v)) : 1}
           mark={disk?.high?.used}
           tone={about === "disk" ? "warn" : "tide"}
-          label="Disk used, last 7 days"
+          label="Disk space used, last 7 days"
         />
       ),
     },
@@ -363,12 +363,12 @@ export default function Tray() {
             key={r.name}
             className="menu-item tall"
             title={
-              r.name === "Disk"
+              r.name === "Disk space"
                 ? "Open the disk map"
                 : `Open Performance for ${r.name.toLowerCase()} in detail`
             }
             onClick={() => {
-              void api.showMain(r.name === "Disk" ? "disk" : "performance");
+              void api.showMain(r.name === "Disk space" ? "disk" : "performance");
               hide();
             }}
           >

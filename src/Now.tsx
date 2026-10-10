@@ -263,8 +263,8 @@ export default function Now({
       to: "performance" as Screen,
     },
     {
-      name: "Disk",
-      line: "Disk used, hourly",
+      name: "Disk space",
+      line: "Disk space used, hourly",
       range: "Last 7 days",
       value: diskTotal ? Math.round((diskTotal - diskNow) / 1e9).toString() : "–",
       unit: "GB free",
@@ -321,7 +321,7 @@ export default function Now({
         height={150}
         axis={false}
         domain={[nowS - (c.range === "Last 7 days" ? 7 * DAY : HOUR), nowS]}
-        sleeps={c.name === "Disk" ? undefined : (sleeps ?? [])}
+        sleeps={c.name === "Disk space" ? undefined : (sleeps ?? [])}
         mark={c.mark}
         fmt={c.fmt}
         fmtT={(t) => fmtAt(t)}
@@ -331,7 +331,7 @@ export default function Now({
       <Legend
         line={c.line}
         mark={c.mark ? "Week's tidemark" : undefined}
-        gaps={c.name === "Disk" ? undefined : dayGaps}
+        gaps={c.name === "Disk space" ? undefined : dayGaps}
       />
       <div className="row between small mfoot">
         <span className="muted ell" title={c.high}>
@@ -342,7 +342,7 @@ export default function Now({
           onClick={() => go(c.to, ("focus" in c ? c.focus : undefined) ?? c.name.toLowerCase())}
           title={
             c.to === "disk"
-              ? "Open Disk Usage: what is using the disk (⌘3)"
+              ? "Open Disk Space: what is using the disk (⌘3)"
               : `See ${c.name.toLowerCase()} in detail`
           }
         >

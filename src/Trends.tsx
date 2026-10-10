@@ -12,8 +12,8 @@ import { api } from "./api";
 import { Area, Heatmap, Legend, Spark, type Pt } from "./charts";
 import { now, usePoll } from "./perf";
 import { index, useRemembered } from "./remember";
-import type { DiskPoint, Growth, Screen } from "./types";
-import { abbrev, fmt, fmtAt, fmtDelta, pct } from "./util";
+import type { DiskPoint, Growth, Mark, Screen } from "./types";
+import { abbrev, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
 const RANGES = [
   { label: "14 days", days: 14 },
@@ -108,24 +108,24 @@ export default function Trends({
           : `Busiest on ${wd[cells[0].d]} around ${String(cells[0].h).padStart(2, "0")}:00.`;
   }
 
+  // The range's highs, in Now's order. Up to 14 days for what is kept minute by minute; the
+  // disk's space from its own record, which goes back a year.
+  const markOf = (m: Mark | undefined, f: (v: number) => string) =>
+    m ? { value: f(m.value), when: fmtAt(m.at) } : { value: "–", when: "" };
   const marks = [
+    { name: "CPU high", ...markOf(tm.cpu, pct) },
+    { name: "GPU high", ...markOf(tm.gpu, pct) },
+    { name: "Memory high", ...markOf(tm.mem, fmt) },
+    { name: "Disk I/O high", ...markOf(tm.disk, fmtRate) },
+    { name: "Download high", ...markOf(tm.down, fmtRate) },
+    { name: "Upload high", ...markOf(tm.up, fmtRate) },
+    { name: "Energy high", ...markOf(tm.power, fmtW) },
     {
-      name: "CPU high",
-      value: tm.cpu ? pct(tm.cpu.value) : "–",
-      when: tm.cpu ? fmtAt(tm.cpu.at) : "",
+      name: "Disk space high",
+      value: high ? fmt(high.used) : "–",
+      when: high ? dateLabel(high.ts) : "",
     },
-    {
-      name: "Memory high",
-      value: tm.mem ? fmt(tm.mem.value) : "–",
-      when: tm.mem ? fmtAt(tm.mem.at) : "",
-    },
-    {
-      name: "Swap high",
-      value: tm.swap ? fmt(tm.swap.value) : "–",
-      when: tm.swap ? fmtAt(tm.swap.at) : "",
-    },
-    { name: "Disk high", value: high ? fmt(high.used) : "–", when: high ? dateLabel(high.ts) : "" },
-  ];
+  ].filter((m) => m.name !== "GPU high" || tm.gpu);
 
   // The chart spans the range asked for, so its labels are the range's dates.
   const t1 = now();
@@ -164,7 +164,7 @@ export default function Trends({
         <section className="card chart" data-focus="disk">
           <div className="row base wrap">
             <b className="cname">
-              <Labelled m="disk">Disk used</Labelled>
+              <Labelled m="disk">Disk space used</Labelled>
             </b>
             <span className="cnow">{pts.length > 1 ? fmtDelta(delta) : "–"}</span>
             {first && last && (
@@ -201,15 +201,15 @@ export default function Trends({
                   }
                   fmt={fmt}
                   fmtT={(t) => (days > 14 ? dateLabel(t) : fmtAt(t))}
-                  name="Disk used"
+                  name="Disk space used"
                   xLabels={xl}
                   domain={[t0, t1]}
-                  label={`Disk used over the last ${RANGES[range].label}`}
+                  label={`Disk space used over the last ${RANGES[range].label}`}
                 />
               ) : null}
               {pts.length > 1 ? (
                 <Legend
-                  line={days > 14 ? "Disk used, each day's high" : "Disk used, hourly"}
+                  line={days > 14 ? "Disk space used, each day's high" : "Disk space used, hourly"}
                   mark="Tidemark: the range's high"
                 />
               ) : (

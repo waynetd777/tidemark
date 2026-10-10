@@ -206,7 +206,11 @@ export interface Mark {
 
 export interface PerfHistory {
   points: Minute[];
-  tidemarks: Partial<Record<"cpu" | "mem" | "swap" | "disk" | "net" | "power" | "gpu", Mark>>;
+  /// The highest of each over the span asked for. "disk" is disk I/O (reads and writes);
+  /// "down" and "up" are download and upload apart, "net" both together.
+  tidemarks: Partial<
+    Record<"cpu" | "mem" | "swap" | "disk" | "net" | "power" | "gpu" | "down" | "up", Mark>
+  >;
   since: number | null;
 }
 

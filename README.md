@@ -23,7 +23,7 @@ Tidemark Help). Four screens, in the sidebar:
   reads and writes and thermal state. Click any moment for a snapshot of what every app was doing.
   **Incidents** are recorded when CPU stays above 90% for 30 seconds, memory pressure goes red or
   swap grows by 1 GB in 10 minutes, each with a snapshot.
-- **Disk Usage** (⌘3): every folder as a block inside its parent's, sized by what it takes up. Colour is
+- **Disk Space** (⌘3): every folder as a block inside its parent's, sized by what it takes up. Colour is
   nesting level; a folder's loose files are one grey dashed block; folders too small to draw fold
   into a "more folders" block; the disk's free space is a dotted block beside the folders; cloud
   folders (OneDrive, iCloud Drive) show what is on disk and what is in the cloud. Click to zoom,
