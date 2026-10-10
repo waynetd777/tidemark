@@ -226,7 +226,7 @@ pub fn run() {
                 let bg = if dark {
                     tauri::window::Color(30, 30, 32, 255)
                 } else {
-                    tauri::window::Color(245, 245, 247, 255)
+                    tauri::window::Color(237, 237, 240, 255)
                 };
                 let _ = w.set_background_color(Some(bg));
 
@@ -241,7 +241,7 @@ pub fn run() {
                     let (r, g, b) = if dark {
                         (30.0, 30.0, 32.0)
                     } else {
-                        (245.0, 245.0, 247.0)
+                        (237.0, 237.0, 240.0)
                     };
                     let w_show = w.clone();
                     let _ = w.with_webview(move |wv| {
