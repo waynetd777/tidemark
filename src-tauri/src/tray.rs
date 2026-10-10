@@ -204,10 +204,14 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
 /// Opens the main window, on a screen ("now", "disk", "performance", "trends", "settings") if
 /// given, and closes the popover.
 #[tauri::command]
-pub fn show_main_window(app: AppHandle, screen: Option<String>) {
+pub fn show_main_window(app: AppHandle, screen: Option<String>, focus: Option<String>) {
     show_main(&app);
     if let Some(s) = screen {
-        let _ = app.emit("navigate", s);
+        // The screen, and the section to bring into view on it (as a Details link does).
+        let _ = app.emit(
+            "navigate",
+            serde_json::json!({ "screen": s, "focus": focus }),
+        );
     }
     if let Some(t) = app.get_webview_window("tray") {
         let _ = t.hide();
@@ -217,7 +221,7 @@ pub fn show_main_window(app: AppHandle, screen: Option<String>) {
 /// Opens the main window with Ask open.
 #[tauri::command]
 pub fn open_ask(app: AppHandle) {
-    show_main_window(app.clone(), None);
+    show_main_window(app.clone(), None, None);
     let _ = app.emit("open-ask", ());
 }
 

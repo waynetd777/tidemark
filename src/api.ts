@@ -82,7 +82,9 @@ export const api = {
   historyInfo: () => invoke<{ bytes: number; since: number | null }>("history_info"),
   settings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),
-  showMain: (screen?: Screen) => invoke<void>("show_main_window", { screen: screen ?? null }),
+  /// Opens the main window, on a screen and scrolled to a section of it if given.
+  showMain: (screen?: Screen, focus?: string) =>
+    invoke<void>("show_main_window", { screen: screen ?? null, focus: focus ?? null }),
   openAsk: () => invoke<void>("open_ask"),
   quit: () => invoke<void>("quit"),
   /// Screenshot mode (tools/screenshots.py): the screen or menu-bar window to show, and the theme.

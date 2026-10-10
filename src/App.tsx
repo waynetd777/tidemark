@@ -489,7 +489,7 @@ export default function App() {
   }, [setScreen]);
 
   // The tray's "navigate" arrives in a listener set up once; it calls the current `show`.
-  const showRef = useRef<(s: Screen) => void>(() => {});
+  const showRef = useRef<(s: Screen, target?: string) => void>(() => {});
   useEffect(() => {
     showRef.current = show;
   });
@@ -498,7 +498,9 @@ export default function App() {
       .settings()
       .then(setSettings)
       .catch(() => {});
-    const u1 = on<Screen>("navigate", (s) => showRef.current(s));
+    const u1 = on<{ screen: Screen; focus: string | null }>("navigate", (n) =>
+      showRef.current(n.screen, n.focus ?? undefined),
+    );
     const u2 = on("open-ask", () => {
       setAskOpen(true);
       setHelpOpen(false);

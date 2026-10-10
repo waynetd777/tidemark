@@ -386,13 +386,13 @@ export default function Tray() {
           <button
             key={r.name}
             className="menu-item tall"
-            title={
-              r.name === "Disk space"
-                ? "Open the disk map"
-                : `Open Performance for ${r.name.toLowerCase()} in detail`
-            }
+            title={`Open Performance at ${r.name.toLowerCase()}`}
             onClick={() => {
-              void api.showMain(r.name === "Disk space" ? "disk" : "performance");
+              // Performance's card for the row: "network" for its download row.
+              void api.showMain(
+                "performance",
+                r.name === "Network" ? "network" : r.name.toLowerCase(),
+              );
               hide();
             }}
           >
