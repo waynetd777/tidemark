@@ -558,16 +558,17 @@ pre,
   border-radius: 50%;
   background: currentColor;
 }
+/* Status badges (Recording, Up to date, Scanning) wear the tide colour; Scanning's dot pulses. */
 .pill.info {
-  color: var(--info);
-  background: var(--info-soft);
+  color: var(--tide-ink);
+  background: var(--tide-soft);
 }
 .pill.info::before {
   animation: pulse 1.2s infinite;
 }
 .pill.good {
-  color: var(--good);
-  background: var(--good-soft);
+  color: var(--tide-ink);
+  background: var(--tide-soft);
 }
 @keyframes pulse {
   0%,
