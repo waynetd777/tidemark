@@ -23,8 +23,8 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 /// early and reintroduce the white flash.
 const STATE_FLAGS: StateFlags = StateFlags::all().difference(StateFlags::VISIBLE);
 
-/// Startup timing, printed when DU_TIMING is set. Run the binary inside the bundle to see it:
-///   DU_TIMING=1 "/Applications/Disk Usage.app/Contents/MacOS/DiskUsage"
+/// Startup timing, printed when TIDEMARK_TIMING is set. Run the binary inside the bundle to see it:
+///   TIDEMARK_TIMING=1 "/Applications/Tidemark.app/Contents/MacOS/Tidemark"
 static START: Mutex<Option<Instant>> = Mutex::new(None);
 
 pub fn mark_start() {
@@ -34,7 +34,7 @@ pub fn mark_start() {
 }
 
 pub fn stamp(what: &str) {
-    if std::env::var_os("DU_TIMING").is_none() {
+    if std::env::var_os("TIDEMARK_TIMING").is_none() {
         return;
     }
     let ms = START
@@ -436,7 +436,7 @@ pub fn run() {
             // commands. A progress line is inserted under it only while a scan runs.
             let vol = MenuItem::with_id(app, "vol", volume_line(&root), false, None::<&str>)?;
             let prog = MenuItem::with_id(app, "prog", "Scanning…", false, None::<&str>)?;
-            let open = MenuItem::with_id(app, "open", "Open Disk Usage", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "Open Tidemark", true, None::<&str>)?;
             let rescan = MenuItem::with_id(app, "rescan", "Rescan", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(
@@ -458,7 +458,7 @@ pub fn run() {
                 .icon_as_template(true)
                 .menu(&menu)
                 .show_menu_on_left_click(true)
-                .tooltip("Disk Usage")
+                .tooltip("Tidemark")
                 .on_menu_event(move |app, ev| match ev.id.as_ref() {
                     "open" => show_main(app),
                     "rescan" => {

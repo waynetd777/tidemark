@@ -1,13 +1,13 @@
 [package]
-name = "disk-usage-visualiser"
+name = "tidemark"
 version = "1.4.0"
-description = "Nested treemap of what is using the disk on this Mac"
+description = "The high-water marks of your Mac: what is using the disk"
 authors = ["Wayne Davies"]
 license = "MIT"
 edition = "2021"
 
 [lib]
-name = "disk_usage_visualiser_lib"
+name = "tidemark_lib"
 # rlib only. The Tauri template's ["staticlib", "cdylib", "rlib"] exists for iOS and Android;
 # this app is macOS-only, and each extra crate type is another full LTO link of the whole
 # program on every build (measured here: 115s -> 21s incremental).
@@ -16,7 +16,7 @@ crate-type = ["rlib"]
 # The binary name is what the Dock and Activity Monitor show in `tauri dev`
 # (the bundle's productName only applies to `tauri build`). No spaces allowed here.
 [[bin]]
-name = "DiskUsage"
+name = "Tidemark"
 path = "src/main.rs"
 
 [build-dependencies]
@@ -36,8 +36,8 @@ rayon = "1"
 libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# NSProcessInfo.processName so the unbundled dev binary shows as "Disk Usage" in the app menu.
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSProcessInfo", "NSString", "NSValue"] }
+# NSNumber and NSString for setting drawsBackground on the webview (below).
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSValue"] }
 # To paint the WKWebView's own background before the page's first paint: Tauri's
 # set_background_color does nothing for the webview layer on macOS, so it shows white.
 objc2 = "0.6"

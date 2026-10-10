@@ -18,7 +18,7 @@ use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager};
 
-const SYSTEM: &str = "You are a disk-space adviser inside Disk Usage, a macOS app that maps where a disk's space goes. \
+const SYSTEM: &str = "You are a disk-space adviser inside Tidemark, a macOS app that maps where a disk's space goes. \
 The user's message carries the scan: the folder on screen and the biggest folders inside it, with sizes on disk, item counts and the size of loose files directly inside each. \
 Your job is to find where space can be reclaimed safely. \
 Say in plain language what each big folder is for, which ones are safe to clear or shrink and how (an app's own clear-cache or empty-trash command, a Finder step, a Terminal command), roughly how much each would free, and what to leave alone: system folders, cloud placeholders that take no local space, and anything the user would have to recreate by hand. \

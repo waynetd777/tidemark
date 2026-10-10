@@ -4,7 +4,7 @@
 //! The last scan of each root, kept so the next launch can draw it at once while a fresh scan
 //! runs behind it; and the short list of roots scanned recently.
 //!
-//! Everything lives under ~/Library/Application Support/Disk Usage Visualiser/. One JSON file per
+//! Everything lives under ~/Library/Application Support/Tidemark/. One JSON file per
 //! root, named by a hash of the path (a path is not a safe file name). Writes are atomic
 //! (temp file + rename) so a crash mid-write cannot leave a half-cached scan.
 
@@ -40,7 +40,7 @@ pub const RECENT_MAX: usize = 5;
 
 pub fn dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
-    Path::new(&home).join("Library/Application Support/Disk Usage Visualiser")
+    Path::new(&home).join("Library/Application Support/Tidemark")
 }
 
 fn hash(s: &str) -> String {

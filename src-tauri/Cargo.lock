@@ -668,25 +668,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "disk-usage-visualiser"
-version = "1.4.0"
-dependencies = [
- "chrono",
- "libc",
- "objc2",
- "objc2-app-kit",
- "objc2-foundation",
- "rayon",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-clipboard-manager",
- "tauri-plugin-dialog",
- "tauri-plugin-window-state",
-]
-
-[[package]]
 name = "dispatch2"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3702,6 +3683,25 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.5",
+]
+
+[[package]]
+name = "tidemark"
+version = "1.4.0"
+dependencies = [
+ "chrono",
+ "libc",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "rayon",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-clipboard-manager",
+ "tauri-plugin-dialog",
+ "tauri-plugin-window-state",
 ]
 
 [[package]]

@@ -4,7 +4,7 @@
 //! Antigravity CLI (`agy -p --output-format stream-json`), Google's successor to Gemini CLI.
 //! It has no flag to limit its tools, and some it would use unasked (web search); but a custom
 //! agent's `tools` list is enforced, so each run writes one into its working folder
-//! (`.agents/agents/disk-usage-ask.md`) with no tools at all. Model ids carry an "agy:" prefix,
+//! (`.agents/agents/tidemark-ask.md`) with no tools at all. Model ids carry an "agy:" prefix,
 //! since it also offers Claude models.
 
 use super::{finish, silent, spawn, system, Chunk, Done, Model, Running};
@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 
 pub const PREFIX: &str = "agy:";
-const AGENT: &str = "disk-usage-ask";
+const AGENT: &str = "tidemark-ask";
 
 pub fn find() -> Option<PathBuf> {
     super::find("agy", &[])
@@ -45,7 +45,7 @@ fn write_agent(cwd: &Path) -> Result<(), String> {
     let dir = cwd.join(".agents").join("agents");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let md = format!(
-        "---\nname: {AGENT}\ndescription: Disk Usage's Ask, no tools\nmainAgent: true\ninheritMcp: false\ntools: []\n---\n# Instructions\n{}\n",
+        "---\nname: {AGENT}\ndescription: Tidemark's Ask, no tools\nmainAgent: true\ninheritMcp: false\ntools: []\n---\n# Instructions\n{}\n",
         system()
     );
     std::fs::write(dir.join(format!("{AGENT}.md")), md).map_err(|e| e.to_string())
@@ -166,7 +166,7 @@ mod tests {
     fn agent_lists_no_tools() {
         let dir = std::env::temp_dir().join(format!("du-agy-{}", std::process::id()));
         write_agent(&dir).unwrap();
-        let md = std::fs::read_to_string(dir.join(".agents/agents/disk-usage-ask.md")).unwrap();
+        let md = std::fs::read_to_string(dir.join(".agents/agents/tidemark-ask.md")).unwrap();
         assert!(md.contains("tools: []\n---"));
         assert!(!md.contains("search_web") && !md.contains("run_command"));
         let _ = std::fs::remove_dir_all(&dir);

@@ -1,4 +1,6 @@
-# Disk Usage
+# Tidemark
+
+*The high-water marks of your Mac.*
 
 A small macOS app that shows what is using the disk: every folder as a block inside its parent's
 block, sized by what it takes up, so the big things are big.
@@ -62,7 +64,7 @@ and shows up only in the folder's "in cloud" figure. So that an online-only OneD
 vanish, a cloud folder's block is never drawn smaller than 2% of its cloud size; inside such a
 folder the blocks are then proportional to cloud size, and the tooltip says so.
 
-Every completed scan is **cached** under `~/Library/Application Support/Disk Usage Visualiser/`,
+Every completed scan is **cached** under `~/Library/Application Support/Tidemark/`,
 one file per root. On launch the cached map is drawn at once and a fresh scan runs behind it; the
 strip under the title bar shows the folder being walked, the items counted so far, and a percentage
 measured against the previous scan's count. The menu-bar item carries the volume's used/total and
@@ -83,13 +85,13 @@ does not have Full Disk Access, a banner says so and opens System Settings.
 
 Apple Silicon Macs, macOS 13 or later. No need to clone anything.
 
-1. **Download** [Disk-Usage.dmg](https://github.com/waynetd777/disk-usage-visualiser/releases/latest/download/Disk-Usage.dmg)
-   from the [latest release](https://github.com/waynetd777/disk-usage-visualiser/releases/latest).
-2. **Open it** and drag **Disk Usage** onto **Applications**.
-3. **Open Disk Usage** from Applications. macOS says it can't check the app for malicious
+1. **Download** [Tidemark.dmg](https://github.com/waynetd777/tidemark/releases/latest/download/Tidemark.dmg)
+   from the [latest release](https://github.com/waynetd777/tidemark/releases/latest).
+2. **Open it** and drag **Tidemark** onto **Applications**.
+3. **Open Tidemark** from Applications. macOS says it can't check the app for malicious
    software, because it is signed with a self-signed certificate rather than an Apple Developer ID
    and isn't notarised. Click **Done**, then open System Settings → Privacy & Security, scroll down
-   and click **Open Anyway** beside Disk Usage, then **Open Anyway** again and enter your password.
+   and click **Open Anyway** beside Tidemark, then **Open Anyway** again and enter your password.
    It opens normally after that.
 4. **Give it Full Disk Access** under System Settings → Privacy & Security → Full Disk Access, so
    it can see inside Mail, Safari, Photos and the other protected folders. Without it those folders
@@ -100,14 +102,14 @@ Closing the window hides it; the app stays in the menu bar, and Quit is in that 
 Instead of step 3 you can clear the download flag in Terminal, which is all Open Anyway does:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Disk Usage.app"
+xattr -dr com.apple.quarantine "/Applications/Tidemark.app"
 ```
 
 ### Build it yourself
 
 ```bash
-git clone https://github.com/waynetd777/disk-usage-visualiser ~/Projects/disk-usage-visualiser
-cd ~/Projects/disk-usage-visualiser
+git clone https://github.com/waynetd777/tidemark ~/Projects/tidemark
+cd ~/Projects/tidemark
 npm install
 make install-app      # signed build, copied to /Applications
 ```
@@ -117,11 +119,11 @@ make install-app      # signed build, copied to /Applications
 | Command | What it does |
 |---|---|
 | `make install-app` | Build the signed app and replace the copy in /Applications |
-| `make dmg` | Build the app and pack it into the installer, `dist-release/Disk-Usage.dmg` |
+| `make dmg` | Build the app and pack it into the installer, `dist-release/Tidemark.dmg` |
 | `make check` | Lint, Rust tests and TypeScript type-check |
 | `make lint` | rustfmt and clippy for the Rust, ESLint and Prettier for the TypeScript; fails on any warning |
 | `make fmt` | Reformat the Rust and TypeScript in place |
-| `make dev` | App with hot reload (shows as `DiskUsage` in the Dock; the bundle shows `Disk Usage`) |
+| `make dev` | App with hot reload |
 | `make icons` | Redraw the icon artwork (`tools/make_icons.py`) and regenerate the Tauri icon set |
 | `make screenshots` | Recapture `docs/screenshots/app.png` (needs Screen Recording for the terminal) |
 
@@ -136,8 +138,8 @@ once; a build made on the signing machine runs without it.
 
 **Releasing.** Bump the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and
 `package.json`, run `make dmg`, commit and push, then
-`gh release create v<version> dist-release/Disk-Usage.dmg`. The download link above points at the
-latest release's `Disk-Usage.dmg`, so keep that name. `tools/dmg/make_dmg.py` renders the window's
+`gh release create v<version> dist-release/Tidemark.dmg`. The download link above points at the
+latest release's `Tidemark.dmg`, so keep that name. `tools/dmg/make_dmg.py` renders the window's
 background from `tools/dmg/background.html` with WebKit and has Finder lay out the icons, so the
 first run asks to let the terminal control Finder.
 
@@ -149,14 +151,14 @@ about a megabyte of binary.
 the cached scan is read. To see the timings:
 
 ```bash
-DU_TIMING=1 "/Applications/Disk Usage.app/Contents/MacOS/DiskUsage"
+TIDEMARK_TIMING=1 "/Applications/Tidemark.app/Contents/MacOS/Tidemark"
 ```
 
 **Where things live**
 
 | What | Where |
 |---|---|
-| Cached scans, recent roots, last root | `~/Library/Application Support/Disk Usage Visualiser/` |
+| Cached scans, recent roots, last root | `~/Library/Application Support/Tidemark/` |
 | The scanner | `src-tauri/src/scan.rs` |
 | The treemap | `src/Treemap.tsx` |
 | The searchable file table | `src/FileTable.tsx` |

@@ -169,10 +169,10 @@ export default function HelpDrawer({
         <button
           type="button"
           className="btn small"
-          title="Ask the AI how something in Disk Usage works"
-          onClick={() => onAsk(query ? `How do I ${query} in Disk Usage?` : "How do I ")}
+          title="Ask the AI how something in Tidemark works"
+          onClick={() => onAsk(query ? `How do I ${query} in Tidemark?` : "How do I ")}
         >
-          Ask about Disk Usage
+          Ask about Tidemark
         </button>
       </div>
     </aside>

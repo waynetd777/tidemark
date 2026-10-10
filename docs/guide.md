@@ -1,6 +1,6 @@
-# Disk Usage
+# Tidemark
 
-Disk Usage shows what is using the disk: every folder as a block inside its parent's block, sized by what it takes up, so the big things are big. This guide is also the app's help: press `?` or the ? button in the title bar.
+Tidemark shows what is using the disk: every folder as a block inside its parent's block, sized by what it takes up, so the big things are big. This guide is also the app's help: press `?` or the ? button in the title bar.
 
 ## The map
 
@@ -71,7 +71,7 @@ Some folders stay unreadable even then: system folders owned by root, such as /p
 
 ## Menu bar
 
-Closing the window hides it; the app stays in the menu bar. The menu-bar item shows the volume's used and total space, the scan's progress while one runs, and offers Open Disk Usage, Rescan and Quit.
+Closing the window hides it; the app stays in the menu bar. The menu-bar item shows the volume's used and total space, the scan's progress while one runs, and offers Open Tidemark, Rescan and Quit.
 
 ## Keyboard shortcuts
 

@@ -3,4 +3,4 @@
 # Certificate Assistant → Create a Certificate, type "Code Signing", self-signed.
 #
 # Without this, the build is unsigned and macOS drops Full Disk Access on every rebuild.
-APPLE_SIGNING_IDENTITY = Disk Usage Dev
+APPLE_SIGNING_IDENTITY = Tidemark Dev

@@ -423,7 +423,7 @@ export default function App() {
   return (
     <div className="app">
       <aside className="sidebar" data-tauri-drag-region="deep">
-        <div className="brand">Disk Usage</div>
+        <div className="brand">Tidemark</div>
         <div className="sec first">Scanning</div>
         <button
           className="rootpick"
@@ -666,8 +666,8 @@ export default function App() {
           {showFdaBanner && (
             <div className="banner warn">
               <div className="grow">
-                <b>{fmtN(info.scan!.denied)} folders could not be read.</b> Give Disk Usage Full
-                Disk Access to include them, then Reload.
+                <b>{fmtN(info.scan!.denied)} folders could not be read.</b> Give Tidemark Full Disk
+                Access to include them, then Reload.
               </div>
               <button className="btn small" onClick={() => void api.openPrivacySettings()}>
                 Open System Settings

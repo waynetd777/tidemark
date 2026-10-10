@@ -10,8 +10,8 @@
 #   Screen Recording - for screencapture to see anything at all
 set -uo pipefail
 
-APP="/Applications/Disk Usage.app"
-PROC="Disk Usage"
+APP="/Applications/Tidemark.app"
+PROC="Tidemark"
 OUT="$(cd "$(dirname "$0")/.." && pwd)/docs/screenshots"
 SHOT_W=1280
 SHOT_H=820

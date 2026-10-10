@@ -5,7 +5,7 @@
 """Packs the release build into a DMG laid out like other Mac installers: the app on the left,
 an arrow to Applications on the right, on a background with the app's icon, name and a hint.
 
-    python3 tools/dmg/make_dmg.py        # after make app; writes dist-release/Disk-Usage.dmg
+    python3 tools/dmg/make_dmg.py        # after make app; writes dist-release/Tidemark.dmg
 
 Finder lays out the window, so the first run asks to let the terminal control Finder.
 """
@@ -14,9 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
-APP = ROOT / "src-tauri/target/release/bundle/macos/Disk Usage.app"
-OUT = ROOT / "dist-release/Disk-Usage.dmg"
-VOLUME = "Disk Usage"
+APP = ROOT / "src-tauri/target/release/bundle/macos/Tidemark.app"
+OUT = ROOT / "dist-release/Tidemark.dmg"
+VOLUME = "Tidemark"
 W, H = 660, 400
 
 
@@ -54,9 +54,9 @@ tell application "Finder"
     set icon size of o to 112
     set text size of o to 13
     set background picture of o to file ".background:background.tiff"
-    set position of item "Disk Usage.app" of w to {{165, 230}}
+    set position of item "Tidemark.app" of w to {{165, 230}}
     set position of item "Applications" of w to {{495, 230}}
-    set extension hidden of item "Disk Usage.app" of w to true
+    set extension hidden of item "Tidemark.app" of w to true
     set the bounds of w to {{200, 120, {right}, {bottom}}}
     update without registering applications
     delay 2

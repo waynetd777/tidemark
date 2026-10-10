@@ -1,6 +1,6 @@
-# Disk Usage — build, sign and install the app.
+# Tidemark — build, sign and install the app.
 
-APP      := src-tauri/target/release/bundle/macos/Disk Usage.app
+APP      := src-tauri/target/release/bundle/macos/Tidemark.app
 
 # The signing certificate is named in signing.local, which is untracked: the name of a
 # keychain identity is local to the machine that holds it. Copy signing.local.example and
@@ -44,14 +44,14 @@ app:
 	  && echo "signed with $(SIGN_ID)" \
 	  || { echo "WARNING: app is not signed with $(SIGN_ID); privacy grants will not persist"; exit 1; }
 
-## Build and replace /Applications/Disk Usage.app (same signature, so Full Disk Access persists).
+## Build and replace /Applications/Tidemark.app (same signature, so Full Disk Access persists).
 install-app: app
-	@pkill -x DiskUsage 2>/dev/null || true
-	@rm -rf "/Applications/Disk Usage.app"
-	@ditto "$(APP)" "/Applications/Disk Usage.app"
-	@echo "installed /Applications/Disk Usage.app"
+	@pkill -x Tidemark 2>/dev/null || true
+	@rm -rf "/Applications/Tidemark.app"
+	@ditto "$(APP)" "/Applications/Tidemark.app"
+	@echo "installed /Applications/Tidemark.app"
 
-## Build the app and pack it into dist-release/Disk-Usage.dmg for a GitHub release, laid out
+## Build the app and pack it into dist-release/Tidemark.dmg for a GitHub release, laid out
 ## like other Mac installers (tools/dmg/). Finder lays out the window, so the first run asks to
 ## let the terminal control Finder.
 dmg: app
@@ -69,7 +69,7 @@ screenshots:
 	@tools/screenshot.sh
 
 sign-check:
-	@codesign -dv --verbose=2 "/Applications/Disk Usage.app" 2>&1 | grep -E "^(Identifier|Authority|Signature|TeamIdentifier)"
+	@codesign -dv --verbose=2 "/Applications/Tidemark.app" 2>&1 | grep -E "^(Identifier|Authority|Signature|TeamIdentifier)"
 
 dev:
 	npm run tauri dev
