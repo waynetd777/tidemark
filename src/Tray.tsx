@@ -17,8 +17,8 @@ import { Spark, type Pt } from "./charts";
 import { Mark } from "./Mark";
 import { flagFor } from "./status";
 import Tooltips from "./Tooltips";
-import { startOfToday } from "./perf";
-import type { DiskTrend, GrowthInfo, Live, PerfHistory, Sleep } from "./types";
+import { startOfToday, upToNow } from "./perf";
+import type { DiskTrend, GrowthInfo, Live, Minute, PerfHistory, Sleep } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
 const WIDTH = 360;
@@ -81,6 +81,9 @@ export function Switch({
 export default function Tray() {
   const [live, setLive] = useState<Live | null>(null);
   const [day, setDay] = useState<PerfHistory | null>(null);
+  // The lines: the last hour minute by minute, and the disk's last day, as on Now.
+  const [hour, setHour] = useState<PerfHistory | null>(null);
+  const [diskDay, setDiskDay] = useState<DiskTrend | null>(null);
   const [disk, setDisk] = useState<DiskTrend | null>(null);
   const [growth, setGrowth] = useState<GrowthInfo | null>(null);
   const [home, setHome] = useState("");
@@ -98,6 +101,14 @@ export default function Tray() {
     api
       .diskTrend(7)
       .then(setDisk)
+      .catch(() => {});
+    api
+      .perf(3600, 60)
+      .then(setHour)
+      .catch(() => {});
+    api
+      .diskTrend(1)
+      .then(setDiskDay)
       .catch(() => {});
     api
       .growth("/", 7)
@@ -217,10 +228,16 @@ export default function Tray() {
   if (!live) return <div className="traywin" ref={root} />;
 
   const latest = live.samples[live.samples.length - 1];
-  // The live lines cover the last 15 minutes, with their gaps (the Mac asleep, say).
-  const liveDomain: [number, number] = latest
-    ? [latest.t / 1000 - 15 * 60, latest.t / 1000]
-    : [0, 1];
+  // The lines cover the last hour, as on Now: the minutes, then the live reading.
+  const liveDomain: [number, number] = latest ? [latest.t / 1000 - 3600, latest.t / 1000] : [0, 1];
+  const lastHour = (pick: (m: Minute) => number | null, now: number | null | undefined): Pt[] =>
+    upToNow(
+      (hour?.points ?? [])
+        .map((m) => ({ t: m.ts, v: pick(m) }))
+        .filter((p): p is Pt => p.v != null),
+      latest ? latest.t / 1000 : undefined,
+      now,
+    );
   const today = startOfToday();
   const highToday = (k: "cpu_max" | "mem_max") => {
     let best: { v: number; t: number } | null = null;
@@ -231,8 +248,9 @@ export default function Tray() {
   const cpuHigh = highToday("cpu_max");
   const memHigh = highToday("mem_max");
   const tm = day?.tidemarks ?? {};
-  const series = (k: "cpu" | "mem"): Pt[] => live.samples.map((s) => ({ t: s.t / 1000, v: s[k] }));
+  const series = (k: "cpu" | "mem"): Pt[] => lastHour((m) => m[k], latest?.[k]);
   const diskPts: Pt[] = (disk?.points ?? []).map((p) => ({ t: p.ts, v: p.used }));
+  const dayDiskPts: Pt[] = (diskDay?.points ?? []).map((p) => ({ t: p.ts, v: p.used }));
   const diskNow = diskPts[diskPts.length - 1]?.v ?? 0;
   const diskTotal = disk?.points[disk.points.length - 1]?.total ?? 0;
   const startOfDay = (disk?.points ?? []).find((p) => p.ts >= today);
@@ -254,7 +272,7 @@ export default function Tray() {
           max={100}
           mark={tm.cpu?.value}
           tone={flagFor(live.status, "CPU")?.tone}
-          label="CPU, last 15 minutes"
+          label="CPU, last hour"
         />
       ),
     },
@@ -275,7 +293,7 @@ export default function Tray() {
           max={live.mem_total}
           mark={tm.mem?.value}
           tone={flagFor(live.status, "Memory")?.tone}
-          label="Memory used, last 15 minutes"
+          label="Memory used, last hour"
         />
       ),
     },
@@ -288,9 +306,9 @@ export default function Tray() {
         <Spark
           sleeps={sleeps}
           domain={liveDomain}
-          pts={live.samples.map((x) => ({ t: x.t / 1000, v: x.net_in }))}
-          max={Math.max(1, ...live.samples.map((x) => x.net_in))}
-          label="Download, last 15 minutes"
+          pts={lastHour((m) => m.net_in, latest?.net_in)}
+          max={Math.max(1, ...lastHour((m) => m.net_in, latest?.net_in).map((p) => p.v))}
+          label="Download, last hour"
         />
       ),
     },
@@ -303,12 +321,10 @@ export default function Tray() {
         <Spark
           sleeps={sleeps}
           domain={liveDomain}
-          pts={live.samples
-            .filter((x) => x.power != null)
-            .map((x) => ({ t: x.t / 1000, v: x.power as number }))}
-          max={Math.max(1, ...live.samples.map((x) => x.power ?? 0))}
+          pts={lastHour((m) => m.power, latest?.power)}
+          max={Math.max(1, ...lastHour((m) => m.power, latest?.power).map((p) => p.v))}
           tone={flagFor(live.status, "Energy")?.tone}
-          label="Power drawn, last 15 minutes"
+          label="Power drawn, last hour"
         />
       ),
     },
@@ -319,12 +335,12 @@ export default function Tray() {
       value: diskTotal ? `${fmt(diskTotal - diskNow)} free` : "–",
       spark: (
         <Spark
-          pts={diskPts}
-          min={diskPts.length ? Math.min(...diskPts.map((p) => p.v)) * 0.995 : 0}
-          max={diskPts.length ? Math.max(...diskPts.map((p) => p.v)) : 1}
+          pts={dayDiskPts}
+          min={dayDiskPts.length ? Math.min(...dayDiskPts.map((p) => p.v)) * 0.995 : 0}
+          max={Math.max(1, ...dayDiskPts.map((p) => p.v), disk?.high?.used ?? 0)}
           mark={disk?.high?.used}
           tone={flagFor(live.status, "Disk space")?.tone}
-          label="Disk space used, last 7 days"
+          label="Disk space used, last 24 hours"
         />
       ),
     },
