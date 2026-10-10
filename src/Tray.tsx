@@ -15,6 +15,7 @@ import { metricOf } from "./metrics";
 import { api, on } from "./api";
 import { Spark, type Pt } from "./charts";
 import { Mark } from "./Mark";
+import { flagFor } from "./status";
 import Tooltips from "./Tooltips";
 import { startOfToday } from "./perf";
 import type { DiskTrend, GrowthInfo, Live, PerfHistory, Sleep } from "./types";
@@ -236,7 +237,7 @@ export default function Tray() {
     {
       name: "CPU",
       note: cpuHigh ? `Today's high ${pct(cpuHigh.v)} · ${fmtAt(cpuHigh.t)}` : "Recording",
-      warn: about === "cpu",
+      flag: flagFor(live.status, "CPU"),
       value: latest ? pct(latest.cpu) : "–",
       spark: (
         <Spark
@@ -245,7 +246,7 @@ export default function Tray() {
           pts={series("cpu")}
           max={100}
           mark={tm.cpu?.value}
-          tone={about === "cpu" ? "warn" : "tide"}
+          tone={flagFor(live.status, "CPU")?.tone}
           label="CPU, last 15 minutes"
         />
       ),
@@ -257,7 +258,7 @@ export default function Tray() {
         : memHigh
           ? `Today's high ${fmt(memHigh.v)}`
           : "Recording",
-      warn: memWarn,
+      flag: flagFor(live.status, "Memory"),
       value: latest ? fmt(latest.mem) : "–",
       spark: (
         <Spark
@@ -266,7 +267,7 @@ export default function Tray() {
           pts={series("mem")}
           max={live.mem_total}
           mark={tm.mem?.value}
-          tone={memWarn ? "warn" : "tide"}
+          tone={flagFor(live.status, "Memory")?.tone}
           label="Memory used, last 15 minutes"
         />
       ),
@@ -274,7 +275,7 @@ export default function Tray() {
     {
       name: "Network",
       note: latest ? `↑ ${fmtRate(latest.net_out)} up` : "Recording",
-      warn: false,
+      flag: null,
       value: latest ? `↓ ${fmtRate(latest.net_in)}` : "–",
       spark: (
         <Spark
@@ -289,7 +290,7 @@ export default function Tray() {
     {
       name: "Energy",
       note: live.battery ? batteryLine(live.battery) : "No battery",
-      warn: about === "energy",
+      flag: flagFor(live.status, "Energy"),
       value: latest?.power != null ? fmtW(latest.power) : "–",
       spark: (
         <Spark
@@ -299,7 +300,7 @@ export default function Tray() {
             .filter((x) => x.power != null)
             .map((x) => ({ t: x.t / 1000, v: x.power as number }))}
           max={Math.max(1, ...live.samples.map((x) => x.power ?? 0))}
-          tone={about === "energy" ? "warn" : "tide"}
+          tone={flagFor(live.status, "Energy")?.tone}
           label="Power drawn, last 15 minutes"
         />
       ),
@@ -307,7 +308,7 @@ export default function Tray() {
     {
       name: "Disk space",
       note: diskToday > 1e8 ? `${fmtDelta(diskToday)} today` : "Steady today",
-      warn: about === "disk",
+      flag: flagFor(live.status, "Disk space"),
       value: diskTotal ? `${fmt(diskTotal - diskNow)} free` : "–",
       spark: (
         <Spark
@@ -315,7 +316,7 @@ export default function Tray() {
           min={diskPts.length ? Math.min(...diskPts.map((p) => p.v)) * 0.995 : 0}
           max={diskPts.length ? Math.max(...diskPts.map((p) => p.v)) : 1}
           mark={disk?.high?.used}
-          tone={about === "disk" ? "warn" : "tide"}
+          tone={flagFor(live.status, "Disk space")?.tone}
           label="Disk space used, last 7 days"
         />
       ),
@@ -376,10 +377,10 @@ export default function Tray() {
               <span className="nm">
                 <Labelled m={metricOf(r.name)}>{r.name}</Labelled>
               </span>
-              <span className={`tiny${r.warn ? " warnt" : " muted"}`}>{r.note}</span>
+              <span className={`tiny ${r.flag ? r.flag.cls : "muted"}`}>{r.note}</span>
             </span>
             {r.spark}
-            <span className={`tval${r.warn ? " warnt" : ""}`}>{r.value}</span>
+            <span className={`tval${r.flag ? ` ${r.flag.cls}` : ""}`}>{r.value}</span>
           </button>
         ))}
       </div>

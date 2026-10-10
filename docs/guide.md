@@ -22,6 +22,7 @@ Every chart in Tidemark reads the same way, and its legend says what each mark i
 - A dotted line at the right-hand end is **now**; the line runs up to the latest reading.
 - **Gaps** are shaded for what they were: a soft band marked Asleep, or a hatched band marked Not recording (Tidemark was quit or paused, or had not started yet). Nothing runs while the Mac sleeps, Tidemark included, so sleep is a gap, never a dip to zero.
 - Point at a chart to read any moment, or at a gap for its times.
+- **Colour** marks trouble: when the headline is about a measure (memory getting tight, the CPU busy, the disk nearly full, the battery low), that measure's number and line turn amber, or red when it is critical, with a word beside it saying which. Everything else stays in the tide colour.
 
 ## Performance
 

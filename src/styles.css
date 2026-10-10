@@ -1603,6 +1603,9 @@ pre,
 .warnt {
   color: var(--warn);
 }
+.badt {
+  color: var(--bad);
+}
 .tidet {
   color: var(--tide);
 }
@@ -1718,6 +1721,10 @@ pre,
 .badge.warn {
   color: var(--warn);
   background: var(--warn-soft);
+}
+.badge.bad {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 14%, transparent);
 }
 .card .bar,
 .blame .bar {

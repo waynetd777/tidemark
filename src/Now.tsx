@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
+import { flagFor } from "./status";
 import { api } from "./api";
 import { Area, Legend, type Pt } from "./charts";
 import { incidentTitle, incidentWhy } from "./incidents";
@@ -301,56 +302,64 @@ export default function Now({
   ];
 
   // One measure's card: its figure, a chart of the range with the tidemark, and its high.
-  const card = (c: (typeof cards)[number]) => (
-    <section className="card metric" key={c.name}>
-      <div className="row between">
-        <span className="eyebrow">
-          <Labelled m={metricOf(c.name)}>{c.name}</Labelled>
-        </span>
-        <span className="muted small">{c.range}</span>
-      </div>
-      <div className="big">
-        <span className="num">{c.value}</span>
-        <span className="muted unit">{c.unit}</span>
-      </div>
-      <div className="muted small">{c.sub}</div>
-      <Area
-        pts={c.pts}
-        max={c.max}
-        min={c.min ?? 0}
-        height={150}
-        axis={false}
-        domain={[nowS - (c.range === "Last 7 days" ? 7 * DAY : HOUR), nowS]}
-        sleeps={c.name === "Disk space" ? undefined : (sleeps ?? [])}
-        mark={c.mark}
-        fmt={c.fmt}
-        fmtT={(t) => fmtAt(t)}
-        name={c.name}
-        label={`${c.name}, ${c.range.toLowerCase()}`}
-      />
-      <Legend
-        line={c.line}
-        mark={c.mark ? "Week's tidemark" : undefined}
-        gaps={c.name === "Disk space" ? undefined : dayGaps}
-      />
-      <div className="row between small mfoot">
-        <span className="muted ell" title={c.high}>
-          {c.high}
-        </span>
-        <button
-          className="link"
-          onClick={() => go(c.to, ("focus" in c ? c.focus : undefined) ?? c.name.toLowerCase())}
-          title={
-            c.to === "disk"
-              ? "Open Disk Space: what is using the disk (⌘3)"
-              : `See ${c.name.toLowerCase()} in detail`
-          }
-        >
-          Details
-        </button>
-      </div>
-    </section>
-  );
+  const card = (c: (typeof cards)[number]) => {
+    const flag = flagFor(st, c.name);
+    return (
+      <section className="card metric" key={c.name}>
+        <div className="row between">
+          <span className="eyebrow">
+            <Labelled m={metricOf(c.name)}>{c.name}</Labelled>
+          </span>
+          {flag ? (
+            <span className={`badge ${flag.tone}`}>{flag.label}</span>
+          ) : (
+            <span className="muted small">{c.range}</span>
+          )}
+        </div>
+        <div className={`big${flag ? ` ${flag.cls}` : ""}`}>
+          <span className="num">{c.value}</span>
+          <span className={`unit${flag ? "" : " muted"}`}>{c.unit}</span>
+        </div>
+        <div className="muted small">{c.sub}</div>
+        <Area
+          pts={c.pts}
+          max={c.max}
+          min={c.min ?? 0}
+          height={150}
+          axis={false}
+          domain={[nowS - (c.range === "Last 7 days" ? 7 * DAY : HOUR), nowS]}
+          sleeps={c.name === "Disk space" ? undefined : (sleeps ?? [])}
+          tone={flag?.tone}
+          mark={c.mark}
+          fmt={c.fmt}
+          fmtT={(t) => fmtAt(t)}
+          name={c.name}
+          label={`${c.name}, ${c.range.toLowerCase()}`}
+        />
+        <Legend
+          line={c.line}
+          mark={c.mark ? "Week's tidemark" : undefined}
+          gaps={c.name === "Disk space" ? undefined : dayGaps}
+        />
+        <div className="row between small mfoot">
+          <span className="muted ell" title={c.high}>
+            {c.high}
+          </span>
+          <button
+            className="link"
+            onClick={() => go(c.to, ("focus" in c ? c.focus : undefined) ?? c.name.toLowerCase())}
+            title={
+              c.to === "disk"
+                ? "Open Disk Space: what is using the disk (⌘3)"
+                : `See ${c.name.toLowerCase()} in detail`
+            }
+          >
+            Details
+          </button>
+        </div>
+      </section>
+    );
+  };
   return (
     <>
       {bar(
@@ -369,7 +378,13 @@ export default function Now({
         <div className="hero">
           <h1>
             {st?.headline ?? "Starting to record"}
-            <span className={st?.level === "attention" ? "warnt" : "tidet"}>.</span>
+            <span
+              className={
+                st?.severity === "critical" ? "badt" : st?.level === "attention" ? "warnt" : "tidet"
+              }
+            >
+              .
+            </span>
           </h1>
           <p className="muted">{sub || "The first readings arrive in a few seconds."}</p>
         </div>

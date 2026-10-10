@@ -151,6 +151,10 @@ export interface AppUse {
 export interface Status {
   level: "calm" | "attention";
   about: "" | "cpu" | "memory" | "swap" | "disk" | "energy";
+  /// "warn", "critical", or "" when calm.
+  severity: "" | "warn" | "critical";
+  /// A word or two for the measure's card: "Getting tight", "Critical".
+  label: string;
   headline: string;
   sub: string;
 }

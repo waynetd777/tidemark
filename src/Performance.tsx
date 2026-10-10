@@ -8,6 +8,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
+import { flagFor } from "./status";
 import { api } from "./api";
 import { Area, Legend, Spark, type Pt } from "./charts";
 import { incidentTitle } from "./incidents";
@@ -301,7 +302,16 @@ export default function Performance({
                 <b className="cname">
                   <Labelled m={metricOf(c.name)}>{c.name}</Labelled>
                 </b>
-                <span className="cnow">{c.now}</span>
+                <span
+                  className={`cnow${flagFor(live?.status, c.name) ? ` ${flagFor(live?.status, c.name)?.cls}` : ""}`}
+                >
+                  {c.now}
+                </span>
+                {flagFor(live?.status, c.name) && (
+                  <span className={`badge ${flagFor(live?.status, c.name)?.tone}`}>
+                    {flagFor(live?.status, c.name)?.label}
+                  </span>
+                )}
                 <span className="muted small">{c.sub}</span>
                 <span className="grow" />
                 <Legend
@@ -313,6 +323,7 @@ export default function Performance({
               </div>
               {c.pts.length ? (
                 <Area
+                  tone={flagFor(live?.status, c.name)?.tone}
                   pts={c.pts}
                   hi={c.band}
                   max={c.max}
@@ -436,7 +447,16 @@ export default function Performance({
               <b className="cname">
                 <Labelled m="energy">Energy</Labelled>
               </b>
-              <span className="cnow">{latest?.power != null ? fmtW(latest.power) : "–"}</span>
+              <span
+                className={`cnow${flagFor(live?.status, "Energy") ? ` ${flagFor(live?.status, "Energy")?.cls}` : ""}`}
+              >
+                {latest?.power != null ? fmtW(latest.power) : "–"}
+              </span>
+              {flagFor(live?.status, "Energy") && (
+                <span className={`badge ${flagFor(live?.status, "Energy")?.tone}`}>
+                  {flagFor(live?.status, "Energy")?.label}
+                </span>
+              )}
               <span className="muted small">
                 {live?.battery
                   ? `battery ${batteryLine(live.battery)}`

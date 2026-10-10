@@ -678,6 +678,11 @@ pub struct Status {
     pub level: &'static str,
     /// Which metric the attention is about: "cpu", "memory", "swap", "disk", "energy" or "".
     pub about: &'static str,
+    /// How bad: "warn" (getting tight, busy), "critical", or "" when calm. The screens colour
+    /// the measure it is about amber or red, with `label` beside it.
+    pub severity: &'static str,
+    /// A word or two for the measure's card: "Getting tight", "Critical", "Busy".
+    pub label: &'static str,
     pub headline: String,
     pub sub: String,
 }
@@ -703,9 +708,11 @@ pub fn status() -> Status {
         )
     });
     let vol = crate::volume::info("/");
-    let attention = |about, headline: String, sub: String| Status {
+    let attention = |about, severity, label, headline: String, sub: String| Status {
         level: "attention",
         about,
+        severity,
+        label,
         headline,
         sub,
     };
@@ -713,6 +720,8 @@ pub fn status() -> Status {
         if open.contains_key("pressure") || s.pressure >= 4 {
             return attention(
                 "memory",
+                "critical",
+                "Critical",
                 "Memory is running high".into(),
                 format!(
                     "{} of {} in use, {} in swap.",
@@ -726,6 +735,8 @@ pub fn status() -> Status {
             let mins = ((history::now() - started) / 60).max(1);
             return attention(
                 "cpu",
+                "warn",
+                "Busy",
                 "The CPU is busy".into(),
                 format!(
                     "{:.0}% for {mins} min{}.",
@@ -737,6 +748,8 @@ pub fn status() -> Status {
         if open.contains_key("swap") {
             return attention(
                 "swap",
+                "warn",
+                "Swap growing",
                 "Swap is growing".into(),
                 format!("{} in swap: memory is short.", gb(s.swap)),
             );
@@ -746,6 +759,8 @@ pub fn status() -> Status {
     if let Some(b) = battery.as_ref().filter(|b| !b.on_ac && b.percent <= 10.0) {
         return attention(
             "energy",
+            "critical",
+            "Battery low",
             "The battery is low".into(),
             format!(
                 "{:.0}% left{}.",
@@ -757,8 +772,15 @@ pub fn status() -> Status {
         );
     }
     if vol.total > 0 && (vol.free as f64) < vol.total as f64 * 0.1 {
+        let critical = (vol.free as f64) < vol.total as f64 * 0.05;
         return attention(
             "disk",
+            if critical { "critical" } else { "warn" },
+            if critical {
+                "Almost full"
+            } else {
+                "Nearly full"
+            },
             "The disk is nearly full".into(),
             format!("{} free of {}.", gb(vol.free as f64), gb(vol.total as f64)),
         );
@@ -766,6 +788,8 @@ pub fn status() -> Status {
     if latest.as_ref().is_some_and(|s| s.pressure == 2) {
         return attention(
             "memory",
+            "warn",
+            "Getting tight",
             "Memory is getting tight".into(),
             "macOS has started compressing memory.".into(),
         );
@@ -798,6 +822,8 @@ pub fn status() -> Status {
     Status {
         level: "calm",
         about: "",
+        severity: "",
+        label: "",
         headline: if latest.is_some() {
             "Your Mac is calm".into()
         } else {

@@ -7,6 +7,7 @@
 
 import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { gapMin, gapsOf, type Gap } from "./perf";
+import { toneColor, type Tone } from "./status";
 import type { Sleep } from "./types";
 import { fmtAt, fmtMins } from "./util";
 
@@ -75,7 +76,7 @@ export function Spark({
   mark?: number | null;
   width?: number;
   height?: number;
-  tone?: "tide" | "warn";
+  tone?: Tone;
   label: string;
   /// The recorded sleeps: with `domain`, its gaps are shaded as on the big charts.
   sleeps?: Sleep[];
@@ -105,7 +106,7 @@ export function Spark({
       area: `${line} L${x(r[r.length - 1].t).toFixed(1)} ${height} L${x(r[0].t).toFixed(1)} ${height} Z`,
     };
   });
-  const color = tone === "warn" ? "var(--warn)" : "var(--tide)";
+  const color = toneColor(tone);
   return (
     <svg
       className="spark"
@@ -187,6 +188,8 @@ export interface AreaProps {
   /// The recorded sleeps: with `domain`, the chart shades its own gaps (where its line has no
   /// readings) as asleep or not recording, so a band always meets its line.
   sleeps?: Sleep[];
+  /// Amber or red when the status is about this measure (status.ts); the tide colour otherwise.
+  tone?: Tone;
   /// The time span across the chart (unix seconds): the range asked for, so a reading sits at
   /// its real time and the labels under the chart are true even when the record is shorter.
   domain?: [number, number];
@@ -212,7 +215,9 @@ export function Area({
   domain,
   hi: band,
   sleeps,
+  tone,
 }: AreaProps) {
+  const color = toneColor(tone);
   const hatch = useId();
   const [d0, d1] = domain ?? [null, null];
   const gaps = useMemo(
@@ -335,18 +340,18 @@ export function Area({
               );
             })}
             {bandPaths.map((d, i) => (
-              <path key={`b${i}`} d={d} fill="var(--tide)" fillOpacity={0.1} />
+              <path key={`b${i}`} d={d} fill={color} fillOpacity={0.1} />
             ))}
             {paths.map((p, i) =>
               p.single ? (
-                <circle key={i} cx={x(p.single.t)} cy={y(p.single.v)} r={2} fill="var(--tide)" />
+                <circle key={i} cx={x(p.single.t)} cy={y(p.single.v)} r={2} fill={color} />
               ) : (
                 <g key={i}>
-                  <path d={p.area} fill="var(--tide)" fillOpacity={0.12} />
+                  <path d={p.area} fill={color} fillOpacity={0.12} />
                   <path
                     d={p.line}
                     fill="none"
-                    stroke="var(--tide)"
+                    stroke={color}
                     strokeWidth={2}
                     strokeLinejoin="round"
                   />
@@ -395,7 +400,10 @@ export function Area({
         )}
         {peak && W > 0 && (
           <>
-            <span className="dot peakdot" style={{ left: x(peak.t), top: y(peak.v) }} />
+            <span
+              className="dot peakdot"
+              style={{ left: x(peak.t), top: y(peak.v), background: color }}
+            />
             <span
               className={`peaklabel${peakBelow ? " below" : ""}`}
               style={{
