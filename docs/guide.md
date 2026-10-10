@@ -18,7 +18,7 @@ Every chart in Tidemark reads the same way, and its legend says what each mark i
 
 - The **line** is the measure's average over each point: a minute on the 1-hour range, a few minutes on longer ones (the legend says how many), and on Trends the disk's used space. The newest point is the live reading, so the line reaches now.
 - On Performance, a faint **band** behind the line is the busiest moment within each point, so a spike of a few seconds still shows.
-- The dashed line across is the **tidemark**: the highest that measure has been this week (on Trends, in the range). On Performance a dot and a label mark the range's peak.
+- The dashed line across is the **tidemark**, where a chart has one: the highest that measure has been this week (on Trends, in the range). On Performance a dot and a label mark the range's peak.
 - A dotted line at the right-hand end is **now**; the line runs up to the latest reading.
 - **Gaps** are shaded for what they were: a soft band marked Asleep, or a hatched band marked Not recording (Tidemark was quit or paused, or had not started yet). Nothing runs while the Mac sleeps, Tidemark included, so sleep is a gap, never a dip to zero.
 - Point at a chart to read any moment, or at a gap for its times.
@@ -36,13 +36,13 @@ Memory's line is everything in use; the line under its heading, and the readout 
 
 **Energy** shows the power the whole Mac draws, in watts; the battery's charge over the range, its health (its capacity now against what it was designed to hold) and charge cycles; what the last sleep cost the battery; and the apps that used the most energy. Power and battery come from the battery's own controller, so a Mac without a battery shows only the apps. Each app's energy is shown as its share of what all your apps used: the kernel's per-process count leaves out the display and macOS itself, so its watts would look smaller than they are. Only your own apps can be measured. Tidemark notes the battery either side of each sleep, which is how it knows what a sleep cost.
 
-Smaller tiles show swap and the Mac's thermal state.
+The **Crashes and hangs** card lists the apps that crashed or stopped responding in the last 14 days, how often, and when last, from the reports macOS writes (the ones Console shows under Crash Reports). Faults macOS only noted, which the app survived, are left out.
+
+Smaller tiles below show swap and the Mac's thermal state.
 
 The panel on the right is a **snapshot**: the apps that used the most at the chosen moment (the range's CPU peak until you click somewhere). Processes are grouped by the app they belong to, so Chrome's many helpers count as Google Chrome. CPU is a share of the whole Mac, not of one core. **Ask why this happened** puts the moment to Ask; **Activity Monitor** opens macOS's own, live.
 
 **Incidents** are recorded when something crosses a line: CPU above 90% for 30 seconds, memory pressure going red (critical), or swap growing by 1 GB within 10 minutes. Each keeps a snapshot of what every app was doing at its peak. Click one to jump to it.
-
-The **Crashes and hangs** card lists the apps that crashed or stopped responding in the last 14 days, how often, and when last, from the reports macOS writes (the ones Console shows under Crash Reports). Faults macOS only noted, which the app survived, are left out.
 
 Tidemark samples the whole Mac every 2 seconds while its window is in front or the menu-bar window is open, and every 5 seconds otherwise, when it reads each app only every 15 seconds; behind other windows the screen itself refreshes at most once a minute. It keeps one row a minute: the minute's average and its peak, so a short spike is never averaged away.
 
@@ -143,7 +143,7 @@ At the foot, Settings shows how much space the history takes and whether Tidemar
 
 ## Ask
 
-**Ask** (⌘K) opens a chat about your Mac. It puts what Tidemark knows to an AI: the folder on screen and its biggest folders with sizes, what grew on the disk this week, and the performance record (now, today's highs, the week's tidemarks, incidents and the apps that used the most). Ask why the Mac was slow on Wednesday, or where space can be freed safely. Start with one of the suggested questions, or type your own; follow-ups carry on the same conversation.
+**Ask** (⌘K) opens a chat about your Mac. It puts what Tidemark knows to an AI: the folder on screen and its biggest folders with sizes, what grew on the disk this week, and the performance record (CPU, GPU, memory and what it is made of, network and energy, now and at today's highs, the week's tidemarks, incidents, crashes and hangs, and the apps that used the most). Ask why the Mac was slow on Wednesday, or where space can be freed safely. Start with one of the suggested questions, or type your own; follow-ups carry on the same conversation.
 
 - Ask runs through an AI command-line tool already installed and signed in on this Mac: Claude Code, Codex, Antigravity or GitHub Copilot. No account or key is set up in the app. If none is installed the Ask button is disabled and says so.
 - The model menu in the panel's header lists every model those tools offer, grouped by tool. Claude Opus is the default; the choice is remembered.
@@ -155,13 +155,13 @@ At the foot, Settings shows how much space the history takes and whether Tidemar
 
 Closing the window hides it and takes Tidemark out of the Dock; it keeps recording in the menu bar. The menu-bar icon gets a mark when something needs attention (memory running high, the CPU busy, swap growing, the battery low, the disk nearly full).
 
-Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memory, network, energy and disk with a line for the last 15 minutes (the disk's for the week) and today's high; what is using the most right now; and, when there is something to say, a line about the week (an app holding much of your memory, or the disk growing by a gigabyte or more). When something needs attention, the main action takes you to it (Show what's using memory, say). Below that are Open Tidemark (⌘O), Settings (⌘,) and Quit (⌘Q); ⌘2 and ⌘3 open Performance and Disk. The shortcuts work while it is open, and Esc closes it. Quitting stops the recording unless the background helper is on (Settings).
+Clicking it opens a small window: how the Mac is doing in a sentence; CPU, memory, network download, energy and disk space with a line for the last 15 minutes (the disk's for the week) and today's high; what is using the most right now; and, when there is something to say, a line about the week (an app holding much of your memory, or the disk growing by a gigabyte or more). When something needs attention, the main action takes you to it (Show what's using memory, say). Below that are Open Tidemark (⌘O), Settings (⌘,) and Quit (⌘Q); ⌘2 and ⌘3 open Performance and Disk Space. The shortcuts work while it is open, and Esc closes it. Quitting stops the recording unless the background helper is on (Settings).
 
 ## Keyboard shortcuts
 
 | Keys | What they do |
 |---|---|
-| ⌘1 ⌘2 ⌘3 ⌘4 | Now, Performance, Disk, Trends |
+| ⌘1 ⌘2 ⌘3 ⌘4 | Now, Performance, Disk Space, Trends |
 | ⌘, | Settings |
 | ⌘[ and ⌘] | Back and forward through where you have been, across screens and folders |
 | ⌘K | Ask about the disk or performance |

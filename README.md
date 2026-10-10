@@ -14,27 +14,32 @@ Built with Tauri 2, React and Rust.
 The user guide is [docs/guide.md](docs/guide.md); it is also the app's help (press `?`, or Help ›
 Tidemark Help). Four screens, in the sidebar:
 
-- **Now** (⌘1): how the Mac is doing in a sentence; CPU, GPU, memory, disk I/O, network download and upload, and energy over the last
-  hour and disk space over the week, each with its tidemark (the week's high); the week's
-  peaks and incidents; and what grew on the disk.
-- **Performance** (⌘2): CPU and memory over 1 hour to 14 days, as minute averages with each
-  minute's peak as a band behind; network download and upload; energy (the power the Mac draws,
-  battery charge, health and cycles, what the last sleep cost, and each app's share); swap, disk
-  reads and writes and thermal state. Click any moment for a snapshot of what every app was doing.
-  **Incidents** are recorded when CPU stays above 90% for 30 seconds, memory pressure goes red or
-  swap grows by 1 GB in 10 minutes, each with a snapshot.
+- **Now** (⌘1): how the Mac is doing in a sentence; eight cards in rows of four (CPU, GPU, memory,
+  disk I/O, network download and upload, and energy over the last hour, disk space over the
+  week), with the week's high as a dashed tidemark where it applies; the week's peaks, incidents
+  and crashes; and what grew on the disk. Each card's Details opens the screen with more.
+- **Performance** (⌘2): CPU, GPU and memory (split into apps, wired and compressed) over 1 hour
+  to 14 days, as averages with each point's peak as a band behind; disk reads and writes; network
+  download and upload; energy (the power the Mac draws, battery charge, health and cycles, what the
+  last sleep cost, and each app's share); apps that crashed or hung; swap and thermal state. Click
+  any moment for a snapshot of what every app was doing. **Incidents** are recorded when CPU stays
+  above 90% for 30 seconds, memory pressure goes red or swap grows by 1 GB in 10 minutes, each
+  with a snapshot.
 - **Disk Space** (⌘3): every folder as a block inside its parent's, sized by what it takes up. Colour is
-  nesting level; a folder's loose files are one grey dashed block; folders too small to draw fold
-  into a "more folders" block; the disk's free space is a dotted block beside the folders; cloud
+  nesting level, in shades of the tide colour; a folder's loose files are one grey dashed block; folders too small to draw fold
+  into a "more folders" block; the disk's free space is a dotted grey block beside the folders; cloud
   folders (OneDrive, iCloud Drive) show what is on disk and what is in the cloud. Click to zoom,
   ‹ › to go back and forward, a Finder-style table for the files in a folder, Reveal in Finder and
   Get Info from a right-click. **Growth this week** outlines the folders where the disk's growth
   landed.
-- **Trends** (⌘4): the disk over 14 days to 12 months, with its high-water mark, its biggest rises
-  and when it would be full at that rate; the folders that rose; and CPU by weekday and hour.
+- **Trends** (⌘4): disk space over 7 days to 12 months, with its high-water mark, its biggest rises
+  and when it would be full at that rate; the folders that rose; CPU by weekday and hour; and the
+  range's highs in Now's order.
 
 Every chart runs up to now (a dotted line), with a legend, and shades its gaps: **Asleep** where
-the Mac slept, hatched **Not recording** where Tidemark was quit or paused.
+the Mac slept, hatched **Not recording** where Tidemark was quit or paused. When something needs
+attention, the measure it is about turns amber (a warning) or red (critical), with a word saying
+which; everything else stays teal.
 
 - **Menu bar**: closing the window keeps Tidemark recording there. Its icon is marked when
   something needs attention (memory, CPU, swap, a low battery, a nearly full disk); clicking it
@@ -53,10 +58,11 @@ Tidemark samples the Mac every 2 seconds while its window is in front or the men
 open; otherwise every 5 seconds, reading each app only every 15. It keeps one row a minute: the
 average and the peak, with the busiest apps of that minute. Power and battery come from the
 battery's controller, read every 10 seconds; each app's energy is the kernel's count for its
-processes.
+processes. GPU use comes from the GPU driver's own statistics, and memory's split from the
+kernel's VM statistics. Crash and hang reports in DiagnosticReports are read every 5 minutes.
 
 Everything goes in one SQLite file, `~/Library/Application Support/Tidemark/history.sqlite`: the
-minutes, incidents, sleeps, the disk's used space hourly and the big folders of each scan for 14
+minutes, incidents, sleeps, crashes, the disk's used space hourly and the big folders of each scan for 14
 days at most (Settings), and a row a day of disk totals and top folders for a year.
 
 It records while it is running. **Keep recording when quit** (Settings) registers a background
@@ -179,12 +185,15 @@ TIDEMARK_TIMING=1 "/Applications/Tidemark.app/Contents/MacOS/Tidemark"
 | The scanner, and the disk commands | `src-tauri/src/scan.rs`, `src-tauri/src/disk.rs` |
 | The recorder and its incidents | `src-tauri/src/monitor.rs` |
 | Energy and the battery | `src-tauri/src/energy.rs` |
+| GPU use and memory's split | `src-tauri/src/system.rs` |
+| Crash and hang reports | `src-tauri/src/crashes.rs` |
 | The history and its queries | `src-tauri/src/history.rs`, `src-tauri/src/trends.rs` |
 | Scheduled scans and upkeep | `src-tauri/src/schedule.rs` |
 | The background helper | `src-tauri/src/recorder.rs`, `src-tauri/launchagent/` |
 | The menu-bar window | `src-tauri/src/tray.rs`, `src/Tray.tsx` |
 | The screens | `src/Now.tsx`, `src/Performance.tsx`, `src/Trends.tsx`, `src/Settings.tsx` |
 | The charts | `src/charts.tsx` |
+| Warning colours (amber, red) | `src/status.ts` |
 | The treemap | `src/Treemap.tsx` |
 | The searchable file table | `src/FileTable.tsx` |
 | File metadata listing | `src-tauri/src/files.rs` |

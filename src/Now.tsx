@@ -436,7 +436,7 @@ export default function Now({
               <div className="muted rowline">
                 {growth?.from
                   ? "Nothing grew by more than 100 MB."
-                  : "Growth shows once two scans are a day or more apart."}
+                  : "Growth shows once two scans are 20 hours or more apart."}
               </div>
             )}
             {landed.slice(0, 5).map((g) => (
