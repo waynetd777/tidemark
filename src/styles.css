@@ -2029,11 +2029,6 @@ pre,
   flex: none;
   overflow: visible;
 }
-.legend-tm {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
 .chartlegend {
   display: inline-flex;
   flex-wrap: wrap;
@@ -2060,10 +2055,6 @@ pre,
   height: 9px;
   border-radius: 2px;
   background: color-mix(in srgb, var(--tide) 22%, var(--panel));
-}
-.legend-tm line {
-  stroke: var(--mark);
-  opacity: 0.6;
 }
 .heat {
   display: flex;
