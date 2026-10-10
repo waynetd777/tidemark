@@ -14,7 +14,7 @@ Built with Tauri 2, React and Rust.
 The user guide is [docs/guide.md](docs/guide.md); it is also the app's help (press `?`, or Help ›
 Tidemark Help). Four screens, in the sidebar:
 
-- **Now** (⌘1): how the Mac is doing in a sentence; CPU, GPU, memory, network and energy over the last
+- **Now** (⌘1): how the Mac is doing in a sentence; CPU, GPU, memory, disk I/O, network and energy over the last
   hour and disk space over the week, each with its tidemark (the week's high); the week's
   peaks and incidents; and what grew on the disk.
 - **Performance** (⌘2): CPU and memory over 1 hour to 14 days, as minute averages with each

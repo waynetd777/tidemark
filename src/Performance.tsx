@@ -549,7 +549,7 @@ export default function Performance({
           </section>
           <div className="tiles">
             {tiles.map((t) => (
-              <section className="card tile" key={t.name}>
+              <section className="card tile" key={t.name} data-focus={t.name.toLowerCase()}>
                 <span className="eyebrow">
                   <Labelled m={metricOf(t.name)}>{t.name}</Labelled>
                 </span>

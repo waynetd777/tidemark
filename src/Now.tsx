@@ -48,6 +48,9 @@ export default function Now({
   );
   const total = live?.mem_total || day?.points[0]?.mem_total || 1;
 
+  let ioHigh: { v: number; t: number } | null = null;
+  for (const m of day?.points ?? [])
+    if (m.ts >= today && (!ioHigh || m.disk_max > ioHigh.v)) ioHigh = { v: m.disk_max, t: m.ts };
   const series = (k: "cpu" | "mem" | "net_in"): Pt[] =>
     upToNow(
       (hour?.points ?? []).map((m) => ({ t: m.ts, v: m[k] })),
@@ -174,6 +177,24 @@ export default function Now({
         ? `Today's high ${fmt(memHigh.v)} at ${fmtAt(memHigh.t)}`
         : "No reading today yet",
       fmt,
+      to: "performance" as Screen,
+    },
+    {
+      name: "Disk I/O",
+      line: "Reads and writes, minute average",
+      range: "Last hour",
+      value: latest ? fmtRate(latest.disk_r + latest.disk_w).split(" ")[0] : "–",
+      unit: latest ? fmtRate(latest.disk_r + latest.disk_w).split(" ")[1] : "",
+      sub: latest ? `Reading ${fmtRate(latest.disk_r)} · writing ${fmtRate(latest.disk_w)}` : "",
+      pts: upToNow(
+        (hour?.points ?? []).map((m) => ({ t: m.ts, v: m.disk_r + m.disk_w })),
+        latest ? latest.t / 1000 : undefined,
+        latest ? latest.disk_r + latest.disk_w : undefined,
+      ),
+      max: Math.max(1, ...(hour?.points ?? []).map((m) => m.disk_r + m.disk_w)),
+      mark: null,
+      high: ioHigh ? `Busiest ${fmtRate(ioHigh.v)} at ${fmtAt(ioHigh.t)}` : "Quiet so far today",
+      fmt: fmtRate,
       to: "performance" as Screen,
     },
     {
