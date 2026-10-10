@@ -21,7 +21,7 @@ Every live measure in detail, over 1 hour to 14 days.
 
 - CPU, GPU and memory charts, with each point's peak as a band and the week's tidemark.
 - Memory split into apps, wired and compressed.
-- Disk I/O and network, each way; energy with battery health and what sleep cost.
+- Disk I/O and network, each way; energy with battery health and what sleep cost; disk space, hourly.
 - Click any moment to see what every app was doing.
 - **Incidents**: CPU above 90% for 30 seconds, memory pressure red, or swap up 1 GB in 10 minutes, each with a snapshot.
 - Apps that crashed or hung, from macOS's own reports.

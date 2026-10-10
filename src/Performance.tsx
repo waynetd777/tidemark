@@ -15,7 +15,7 @@ import { crashGroups, crashTitle, incidentTitle } from "./incidents";
 import { gapsOf, now, upToNow, usePoll } from "./perf";
 import { index, useRemembered } from "./remember";
 import type { Incident, Live, Minute } from "./types";
-import { batteryLine, bucketWord, fmt, fmtAt, fmtMins, fmtRate, fmtW, pct } from "./util";
+import { batteryLine, bucketWord, fmt, fmtDelta, fmtAt, fmtMins, fmtRate, fmtW, pct } from "./util";
 
 const RANGES = [
   { label: "1 hour", secs: 3600 },
@@ -81,6 +81,11 @@ export default function Performance({
   // The range's energy: what used the most, and the times the Mac slept.
   const rangeApps = usePoll(() => api.appsBetween(now() - secs, now()), 60_000, [secs]);
   const crashList = usePoll(() => api.crashes(14), 300_000);
+  // Disk space is recorded hourly, so a range under a day shows the last day.
+  const diskSecs = Math.max(secs, 86400);
+  const diskDays = Math.ceil(diskSecs / 86400);
+  const diskRange = usePoll(() => api.diskTrend(diskDays), 300_000, [diskDays]);
+  const diskWeek = usePoll(() => api.diskTrend(7), 300_000);
   const sleeps = usePoll(() => api.sleeps(Math.max(1, Math.ceil(secs / 86400))), 60_000, [secs]);
   const latest = live?.samples[live.samples.length - 1];
   // Where the record has holes in this range, and why.
@@ -626,6 +631,65 @@ export default function Performance({
                   more, and only your own apps can be measured.
                 </span>
               </div>
+            )}
+          </section>
+          <section className="card chart" data-focus="disk space">
+            <div className="row base wrap">
+              <b className="cname">
+                <Labelled m="disk">Disk space</Labelled>
+              </b>
+              {(() => {
+                const pts = diskRange?.points ?? [];
+                const last = pts[pts.length - 1];
+                const first = pts[0];
+                return (
+                  <>
+                    <span className="cnow">
+                      {last ? `${fmt(last.total - last.used)} free` : "–"}
+                    </span>
+                    <span className="muted small">
+                      {last ? `${fmt(last.used)} of ${fmt(last.total)} used` : ""}
+                      {first && last && pts.length > 1
+                        ? ` · ${fmtDelta(last.used - first.used)} over the last ${secs < 86400 ? "24 hours" : RANGES[range].label}`
+                        : ""}
+                    </span>
+                  </>
+                );
+              })()}
+              <span className="grow" />
+              <Legend line="Disk space used, hourly" mark="Week's tidemark" />
+            </div>
+            {(diskRange?.points.length ?? 0) > 1 ? (
+              (() => {
+                const pts = (diskRange?.points ?? []).map((p) => ({ t: p.ts, v: p.used }));
+                const lo = Math.min(...pts.map((p) => p.v));
+                const hi = Math.max(...pts.map((p) => p.v), diskWeek?.high?.used ?? 0);
+                const pad = Math.max((hi - lo) * 0.15, 1e9);
+                return (
+                  <Area
+                    pts={pts}
+                    max={hi + pad}
+                    min={Math.max(0, lo - pad)}
+                    height={120}
+                    mark={
+                      diskWeek?.high
+                        ? {
+                            v: diskWeek.high.used,
+                            label: `Tidemark ${fmt(diskWeek.high.used)} · ${fmtAt(diskWeek.high.ts, false)}`,
+                          }
+                        : null
+                    }
+                    fmt={fmt}
+                    fmtT={(t) => fmtAt(t)}
+                    name="Disk space used"
+                    domain={[now() - diskSecs, now()]}
+                    xLabels={xLabels(diskSecs, 4)}
+                    label={`Disk space used over the last ${secs < 86400 ? "24 hours" : RANGES[range].label}`}
+                  />
+                );
+              })()
+            ) : (
+              <div className="empty small">The disk's used space is recorded every hour.</div>
             )}
           </section>
           <section className="card chart" data-focus="crashes">
