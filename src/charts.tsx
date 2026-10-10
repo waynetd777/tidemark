@@ -143,6 +143,9 @@ export interface AreaProps {
   onPick?: (p: Pt) => void;
   /// Draw the y-axis labels (top and middle) at the left.
   axis?: boolean;
+  /// Each point's peak (the busiest reading inside a minute), drawn as a faint band behind the
+  /// line of averages, so a short spike, the peak dot and the tidemark have something to sit on.
+  hi?: Pt[];
   /// The time span across the chart (unix seconds): the range asked for, so a reading sits at
   /// its real time and the labels under the chart are true even when the record is shorter.
   domain?: [number, number];
@@ -166,13 +169,15 @@ export function Area({
   onPick,
   axis = true,
   domain,
+  hi: band,
 }: AreaProps) {
   const [ref, W] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   const H = height;
   const left = axis ? 44 : 0;
   const w = Math.max(0, W - left);
-  const hi = Math.max(max, mark?.v ?? 0, ...pts.map((p) => p.v)) || 1;
+  const hi =
+    Math.max(max, mark?.v ?? 0, ...pts.map((p) => p.v), ...(band ?? []).map((p) => p.v)) || 1;
   const lo = min;
   const t0 = domain?.[0] ?? (pts.length ? pts[0].t : 0);
   const t1 = domain?.[1] ?? (pts.length ? pts[pts.length - 1].t : 1);
@@ -190,6 +195,15 @@ export function Area({
     // x and y follow W, pts, the time span and the scale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pts, W, hi, lo, H, t0, t1]);
+  const bandPaths = useMemo(() => {
+    if (!band?.length) return [];
+    return runs(band, step(band) * 4).map((r) => {
+      const line = "M" + r.map((p) => `${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" L");
+      return `${line} L${x(r[r.length - 1].t).toFixed(1)} ${H} L${x(r[0].t).toFixed(1)} ${H} Z`;
+    });
+    // x and y follow W, the band, the time span and the scale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [band, W, hi, lo, H, t0, t1]);
   const nearest = (clientX: number, el: HTMLElement) => {
     if (!pts.length) return null;
     const r = el.getBoundingClientRect();
@@ -220,6 +234,9 @@ export function Area({
             <line className="gridl" x1={left} x2={W} y1={0.5} y2={0.5} />
             <line className="gridl" x1={left} x2={W} y1={H / 2} y2={H / 2} />
             <line className="basel" x1={left} x2={W} y1={H - 0.5} y2={H - 0.5} />
+            {bandPaths.map((d, i) => (
+              <path key={`b${i}`} d={d} fill="var(--tide)" fillOpacity={0.1} />
+            ))}
             {paths.map((p, i) =>
               p.single ? (
                 <circle key={i} cx={x(p.single.t)} cy={y(p.single.v)} r={2} fill="var(--tide)" />

@@ -2025,6 +2025,13 @@ pre,
   align-items: center;
   gap: 6px;
 }
+.legend-tm .bandkey {
+  display: inline-block;
+  width: 14px;
+  height: 9px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--tide) 22%, var(--panel));
+}
 .legend-tm line {
   stroke: var(--mark);
   opacity: 0.6;

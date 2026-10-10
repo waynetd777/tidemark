@@ -98,6 +98,7 @@ export default function Performance({
       now: latest ? pct(latest.cpu) : "–",
       sub: `${live?.cores ?? "–"} cores${points.length ? ` · average ${pct(points.reduce((s, m) => s + m.cpu, 0) / points.length)}` : ""}`,
       pts: ser("cpu"),
+      band: ser("cpu_max"),
       max: 100,
       fmt: pct,
       mark: tm.cpu
@@ -112,6 +113,7 @@ export default function Performance({
       now: latest ? fmt(latest.mem) : "–",
       sub: `of ${fmt(total)} · pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}`,
       pts: ser("mem"),
+      band: ser("mem_max"),
       max: total,
       fmt,
       mark: tm.mem
@@ -223,10 +225,15 @@ export default function Performance({
                   </svg>
                   Week's tidemark
                 </span>
+                <span className="muted small legend-tm">
+                  <i className="bandkey" aria-hidden="true" />
+                  Each minute's peak
+                </span>
               </div>
               {c.pts.length ? (
                 <Area
                   pts={c.pts}
+                  hi={c.band}
                   max={c.max}
                   mark={c.mark}
                   peak={c.peak}
@@ -306,6 +313,9 @@ export default function Performance({
                     pts={points
                       .filter((m) => m.power != null)
                       .map((m) => ({ t: m.ts, v: m.power as number }))}
+                    hi={points
+                      .filter((m) => m.power_max != null)
+                      .map((m) => ({ t: m.ts, v: m.power_max as number }))}
                     max={Math.max(1, ...points.map((m) => m.power_max ?? 0))}
                     height={120}
                     mark={
@@ -318,11 +328,15 @@ export default function Performance({
                     }
                     peak={(() => {
                       const m = points.reduce<Minute | null>(
-                        (b, x) => ((x.power ?? 0) > (b?.power ?? 0) ? x : b),
+                        (b, x) => ((x.power_max ?? 0) > (b?.power_max ?? 0) ? x : b),
                         null,
                       );
-                      return m?.power
-                        ? { t: m.ts, v: m.power, label: `${fmtW(m.power)} · ${fmtAt(m.ts)}` }
+                      return m?.power_max
+                        ? {
+                            t: m.ts,
+                            v: m.power_max,
+                            label: `${fmtW(m.power_max)} · ${fmtAt(m.ts)}`,
+                          }
                         : null;
                     })()}
                     fmt={fmtW}
