@@ -3,7 +3,11 @@
 
 //! Codex (`codex exec --json`): messages arrive whole, not as deltas, so the answer is sent once,
 //! at the end. The user's own Codex config (MCP servers, hooks, rules) is left out; sign-in still
-//! comes from ~/.codex. Runs in the read-only sandbox, in an empty folder, told to run nothing.
+//! comes from ~/.codex. Runs in the read-only sandbox, in an empty folder, with whatever reaches
+//! past the message switched off: the shell (its only way to read a file), web search, the
+//! ChatGPT apps and plugins (connectors to the user's other accounts), images, the browser and
+//! computer use, sub-agents and goals. What is left can't read or change anything: a clock, and
+//! apply_patch, which the read-only sandbox refuses.
 
 use super::{finish, silent, spawn, system, Done, Model, Running};
 use std::io::{BufRead, BufReader};
@@ -11,6 +15,20 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
+
+/// Codex's features that reach past the message: switched off for every run.
+const NO_FEATURES: [&str; 10] = [
+    "shell_tool",
+    "unified_exec",
+    "apps",
+    "plugins",
+    "view_image",
+    "image_generation",
+    "browser_use",
+    "computer_use",
+    "multi_agent",
+    "goals",
+];
 
 pub fn find() -> Option<PathBuf> {
     super::find("codex", &[])
@@ -75,7 +93,11 @@ pub fn ask(
         &model,
     ])
     .args(["-c", "sandbox_mode=\"read-only\"", "-c", &instructions])
-    .arg("--");
+    .args(["-c", "web_search=\"disabled\""]);
+    for f in NO_FEATURES {
+        cmd.args(["-c", &format!("features.{f}=false")]);
+    }
+    cmd.arg("--");
     if let Some(s) = &session {
         cmd.arg(s);
     }

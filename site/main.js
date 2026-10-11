@@ -222,6 +222,8 @@
   const SW = 1000,
     SH = 240,
     SN = 5 * 96;
+  // The week's tidemark: Wednesday's build. Nothing else, peak bands included, rises above it.
+  const TM = 96;
   const apps = ["Xcode", "Safari", "Mail", "Photos", "Slack", "Music", "Finder", "Spotlight"];
   const week = [];
   for (let i = 0; i < SN; i++) {
@@ -229,11 +231,11 @@
     const asleep = hour < 7 || hour > 23;
     let v = asleep ? null : 6 + rand() * 10 + (hour > 9 && hour < 18 ? 8 + rand() * 12 : 0);
     if (v !== null && rand() < 0.02) v += 30 + rand() * 30;
-    week.push(v);
+    week.push(v === null ? null : Math.min(TM - 8, v));
   }
   // Wednesday's build, the week's high.
   const PEAK = 2 * 96 + 60;
-  for (let j = -6; j <= 6; j++) week[PEAK + j] = 96 - Math.abs(j) * (8 + rand() * 4);
+  for (let j = -6; j <= 6; j++) week[PEAK + j] = TM - Math.abs(j) * (8 + rand() * 4);
   const syOf = (v) => SH - (v / 100) * (SH - 10);
   const sx = (i) => (i / (SN - 1)) * SW;
   const runs = [];
@@ -247,7 +249,7 @@
   });
   const runPath = (r, f) =>
     r.map((i, k) => `${k ? "L" : "M"}${sx(i).toFixed(1)} ${syOf(f(i)).toFixed(1)}`).join("");
-  const peakOf = (i) => Math.min(100, week[i] + 4 + ((i * 37) % 9));
+  const peakOf = (i) => Math.min(TM, week[i] + 4 + ((i * 37) % 9));
   $(".line", ssvg).setAttribute("d", runs.map((r) => runPath(r, (i) => week[i])).join(""));
   $(".area", ssvg).setAttribute(
     "d",
@@ -283,7 +285,7 @@
       gapStart = null;
     }
   });
-  const tmY = syOf(96);
+  const tmY = syOf(TM);
   $(".tm", ssvg).setAttribute("y1", tmY);
   $(".tm", ssvg).setAttribute("y2", tmY);
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
@@ -337,15 +339,19 @@
     const r = ssvg.getBoundingClientRect();
     return ((e.clientX - r.left) / r.width) * (SN - 1);
   };
+  // As in the app: pointing reads a moment, a click (or tap) picks it, and leaving goes back to
+  // the moment picked.
+  let picked = PEAK;
   chartEl.addEventListener("pointermove", (e) => {
     scrubbed = true;
     showAt(fromEvent(e));
   });
   chartEl.addEventListener("pointerdown", (e) => {
     scrubbed = true;
-    showAt(fromEvent(e));
+    picked = fromEvent(e);
+    showAt(picked);
   });
-  chartEl.addEventListener("pointerleave", () => showAt(PEAK));
+  chartEl.addEventListener("pointerleave", () => showAt(picked));
 
   // Trends: a year of disk space creeping up, and where it would meet the top.
   const fill = $(".fill-chart");
@@ -440,6 +446,7 @@
     addEventListener("resize", () => {
       sizeStars();
       drawStars(0);
+      drawLive();
     });
     return;
   }

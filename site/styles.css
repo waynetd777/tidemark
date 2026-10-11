@@ -22,16 +22,16 @@
   --line: #e2e7ea;
   --ink: #12181c;
   --ink2: #4a555c;
-  --ink3: #6c777e;
+  --ink3: #5f6a71;
   --tide: #0b6e8a;
   --tide-ink: #075a70;
   --tide-soft: #e1eff3;
   --on-tide: #fff;
   --grad-a: #0b6e8a;
   --grad-b: #22a1bb;
-  --warn: #b26a00;
+  --warn: #8f5500;
   --warn-soft: #fbf0dc;
-  --bad: #c43d31;
+  --bad: #b0352a;
   --bad-soft: #fbe5e2;
   --deep: #0c2a33;
   --deep-2: #12313b;
@@ -1287,6 +1287,9 @@ kbd {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   *::before,
   *::after {

@@ -9,9 +9,13 @@ import type { Pt } from "./charts";
 import type { Live, Sleep } from "./types";
 
 /// Calls `load` now and every `ms`, keeping the last answer. A failed call keeps what was there.
-/// `deps` restart it (a new range, a new root), and drop the answer for the old ones: null until
-/// the new answer comes, rather than the old range drawn on the new one's axis.
-export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []): T | null {
+/// `deps` restart it (a new range, a new root). The answer is kept with the deps it was asked
+/// for, so `fresh` says whether it belongs to the current ones: null until the first answer.
+export function usePolled<T>(
+  load: () => Promise<T>,
+  ms: number,
+  deps: unknown[] = [],
+): { v: T; fresh: boolean } | null {
   const key = JSON.stringify(deps);
   const [v, setV] = useState<{ key: string; v: T } | null>(null);
   const fn = useRef(load);
@@ -52,7 +56,20 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ms, ...deps]);
-  return v && v.key === key ? v.v : null;
+  return v && { v: v.v, fresh: v.key === key };
+}
+
+/// `usePolled`'s answer. A list keeps the old deps' answer until the new one comes, so it
+/// doesn't blank each time they move; with `clear`, it's null until then instead, for a chart,
+/// which would otherwise draw the old range on the new one's axis.
+export function usePoll<T>(
+  load: () => Promise<T>,
+  ms: number,
+  deps: unknown[] = [],
+  { clear = false }: { clear?: boolean } = {},
+): T | null {
+  const p = usePolled(load, ms, deps);
+  return p && (p.fresh || !clear) ? p.v : null;
 }
 
 /// The live readings, every 2 s.

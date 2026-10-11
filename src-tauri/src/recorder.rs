@@ -38,12 +38,18 @@ pub fn run() -> ! {
     crate::schedule::start_headless();
     loop {
         std::thread::sleep(std::time::Duration::from_secs(3600));
+        // A helper can run for weeks between logins: the log is kept small as it goes too.
+        trim_log();
     }
 }
 
-/// SIGTERM (launchd stopping the agent, `make install-app`, logout) and SIGINT end the helper
-/// cleanly: the minute in hand is saved and open incidents end now. The signals are blocked
-/// and taken by a thread of their own with sigwait, where the work is safe to do.
+/// SIGTERM (launchd stopping the agent, `make install-app`, logout, Activity Monitor's Quit,
+/// `killall`) and SIGINT end the helper cleanly: the minute in hand is saved and open incidents
+/// end now. The signals are blocked and taken by a thread of their own with sigwait, where the
+/// work is safe to do. The helper then dies of the same signal rather than exiting 0: the agent
+/// is restarted only after an unsuccessful exit (KeepAlive SuccessfulExit = false, see
+/// `install`), so a helper quit by hand comes back, while one booted out (switched off, a
+/// reinstall) stays gone, as launchd no longer has the job.
 fn on_stop_signal() {
     unsafe {
         let mut set: libc::sigset_t = std::mem::zeroed();
@@ -59,7 +65,14 @@ fn on_stop_signal() {
                 let mut sig: libc::c_int = 0;
                 if libc::sigwait(&set, &mut sig) == 0 {
                     crate::monitor::stop();
-                    std::process::exit(0);
+                    libc::signal(sig, libc::SIG_DFL);
+                    let mut one: libc::sigset_t = std::mem::zeroed();
+                    libc::sigemptyset(&mut one);
+                    libc::sigaddset(&mut one, sig);
+                    libc::pthread_sigmask(libc::SIG_UNBLOCK, &one, std::ptr::null_mut());
+                    libc::raise(sig);
+                    // Not reached; should the signal not kill, still not a success.
+                    std::process::exit(128 + sig);
                 }
             });
     }
@@ -70,8 +83,8 @@ fn log_path() -> std::path::PathBuf {
     crate::cache::dir().join("helper.log")
 }
 
-/// Keeps the log small: emptied at start once it passes 1 MB. launchd opens it to append, so
-/// the helper's writes go on at the new end.
+/// Keeps the log small: emptied, at start and then hourly, once it passes 1 MB. launchd opens it
+/// to append (O_APPEND), so the helper's writes go on at the new end, not past a hole.
 fn trim_log() {
     let path = log_path();
     if std::fs::metadata(&path).is_ok_and(|m| m.len() > 1_000_000) {

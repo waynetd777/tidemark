@@ -87,6 +87,9 @@ export default function AskPanel({
   // The tool the session belongs to: another tool can't resume it, so a switch starts afresh.
   const sessionTool = useRef<Provider | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
+  // When an input method last finished composing: WebKit ends the composition before the Enter
+  // that picks the text arrives, so that Enter is no longer marked as composing.
+  const composedAt = useRef(0);
   const scroller = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chatId);
   chatRef.current = chatId;
@@ -353,9 +356,17 @@ export default function AskPanel({
           placeholder={messages.length ? "Ask a follow-up…" : "Ask about your Mac…"}
           aria-label="Your question"
           onChange={(e) => setQ(e.target.value)}
+          onCompositionEnd={(e) => {
+            composedAt.current = e.timeStamp;
+          }}
           onKeyDown={(e) => {
-            // Not while an input method is composing: there Enter picks the text.
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            // Not while an input method is composing: there Enter picks the text. WebKit marks
+            // that Enter only by key code 229, or not at all once the composition has just ended.
+            const composing =
+              e.nativeEvent.isComposing ||
+              e.keyCode === 229 ||
+              e.timeStamp - composedAt.current < 100;
+            if (e.key === "Enter" && !e.shiftKey && !composing) {
               e.preventDefault();
               void send(q);
             } else if (e.key === "Escape") {

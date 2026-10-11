@@ -53,21 +53,30 @@ app:
 ## Build and replace /Applications/Tidemark.app (same signature, so Full Disk Access persists).
 ## The background helper runs the same binary: its launch agent is unloaded first (so launchd
 ## neither restarts it from a half-copied app nor throttles the restart) and loaded again after,
-## if it was loaded. Quitting the app is then left to pkill.
+## if it was loaded, even when the copy fails (the target still fails). The app is asked to quit
+## (an Apple event, so it saves the minute in hand and ends open incidents as it does on ⌘Q),
+## with pkill only for one that hasn't gone within 5 seconds.
 HELPER_AGENT := gui/$(shell id -u)/com.wayned.tidemark.helper
 HELPER_PLIST := $(HOME)/Library/LaunchAgents/com.wayned.tidemark.helper.plist
 install-app: app
-	@loaded=; \
+	@loaded=; ok=1; \
 	if launchctl print "$(HELPER_AGENT)" >/dev/null 2>&1; then \
 	  loaded=1; launchctl bootout "$(HELPER_AGENT)" 2>/dev/null || true; \
 	fi; \
+	if pgrep -x Tidemark >/dev/null; then \
+	  osascript -e 'quit app id "com.wayned.tidemark"' >/dev/null 2>&1 || true; \
+	  for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x Tidemark >/dev/null || break; sleep 0.5; done; \
+	fi; \
 	pkill -x Tidemark 2>/dev/null || true; \
-	rm -rf "/Applications/Tidemark.app" && \
-	ditto "$(APP)" "/Applications/Tidemark.app" && \
-	echo "installed /Applications/Tidemark.app" && \
+	{ rm -rf "/Applications/Tidemark.app" && \
+	  ditto "$(APP)" "/Applications/Tidemark.app" && \
+	  echo "installed /Applications/Tidemark.app"; } || ok=; \
 	if [ -n "$$loaded" ]; then \
-	  launchctl bootstrap "gui/$$(id -u)" "$(HELPER_PLIST)" && echo "restarted the background helper"; \
-	fi
+	  if launchctl bootstrap "gui/$$(id -u)" "$(HELPER_PLIST)"; then \
+	    echo "restarted the background helper"; \
+	  else ok=; fi; \
+	fi; \
+	test -n "$$ok"
 
 ## Build the app and pack it into dist-release/Tidemark.dmg for a GitHub release, laid out
 ## like other Mac installers (tools/dmg/). Finder lays out the window, so the first run asks to

@@ -55,7 +55,7 @@ OneDrive, iCloud Drive and anything under Library/CloudStorage or Library/Mobile
 
 - They have a double edge and two numbers: what is on disk, and what is in the cloud.
 - An online-only file takes no space, so it counts only in the "in cloud" figure.
-- A cloud folder's block is never smaller than 2% of its cloud size, so it doesn't vanish. Inside one, blocks follow cloud size, and the tooltip says so.
+- A cloud folder's block is the larger of its size on disk and 2% of its size in the cloud, so an online-only folder doesn't vanish; the tooltip says when a block is sized by the cloud.
 
 ## Scanning
 

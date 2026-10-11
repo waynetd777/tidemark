@@ -17,13 +17,17 @@ const DELAY = 450;
 function tipText(t: HTMLElement): string | null {
   if (t.title) {
     t.dataset.tip = t.title;
-    // The title was an icon-only control's only name; keep it for VoiceOver.
+    // The title was an icon-only control's only name; keep it for VoiceOver. A label set here is
+    // marked, so a new title replaces it, where a label the element brought is left alone.
     if (
-      !t.textContent?.trim() &&
-      !t.hasAttribute("aria-label") &&
-      !t.hasAttribute("aria-labelledby")
-    )
+      "tipLabel" in t.dataset ||
+      (!t.textContent?.trim() &&
+        !t.hasAttribute("aria-label") &&
+        !t.hasAttribute("aria-labelledby"))
+    ) {
       t.setAttribute("aria-label", t.title);
+      t.dataset.tipLabel = "";
+    }
     t.removeAttribute("title");
   }
   if (t.dataset.tip) return t.dataset.tip;
@@ -78,7 +82,21 @@ export default function Tooltips() {
     document.addEventListener("scroll", hide, true);
     window.addEventListener("blur", hide);
     window.addEventListener("resize", hide);
+    // A title changed after it was moved (React sets it afresh): move it again now, so the label
+    // and the tooltip follow it without waiting for a hover.
+    const retitled = new MutationObserver((ms) => {
+      for (const m of ms) {
+        const t = m.target as HTMLElement;
+        if (t.title && t.dataset.tip != null) tipText(t);
+      }
+    });
+    retitled.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["title"],
+      subtree: true,
+    });
     return () => {
+      retitled.disconnect();
       hide();
       document.removeEventListener("mouseover", over);
       document.removeEventListener("mouseout", out);

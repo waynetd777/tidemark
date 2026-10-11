@@ -135,7 +135,7 @@ export default function Settings({
                 <span>Scan the disk</span>
                 <span className="muted">
                   {settings.scan === "daily"
-                    ? "Once a day, when the Mac is idle and on power."
+                    ? "Once a day, when the Mac is idle and on power, and at launch if the last scan is over an hour old."
                     : settings.scan === "hourly"
                       ? "Every hour. A full scan takes about a minute of hard work, so this costs some battery."
                       : "Only when you press Reload. Growth is shown between the scans you run."}

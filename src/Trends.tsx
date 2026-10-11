@@ -13,7 +13,7 @@ import { AllIcon, Labelled, MetricIcon } from "./icons";
 import { metricOf } from "./metrics";
 import { api } from "./api";
 import { Area, Heatmap, Legend, Spark, type Pt } from "./charts";
-import { now, usePoll } from "./perf";
+import { now, usePoll, usePolled } from "./perf";
 import { isTab, TABS, tabFor, type Tab } from "./perfTabs";
 import { useRemembered } from "./remember";
 import type { AppUse, DiskPoint, Growth, PerfDay, Screen } from "./types";
@@ -70,7 +70,9 @@ function jumps(points: DiskPoint[]): { ts: number; delta: number }[] {
 
 /// One folder's size over the scans in the history, as a small line.
 function FolderSpark({ path, days }: { path: string; days: number }) {
-  const h = usePoll(() => api.folderHistory(path, days), 300_000, [path, days]);
+  const h = usePoll(() => api.folderHistory(path, days), 300_000, [path, days], {
+    clear: true,
+  });
   const pts: Pt[] = (h ?? []).map(([t, v]) => ({ t, v }));
   if (pts.length < 2) return <span className="spark-empty" />;
   const lo = Math.min(...pts.map((p) => p.v));
@@ -277,24 +279,32 @@ export default function Trends({
     0,
     RANGES.findIndex((r) => r.days === days),
   );
-  const perfPoll = usePoll(() => api.perfDays(days), 300_000, [days]);
-  const perfDays = perfPoll ?? [];
-  const trend = usePoll(() => api.diskTrend(days), 300_000, [days]);
-  const growth = usePoll(() => api.growth("/", days), 300_000, [days]);
+  const perfPoll = usePolled(() => api.perfDays(days), 300_000, [days]);
+  // The charts draw only the range's own days; the tabs go by the last range's until they come.
+  const perfDays = perfPoll?.fresh ? perfPoll.v : [];
+  const trend = usePoll(() => api.diskTrend(days), 300_000, [days], { clear: true });
+  const growth = usePoll(() => api.growth("/", days), 300_000, [days], { clear: true });
   // A measure the Mac never reported (no GPU, no battery controller's power) has no chart.
-  // Until a new range's days come, every measure counts as had, so a tab doesn't blink away.
-  const has = (n: string) => perfPoll == null || perfDays.some((d) => M[n].avg(d) != null);
-  const hasGpu = has("GPU");
-  const hasPower = has("Energy");
+  // Until a new range's days come, the last range's say, so a tab doesn't blink away; before the
+  // first days come, no measure is known, so no tab appears only to vanish (the remembered tab
+  // stays, rather than falling back to All and back again).
+  const known = perfPoll != null;
+  const has = (n: string) => !!perfPoll?.v.some((d) => M[n].avg(d) != null);
+  const hasGpu = has("GPU") || (!known && tab === "gpu");
+  const hasPower = has("Energy") || (!known && tab === "energy");
   const shown: Tab = (tab === "gpu" && !hasGpu) || (tab === "energy" && !hasPower) ? "all" : tab;
   const tabMeasure = shown === "disk" ? null : M[TAB_CHARTS[shown][0]];
   const heatOf = tabMeasure?.hour ?? "cpu";
   // Only the measure tabs show it.
   const wantsHeat = shown !== "all" && shown !== "disk";
-  const heat = usePoll(() => (wantsHeat ? api.byHour(heatOf) : Promise.resolve(null)), 600_000, [
-    heatOf,
-    wantsHeat,
-  ]);
+  const heat = usePoll(
+    () => (wantsHeat ? api.byHour(heatOf) : Promise.resolve(null)),
+    600_000,
+    [heatOf, wantsHeat],
+    {
+      clear: true,
+    },
+  );
 
   const midnight = new Date();
   midnight.setHours(24, 0, 0, 0);
@@ -614,7 +624,7 @@ export default function Trends({
   const appV = (a: AppUse, m: Measure) =>
     m.by === "mem" ? a.mem : m.by === "energy" ? a.energy : m.by === "disk" ? (a.disk ?? 0) : a.cpu;
   const appF = (m: Measure) =>
-    m.by === "mem" ? fmt : m.by === "energy" ? fmtW : m.by === "disk" ? fmtRate : pct;
+    m.by === "mem" ? fmtMem : m.by === "energy" ? fmtW : m.by === "disk" ? fmtRate : pct;
   const side =
     shown === "disk" ? (
       <aside className="card snap">

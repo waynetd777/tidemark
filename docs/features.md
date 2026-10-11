@@ -11,7 +11,7 @@ How your Mac is doing, at a glance.
 - A sentence on how the Mac is doing; every measure needing attention coloured amber or red.
 - Eight cards, each with a meter of how full it is now: CPU (with each core behind a chevron), GPU, memory, disk I/O, network download, network upload and energy over the last hour; disk space over the last 24 hours.
 - The week's tidemarks, its crashes and hangs, and what grew on the disk, side by side.
-- **Details** on a card opens Recent at its tab. A card flagged amber or red, and each incident and crash in the week's tidemarks, has an **Ask** button.
+- **Details** on a card opens Recent at its tab. A card flagged amber or red, each incident in the week's tidemarks and each crash in Crashes and hangs has an **Ask** button.
 - Suggested questions along the foot open Ask. The sidebar's **This Mac** shows the chip, cores, memory and uptime.
 
 ## Recent (⌘2)
@@ -57,7 +57,7 @@ What is using the disk: every folder as a block, sized by what it takes up. See 
 | **Keep recording when quit** | A background helper records while the app is quit. |
 | **Open at Login** | Starts Tidemark in the menu bar at login. |
 | **Keep every minute for** | 14, 7 or 3 days of detail. |
-| **Scan the disk** | Daily (idle and on power), hourly, or off (only when you press Reload). |
+| **Scan the disk** | Daily (idle and on power), hourly, or off (only when you press Reload). Unless it's off, opening Tidemark also scans if the last scan is over an hour old. |
 | **Appearance** | Match the Mac, light or dark. |
 
 Below them, About shows the version, with a **Website** button. The foot shows how much space the history takes and whether Tidemark has Full Disk Access, with a link to grant it.
@@ -71,16 +71,16 @@ Closing the window keeps Tidemark recording in the menu bar.
 <a href="images/index.md#menu-bar"><picture><source media="(prefers-color-scheme: dark)" srcset="images/menu-bar-dark.png"><img alt="The menu-bar window" src="images/menu-bar-light.png" width="380"></picture></a>
 
 - The icon is marked when something needs attention.
-- Click it for CPU, memory, network, energy and disk space, each with a meter and its last hour; click one to open Recent at its tab.
+- Click it for CPU, memory, network, energy and disk space, each with a meter and its last hour (the disk's last 24 hours); click one to open Recent at its tab.
 - Below them, what is using the most, a line about the week, and the action that helps.
-- At the foot, **Open Tidemark** (⌘O), **Settings** (⌘,) and **Quit** (⌘Q).
+- At the foot, **Open Tidemark** (⌘O), **Settings** (⌘,) and **Quit** (⌘Q). ⌘2 and ⌘4 open Recent and Disk Map; Esc closes the window.
 
 ## Ask (⌘K)
 
 A chat with an AI about your Mac, through a command-line tool already signed in on it (Claude Code, Codex, Antigravity or GitHub Copilot).
 
 - Ask why the Mac was slow, or where space can be freed safely.
-- It sees names, sizes and figures only, and Tidemark changes nothing.
+- It sees names, paths, sizes and figures, and a crash report's summary when you ask about one, and Tidemark changes nothing.
 
 ## Charts
 
@@ -88,3 +88,15 @@ A chat with an AI about your Mac, through a command-line tool already signed in 
 - A dashed line is the tidemark: the high-water mark.
 - Sleep is shaded **Asleep**; time Tidemark wasn't running is hatched **Not recording**.
 - The measure that needs attention turns amber (warning) or red (critical).
+
+## Keyboard
+
+| Keys | What they do |
+|---|---|
+| ⌘1 ⌘2 ⌘3 ⌘4 | Now, Recent, Trends, Disk Map |
+| ⌘, | Settings |
+| ⌘K | Ask |
+| ⌘[ and ⌘] | Back and forward, across screens and folders |
+| ⌘R | Scan again |
+| ⌘O | Choose a folder to scan |
+| ? | Help for the screen you're on |

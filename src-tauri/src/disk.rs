@@ -106,7 +106,8 @@ fn has_full_disk_access() -> bool {
     std::fs::read_dir(Path::new(&home()).join("Library/Safari")).is_ok()
 }
 
-#[tauri::command]
+/// Off the main thread (async): the first call reads the boot volume's name from /Volumes.
+#[tauri::command(async)]
 pub fn get_state(state: State<AppState>) -> AppInfo {
     let root = state.root();
     let scan = state.scan.lock().ok().and_then(|s| s.clone());
@@ -131,7 +132,8 @@ pub fn get_state(state: State<AppState>) -> AppInfo {
     }
 }
 
-#[tauri::command]
+/// Off the main thread (async): the first call reads the boot volume's name from /Volumes.
+#[tauri::command(async)]
 pub fn get_progress(state: State<AppState>) -> ProgressInfo {
     let p = &state.progress;
     let scan_root = state
@@ -278,7 +280,13 @@ pub fn start_scan_thread(
     }
     let lock = scan_lock();
     if auto && lock.is_none() {
-        return Err("another process is scanning".into());
+        // This process's own scan holds it as surely as another's.
+        return Err(if state.scanning.load(Ordering::SeqCst) {
+            "a scan is already running"
+        } else {
+            "another process is scanning"
+        }
+        .into());
     }
     if state.scanning.swap(true, Ordering::SeqCst) {
         return Err("a scan is already running".into());

@@ -2,7 +2,7 @@
 
 A few choices; everything else looks after itself.
 
-- **Keep recording when quit**: a small background helper (Tidemark's own program, no window) records while the app is quit and starts at login. macOS lists it as "Tidemark" under System Settings › General › Login Items › Allow in the Background; switched off there, Settings says so, and switching it back on there is the way to allow it again. When both run, one records and the other shows what it records.
+- **Keep recording when quit**: a small background helper (Tidemark's own program, no window) records while the app is quit and starts at login. macOS lists it as "Tidemark" under System Settings › General › Login Items › Allow in the Background; switched off there, Settings says so, and switching it back on there is the way to allow it again. When both run, one records and the other waits to take over; when it's the helper, the app shows what it records. If it's quit, it starts again within 5 minutes. If it doesn't seem to record, its messages are in helper.log in Tidemark's folder (below).
 - **Open at Login**: starts Tidemark in the menu bar at login. It's the same switch as System Settings › General › Login Items, and works in the installed app only.
 - **Keep every minute for**: 14, 7 or 3 days, the detail Recent shows. Shortening it forgets older minutes at once; the year of daily rows (for Trends) and of daily disk totals is kept either way.
 - **Scan the disk**: **Daily** (the default) scans once a day when the Mac has been idle for 5 minutes and is on power; once the last scan is two days old, it scans when idle on battery too. **Hourly** scans every hour, idle or not, on power or not, and costs some battery. **Off** never scans by itself, not even at launch: only when you press Reload.
@@ -12,7 +12,7 @@ A few choices; everything else looks after itself.
 
 ## History
 
-Everything Tidemark remembers stays on this Mac, in ~/Library/Application Support/Tidemark: the history in history.sqlite, the last scan of each folder you scanned (in scans), your choices in settings.json, and the latest readings in live.json.
+Everything Tidemark remembers stays on this Mac, in ~/Library/Application Support/Tidemark: the history in history.sqlite, the last scan of each folder you scanned (in scans), your choices in settings.json, and the background helper's messages in helper.log (emptied once it passes 1 MB). Small files beside them (the .lock files, live.json and others) let the app and the helper share the work. Ask runs its AI tool in an empty folder of its own, ~/Library/Application Support/com.wayned.tidemark.
 
 | What | Kept for |
 |---|---|

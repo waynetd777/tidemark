@@ -1,10 +1,11 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-//! GitHub Copilot CLI (`copilot -p --output-format json --stream on`). Only its view tool exists
-//! (`--available-tools=view`; an empty list would mean every tool, web_fetch included), in an
-//! empty folder, so there is nothing to read. Its built-in GitHub MCP server and the user's
-//! instruction files are left out. It lists no models, so the app offers "auto" and Copilot
+//! GitHub Copilot CLI (`copilot -p --output-format json --stream on`), with no tools at all: the
+//! allowlist names only a tool that doesn't exist (an empty list would mean every tool, web_fetch
+//! included; `--excluded-tools` and `--deny-tool` leave the view tool reading the working folder),
+//! so Copilot disables every one and notes the unknown name. Its built-in GitHub MCP server and
+//! the user's instruction files are left out. It lists no models, so the app offers "auto" and Copilot
 //! routes to whatever the account allows. It takes no system prompt, so the instructions open the
 //! first message.
 
@@ -63,7 +64,7 @@ pub fn ask(
             "--disable-builtin-mcps",
             "--no-auto-update",
             "--disallow-temp-dir",
-            "--available-tools=view",
+            "--available-tools=tidemark-ask-has-no-tools",
         ]);
     if let Some(s) = &session {
         cmd.arg(format!("--resume={s}"));

@@ -25,6 +25,8 @@ use sysinfo::{Networks, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKin
 const LIVE_SECS: i64 = 15 * 60;
 /// Apps kept per minute, by CPU and by memory (the union is stored).
 const APPS_PER_MINUTE: usize = 8;
+/// The apps each live list shows (by CPU, by memory, by energy).
+const LIVE_APPS: usize = 8;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Sample {
@@ -512,7 +514,7 @@ fn share(watched: bool) {
         } else {
             serde_json::to_vec(&Live {
                 samples: l.samples.back().cloned().into_iter().collect(),
-                apps: l.apps.iter().take(APPS_PER_MINUTE).cloned().collect(),
+                apps: busiest(&l.apps),
                 processes: l.processes,
                 mem_total: l.mem_total,
                 battery: l.battery.clone(),
@@ -527,6 +529,25 @@ fn share(watched: bool) {
     if std::fs::write(&tmp, bytes).is_ok() {
         let _ = std::fs::rename(&tmp, live_path());
     }
+}
+
+/// The busiest apps by CPU, by memory and by energy, each list as long as `perf_live` shows, so
+/// the follower can sort them each way (Now's "Using the most", the menu bar's memory lines).
+/// In CPU order, as `Live::apps` is.
+fn busiest(apps: &[AppUse]) -> Vec<AppUse> {
+    let mut keep: Vec<&AppUse> = Vec::new();
+    let by: [fn(&AppUse) -> f64; 3] = [|a| a.cpu, |a| a.mem, |a| a.energy];
+    for f in by {
+        let mut sorted: Vec<&AppUse> = apps.iter().collect();
+        sorted.sort_by(|a, b| f(b).total_cmp(&f(a)));
+        for a in sorted.into_iter().take(LIVE_APPS) {
+            if !keep.iter().any(|k| k.app == a.app) {
+                keep.push(a);
+            }
+        }
+    }
+    keep.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
+    keep.into_iter().cloned().collect()
 }
 
 /// Reads what the recorder shared, if it is recent (a stopped recorder's file is stale).
@@ -612,6 +633,13 @@ fn run() {
         Watch::new("pressure", 5, 30, true),
         Watch::new("swap", 0, 0, true),
     ];
+    // A minute the last recorder saved as it stopped (`stop`) is left as it is: gathered again
+    // from here, this part of it would replace the whole minute's row. Recording starts with the
+    // next minute.
+    let mut saved_minute = {
+        let m = history::now() / 60;
+        history::has_minute(m * 60).then_some(m)
+    };
     loop {
         // Faster while a window is on screen here, or in the other process.
         let watched = touched(&watching_path(), 10);
@@ -621,6 +649,15 @@ fn run() {
             5
         };
         std::thread::sleep(Duration::from_secs(every));
+        // Held for the rest of this pass, so `stop` waits for it to finish and nothing is
+        // recorded after it.
+        let _step = STEP.lock().unwrap_or_else(|e| e.into_inner());
+        if STOPPING.load(Ordering::SeqCst) {
+            drop(_step);
+            loop {
+                std::thread::park();
+            }
+        }
         let now = history::now();
         let paused = read_pause();
         live(|l| l.paused_until = paused);
@@ -755,13 +792,16 @@ fn run() {
         };
 
         let minute = now / 60;
-        with_acc(|acc| {
-            if minute != acc.minute {
-                acc.flush();
-                acc.minute = minute;
-            }
-            acc.add(&s, mem_total, &apps);
-        });
+        if saved_minute != Some(minute) {
+            saved_minute = None;
+            with_acc(|acc| {
+                if minute != acc.minute {
+                    acc.flush();
+                    acc.minute = minute;
+                }
+                acc.add(&s, mem_total, &apps);
+            });
+        }
 
         // Swap grown by 1 GB from its lowest in the last 10 minutes, since the last sleep or
         // pause (what swap did across one is no sign of anything now).
@@ -773,13 +813,13 @@ fn run() {
                 .fold(f64::MAX, f64::min)
         })
         .min(s.swap);
-        let swap_rising = s.swap - swap_low >= 1e9;
+        let swap_rising = s.swap - swap_low >= GIB;
         let swap_settled = live(|l| {
             l.samples
                 .iter()
                 .rev()
                 .take_while(|x| x.t >= (now - 300).max(since_gap) * 1000)
-                .all(|x| x.swap >= s.swap - 1e6)
+                .all(|x| x.swap >= s.swap - MIB)
         });
         watches[0].step(now, s.cpu >= 90.0, s.cpu < 80.0, s.cpu, &apps);
         watches[1].step(now, s.pressure >= 4, s.pressure < 4, s.mem, &apps);
@@ -810,6 +850,11 @@ fn run() {
     }
 }
 
+/// Held by `run` through each pass and by `stop`, which sets STOPPING: once `stop` has saved the
+/// minute and ended the incidents, no pass opens or updates one again, or gathers another minute.
+static STEP: Mutex<()> = Mutex::new(());
+static STOPPING: AtomicBool = AtomicBool::new(false);
+
 /// The minute being gathered, shared with `stop`.
 static ACC: Mutex<Option<Acc>> = Mutex::new(None);
 
@@ -823,6 +868,10 @@ fn with_acc<T>(f: impl FnOnce(&mut Acc) -> T) -> T {
 /// Nothing when this process isn't the recorder.
 pub fn stop() {
     if !recording() {
+        return;
+    }
+    let _step = STEP.lock().unwrap_or_else(|e| e.into_inner());
+    if STOPPING.swap(true, Ordering::SeqCst) {
         return;
     }
     with_acc(|a| a.flush());
@@ -863,10 +912,12 @@ fn gb(b: f64) -> String {
     }
 }
 
+/// A gigabyte and a megabyte of memory or swap, in binary units (see `mem_gb`).
+const GIB: f64 = (1u64 << 30) as f64;
+const MIB: f64 = (1u64 << 20) as f64;
+
 /// Memory and swap, in binary units (as Activity Monitor counts them), so a 16 GB Mac says 16 GB.
 fn mem_gb(b: f64) -> String {
-    const GIB: f64 = (1u64 << 30) as f64;
-    const MIB: f64 = (1u64 << 20) as f64;
     if b >= 100.0 * GIB {
         format!("{:.0} GB", b / GIB)
     } else if b >= GIB {
@@ -1064,13 +1115,13 @@ pub async fn perf_live() -> LiveInfo {
     live(|l| {
         let mut by_mem = l.apps.clone();
         by_mem.sort_by(|a, b| b.mem.total_cmp(&a.mem));
-        by_mem.truncate(8);
+        by_mem.truncate(LIVE_APPS);
         let mut by_energy = l.apps.clone();
         by_energy.sort_by(|a, b| b.energy.total_cmp(&a.energy));
-        by_energy.truncate(8);
+        by_energy.truncate(LIVE_APPS);
         LiveInfo {
             samples: l.samples.iter().cloned().collect(),
-            apps_cpu: l.apps.iter().take(8).cloned().collect(),
+            apps_cpu: l.apps.iter().take(LIVE_APPS).cloned().collect(),
             apps_mem: by_mem,
             apps_energy: by_energy,
             battery: l.battery.clone(),
@@ -1461,6 +1512,33 @@ mod tests {
             "Spotlight (mds_stores)"
         );
         assert_eq!(app_of(None, "kernel_task"), "kernel_task");
+    }
+
+    /// The shared list keeps the busiest by memory and energy too, not only by CPU.
+    #[test]
+    fn shared_apps_keep_each_measures_busiest() {
+        let mut apps: Vec<AppUse> = (0..20)
+            .map(|i| AppUse {
+                app: format!("cpu{i}"),
+                cpu: 50.0 - i as f64,
+                ..Default::default()
+            })
+            .collect();
+        apps.push(AppUse {
+            app: "hog".into(),
+            mem: 8e9,
+            ..Default::default()
+        });
+        apps.push(AppUse {
+            app: "drain".into(),
+            energy: 9.0,
+            ..Default::default()
+        });
+        let kept = busiest(&apps);
+        assert!(kept.iter().any(|a| a.app == "hog"));
+        assert!(kept.iter().any(|a| a.app == "drain"));
+        assert_eq!(kept[0].app, "cpu0");
+        assert!(kept.len() <= 3 * LIVE_APPS);
     }
 
     #[test]

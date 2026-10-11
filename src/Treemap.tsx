@@ -163,10 +163,12 @@ function draw(b: Block, x: number, y: number, w: number, h: number, out: HTMLEle
   el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
   el.dataset.id = id;
   // Folders and files blocks take keyboard focus: Enter zooms in, ⌘Enter reveals in Finder.
+  // A folder holds its own blocks and a Reveal button, which a button may not, so it's a group.
   if (b.kind === "dir" || b.kind === "files") {
     el.tabIndex = 0;
-    el.setAttribute("role", "button");
+    el.setAttribute("role", b.kind === "dir" ? "group" : "button");
     el.setAttribute("aria-label", `${blockTitle(b)}, ${fmt(blockSize(b))}`);
+    el.setAttribute("aria-keyshortcuts", "Enter Meta+Enter");
   }
   const grew = b.kind === "dir" ? growthNow?.landed.get(v.path) : undefined;
   if (grew) {
@@ -261,6 +263,8 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
       const focused = filesHost.contains(document.activeElement)
         ? (document.activeElement as HTMLElement)
         : null;
+      // Moving the table resets its scroll, so it's put back once the table is in place.
+      const scrolled = filesHost.querySelector<HTMLElement>(".file-scroll")?.scrollTop ?? 0;
       registry.clear();
       filesHost.remove();
       map.innerHTML = "";
@@ -296,6 +300,8 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
         blk.removeAttribute("tabindex");
         blk.removeAttribute("role");
         blk.appendChild(filesHost);
+        const scroll = filesHost.querySelector<HTMLElement>(".file-scroll");
+        if (scroll) scroll.scrollTop = scrolled;
         focused?.focus();
       }
       setHasFiles(!!blk);

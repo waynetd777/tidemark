@@ -51,8 +51,10 @@ DEV_URL = "http://localhost:1420"
 WIDTH = 1400
 SETTLE = 6.0
 GB = 1e9
+# The app shows memory and swap in binary units, as Activity Monitor does: 24 GiB reads "24 GB".
+GIB = 2**30
 HOME_LABEL = "/Users/alex"
-MEM_TOTAL = 24 * GB
+MEM_TOTAL = 24 * GIB
 
 SCENES = [
     # Now mid-build: the CPU busy (amber) while memory runs out (red), so the shot shows both.
@@ -309,14 +311,14 @@ def make_demo():
             asleep_from = None
         work = d.weekday() < 5 and (9 <= d.hour < 12 or 14 <= d.hour < 18)
         cpu = r.uniform(4, 10) + (r.uniform(10, 26) if work else 0)
-        mem = 12.5 * GB + (3.0 * GB if work else 0) + r.uniform(-0.4, 0.4) * GB
-        swap, pressure = 0.6 * GB, 1
+        mem = 12.5 * GIB + (3.0 * GIB if work else 0) + r.uniform(-0.4, 0.4) * GIB
+        swap, pressure = 0.6 * GIB, 1
         for at, kind in incidents:
             if 0 <= t - at < 300:
                 if kind == "cpu":
                     cpu = r.uniform(91, 98)
                 else:
-                    mem, swap, pressure = 22.1 * GB, 4.2 * GB, 4
+                    mem, swap, pressure = 22.1 * GIB, 4.2 * GIB, 4
         on_ac = d.hour >= 15 and d.weekday() < 5
         battery = min(100.0, battery + 0.3) if on_ac else max(18.0, battery - 0.04 - cpu / 3000)
         power = 6 + cpu * 0.28 + r.uniform(-1, 1)
@@ -354,8 +356,8 @@ def make_demo():
                 gpu,
                 min(100, gpu * 1.4),
                 mem * 0.62,
-                3.2 * GB,
-                mem * 0.38 - 3.2 * GB + 2.1 * GB,
+                3.2 * GIB,
+                mem * 0.38 - 3.2 * GIB + 2.1 * GIB,
                 nin * 1.6,
                 nout * 1.6,
                 *split(cpu),
@@ -370,11 +372,11 @@ def make_demo():
                     t,
                     a,
                     cpu * w,
-                    m * GB,
+                    m * GIB,
                     power * w * 0.5,
                     disk,
                     min(100, cpu * w * rp.uniform(1.2, 2.6)),
-                    m * GB * rp.uniform(1.0, 1.04),
+                    m * GIB * rp.uniform(1.0, 1.04),
                     power * w * 0.5 * rp.uniform(1.1, 1.8),
                     disk * rp.uniform(1.5, 4),
                 )
@@ -384,14 +386,14 @@ def make_demo():
     db.executemany("INSERT INTO procs VALUES (" + ",".join("?" * 10) + ")", procs)
     snap_cpu = json.dumps(
         [
-            {"app": "Xcode", "cpu": 71.0, "mem": 3.1 * GB, "energy": 9.0},
-            {"app": "Safari", "cpu": 9.0, "mem": 3.4 * GB, "energy": 2.0},
+            {"app": "Xcode", "cpu": 71.0, "mem": 3.1 * GIB, "energy": 9.0},
+            {"app": "Safari", "cpu": 9.0, "mem": 3.4 * GIB, "energy": 2.0},
         ]
     )
     snap_mem = json.dumps(
         [
-            {"app": "Photos", "cpu": 4.0, "mem": 8.2 * GB, "energy": 1.0},
-            {"app": "Safari", "cpu": 7.0, "mem": 6.1 * GB, "energy": 2.0},
+            {"app": "Photos", "cpu": 4.0, "mem": 8.2 * GIB, "energy": 1.0},
+            {"app": "Safari", "cpu": 7.0, "mem": 6.1 * GIB, "energy": 2.0},
         ]
     )
     db.execute(
@@ -400,7 +402,7 @@ def make_demo():
     )
     db.execute(
         "INSERT INTO incidents VALUES (2,'pressure',?,?,?,?,?)",
-        (incidents[1][0], incidents[1][0] + 600, 22.1 * GB, incidents[1][0] + 120, snap_mem),
+        (incidents[1][0], incidents[1][0] + 600, 22.1 * GIB, incidents[1][0] + 120, snap_mem),
     )
     for i, (app, kind, ago) in enumerate(
         [("Music", "crash", 1.2), ("Music", "crash", 3.6), ("Photos", "hang", 2.3)]
@@ -485,7 +487,7 @@ def make_demo():
 
 # The strained Now: the last minutes of a build, with the CPU busy and memory short.
 STRAIN_SECS = 6 * 60
-STRAIN_MEM, STRAIN_SWAP = 22.6 * GB, 4.1 * GB
+STRAIN_MEM, STRAIN_SWAP = 22.6 * GIB, 4.1 * GIB
 
 
 def strain(data):
@@ -561,7 +563,7 @@ def perf_daily(db, now):
         season = 1 + 0.35 * math.sin(back / 58)
         cpu = (rd.uniform(6, 10) + (rd.uniform(8, 16) if work else 0)) * season
         p, e = split(cpu)
-        mem = (11.5 + 2.5 * (1 - back / 365) + rd.uniform(-0.6, 0.6) + (1.5 if work else 0)) * GB
+        mem = (11.5 + 2.5 * (1 - back / 365) + rd.uniform(-0.6, 0.6) + (1.5 if work else 0)) * GIB
         minutes = rd.randint(560, 900) if work else rd.randint(180, 480)
         power = 6 + cpu * 0.28 + rd.uniform(-1, 1)
         rd_rate, wr_rate = rd.uniform(0.6, 2.2) * 1e6, rd.uniform(0.8, 3.0) * 1e6
@@ -584,7 +586,7 @@ def perf_daily(db, now):
                 mem,
                 mem * rd.uniform(1.05, 1.25),
                 MEM_TOTAL,
-                rd.uniform(0.3, 2.4 if work else 1.0) * GB,
+                rd.uniform(0.3, 2.4 if work else 1.0) * GIB,
                 4 if rd.random() < 0.03 else 2 if rd.random() < 0.15 else 1,
                 0,
                 rd_rate,
@@ -625,8 +627,8 @@ def write_live(data, strained=False):
             {
                 "t": now_ms - (449 - i) * 2000,
                 "cpu": cpu,
-                "mem": (STRAIN_MEM if building else 14.2 * GB) + r.uniform(-0.1, 0.1) * GB,
-                "swap": STRAIN_SWAP if building else 0.6 * GB,
+                "mem": (STRAIN_MEM if building else 14.2 * GIB) + r.uniform(-0.1, 0.1) * GIB,
+                "swap": STRAIN_SWAP if building else 0.6 * GIB,
                 "pressure": 4 if building else 1,
                 "disk_r": r.uniform(0.3, 2) * 1e6,
                 "disk_w": r.uniform(0.4, 3) * 1e6,
@@ -636,7 +638,7 @@ def write_live(data, strained=False):
                 "power": 7 + cpu * 0.25,
                 "battery": 72.0,
                 "gpu": r.uniform(3, 9),
-                "mem_parts": {"app": 8.9 * GB, "wired": 3.2 * GB, "compressed": 2.1 * GB},
+                "mem_parts": {"app": 8.9 * GIB, "wired": 3.2 * GIB, "compressed": 2.1 * GIB},
                 "on_ac": False,
                 "cpu_p": split(cpu)[0],
                 "cpu_e": split(cpu)[1],
@@ -649,7 +651,7 @@ def write_live(data, strained=False):
         max(0.0, p * r.uniform(0.2, 2.2)) for _ in range(P_CORES)
     ]
     apps = [
-        {"app": a, "cpu": c, "mem": m * GB, "energy": e}
+        {"app": a, "cpu": c, "mem": m * GIB, "energy": e}
         for a, c, m, e in [
             ("Xcode", 71.0, 9.6, 14.2) if strained else ("Safari", 5.1, 3.4, 1.9),
             ("Safari", 5.1, 3.4, 1.9) if strained else ("Xcode", 3.2, 2.9, 1.4),

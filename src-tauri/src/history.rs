@@ -239,9 +239,20 @@ pub fn add_minute(m: &Minute, apps: &[AppUse]) {
     }
 }
 
+/// A row is saved for the minute starting at `ts`.
+pub fn has_minute(ts: i64) -> bool {
+    with(|c| {
+        c.query_row("SELECT 1 FROM perf WHERE ts = ?1", params![ts], |_| Ok(()))
+            .optional()
+            .map(|r| r.is_some())
+    })
+}
+
+/// The minute's row and its apps, together or not at all.
 fn add_minute_rows(m: &Minute, apps: &[AppUse]) {
     with(|c| {
-        c.execute(
+        let tx = c.unchecked_transaction()?;
+        tx.execute(
             "INSERT OR REPLACE INTO perf (ts, cpu, cpu_max, mem, mem_max, mem_total, swap, swap_max,
                pressure, disk_r, disk_w, disk_max, net_in, net_out, net_max, thermal, power,
                power_max, battery, on_ac, gpu, gpu_max, mem_app, mem_wired, mem_comp, net_in_max,
@@ -257,26 +268,28 @@ fn add_minute_rows(m: &Minute, apps: &[AppUse]) {
         )?;
         // A minute saved again (the recorder changed hands within it) is replaced whole, apps
         // too: no app of the earlier save is left beside the later one's.
-        c.execute("DELETE FROM procs WHERE ts = ?1", params![m.ts])?;
-        let mut st = c.prepare_cached(
-            "INSERT OR REPLACE INTO procs (ts, app, cpu, mem, energy, disk, cpu_max, mem_max,
+        tx.execute("DELETE FROM procs WHERE ts = ?1", params![m.ts])?;
+        {
+            let mut st = tx.prepare_cached(
+                "INSERT OR REPLACE INTO procs (ts, app, cpu, mem, energy, disk, cpu_max, mem_max,
                energy_max, disk_max) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-        )?;
-        for a in apps {
-            st.execute(params![
-                m.ts,
-                a.app,
-                a.cpu,
-                a.mem,
-                a.energy,
-                a.disk,
-                a.cpu_max,
-                a.mem_max,
-                a.energy_max,
-                a.disk_max
-            ])?;
+            )?;
+            for a in apps {
+                st.execute(params![
+                    m.ts,
+                    a.app,
+                    a.cpu,
+                    a.mem,
+                    a.energy,
+                    a.disk,
+                    a.cpu_max,
+                    a.mem_max,
+                    a.energy_max,
+                    a.disk_max
+                ])?;
+            }
         }
-        Ok(())
+        tx.commit()
     })
 }
 

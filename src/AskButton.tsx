@@ -27,6 +27,8 @@ export function AskButton({ onAsk, title }: { onAsk: () => void | Promise<void>;
   const assistant = useAssistant();
   // A crash's reports are read first, which takes a moment.
   const [busy, setBusy] = useState(false);
+  // Why Ask couldn't open (a crash's reports unreadable, say), until the next press.
+  const [failed, setFailed] = useState<string | null>(null);
   return (
     <span
       className="tipwrap"
@@ -38,16 +40,22 @@ export function AskButton({ onAsk, title }: { onAsk: () => void | Promise<void>;
         title={title}
         onClick={() => {
           setBusy(true);
+          setFailed(null);
           // Through then(), so a throw as well as a rejection clears busy.
           void Promise.resolve()
             .then(onAsk)
-            .catch(() => {})
+            .catch((e: unknown) => setFailed(`Couldn't open Ask: ${String(e)}`))
             .finally(() => setBusy(false));
         }}
       >
         <AskIcon />
         Ask
       </button>
+      {failed && (
+        <span className="small" role="alert" style={{ color: "var(--bad)", marginLeft: 6 }}>
+          {failed}
+        </span>
+      )}
     </span>
   );
 }

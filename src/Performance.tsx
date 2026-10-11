@@ -233,7 +233,7 @@ export default function Performance({
   );
   const range = Math.min(chosen, allowed.length - 1);
   const secs = RANGES[range].secs;
-  const hist = usePoll(() => api.perf(secs, 480), 60_000, [secs]);
+  const hist = usePoll(() => api.perf(secs, 480), 60_000, [secs], { clear: true });
   const incidents = usePoll(() => api.incidents(14), 60_000);
   // The moment the snapshot is of, and the chart it was picked on (a MEASURES name); else the
   // range's CPU peak.
@@ -304,10 +304,13 @@ export default function Performance({
     () => (wantsRange ? api.appsBetween(now() - secs, now()) : Promise.resolve(null)),
     60_000,
     [secs, wantsRange],
+    { clear: true },
   );
   const crashList = usePoll(() => api.crashes(14), 300_000);
   const diskDays = Math.ceil(diskSecs / 86400);
-  const diskRange = usePoll(() => api.diskTrend(diskDays), 300_000, [diskDays]);
+  const diskRange = usePoll(() => api.diskTrend(diskDays), 300_000, [diskDays], {
+    clear: true,
+  });
   const diskWeek = usePoll(() => api.diskTrend(7), 300_000);
   // The scanned folder's largest folders, for the Disk space tab's card.
   // Only its top folders are shown, so a coarse tree (folders of 1/50 of it or more), asked for
@@ -317,7 +320,9 @@ export default function Performance({
     30_000,
     [tab, info?.root, info?.scan?.finished],
   );
-  const sleeps = usePoll(() => api.sleeps(Math.max(1, Math.ceil(secs / 86400))), 60_000, [secs]);
+  const sleeps = usePoll(() => api.sleeps(Math.max(1, Math.ceil(secs / 86400))), 60_000, [secs], {
+    clear: true,
+  });
   const latest = live?.samples[live.samples.length - 1];
   const total = live?.mem_total || points[0]?.mem_total || 1;
   const tm = hist?.tidemarks ?? {};
@@ -390,7 +395,7 @@ export default function Performance({
   const atPeak = atPoint && measure.peak ? measure.peak(atPoint) : null;
   const appF =
     measure.by === "mem"
-      ? fmt
+      ? fmtMem
       : measure.by === "energy"
         ? fmtW
         : measure.by === "disk"
@@ -1070,7 +1075,7 @@ export default function Performance({
   const swapSpec = partSpec(
     "Swap",
     ser("swap"),
-    Math.max(1e9, ...points.map((m) => m.swap_max)),
+    Math.max(2 ** 30, ...points.map((m) => m.swap_max)),
     fmtMem,
     {
       sub: "memory paged out to the disk",
