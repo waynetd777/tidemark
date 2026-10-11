@@ -1,0 +1,14 @@
+#!/bin/sh
+# Tidemark's own pre-commit check, which sift's hook runs too (sift init wraps this file rather
+# than overwriting it). Lint every language before a commit that touches code (make lint);
+# docs-only commits skip it.
+if git diff --cached --name-only | grep -qvE '^(docs/|_sift/|[^/]*\.md$)'; then
+  make -s lint >/tmp/tidemark-lint.$$ 2>&1 || {
+    cat /tmp/tidemark-lint.$$
+    rm -f /tmp/tidemark-lint.$$
+    echo "lint failed: commit blocked. Fix it, or run make fmt for formatting."
+    exit 1
+  }
+  rm -f /tmp/tidemark-lint.$$
+fi
+exit 0

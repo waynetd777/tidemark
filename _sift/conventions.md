@@ -1,7 +1,7 @@
 <!-- sift:begin (generated — edits inside this block are overwritten on upgrade; add local rules below the end marker) -->
 # Conventions
 
-This folder holds what cannot be re-derived from the code about `disk-usage-visualiser`, and nothing else. No per-subsystem pages, and none are to be written: a model works out what the code does by reading it, and prose that restates the code costs tokens to carry and rots the moment the code moves.
+This folder holds what cannot be re-derived from the code about `tidemark`, and nothing else. No per-subsystem pages, and none are to be written: a model works out what the code does by reading it, and prose that restates the code costs tokens to carry and rots the moment the code moves.
 
 ## Before you read or change code
 

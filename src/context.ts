@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-// What Ask puts to Claude: the folder on screen and its biggest folders, as text.
+// What Ask is told about the disk: the folder on screen and its biggest folders, as text.
 
 import type { AppInfo, View } from "./types";
 import { fmt, fmtN } from "./util";

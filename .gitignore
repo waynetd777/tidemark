@@ -3,6 +3,8 @@ dist
 dist-ssr
 *.tsbuildinfo
 *.local
+# Tidemark's own pre-commit check, run by sift's hook.
+!.githooks/pre-commit.local
 src-tauri/target
 src-tauri/gen/schemas
 .DS_Store

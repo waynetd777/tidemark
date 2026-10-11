@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-// Ask: a chat panel over the map that puts the scan to Claude Code and asks where space can be
-// reclaimed. The first message carries the folder on screen and its biggest folders; a follow-up
-// resumes the CLI's session, and carries the scan again only if the folder on screen has changed.
+// Ask: a chat about the Mac, answered by an AI CLI already signed in on it. The first message
+// carries what Tidemark knows (the folder on screen, what grew, the performance record); a
+// follow-up resumes the CLI's session, and carries it again only if the folder has changed. An Ask
+// button elsewhere seeds a question with its own details (an incident, a crash, a chart).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
@@ -14,10 +15,10 @@ import type { Context } from "./context";
 import { mdToHtml } from "./md";
 
 const SUGGESTIONS = [
-  "What are the opportunities to reclaim space safely?",
+  "Is anything slowing my Mac down?",
+  "Why was my Mac busiest this week?",
+  "Where can I free space safely?",
   "What are the biggest folders here for?",
-  "Which of these are caches I can clear, and how?",
-  "What should I leave alone?",
 ];
 
 interface Message {
@@ -211,7 +212,7 @@ export default function AskPanel({
     <aside
       className="ask"
       hidden={!open}
-      aria-label="Ask about reclaiming space"
+      aria-label="Ask about your Mac"
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.stopPropagation()}
       onMouseMove={(e) => e.stopPropagation()}
@@ -221,7 +222,7 @@ export default function AskPanel({
         <select
           className="btn small"
           aria-label="Model"
-          title="Which Claude model answers"
+          title="Which model answers"
           value={model}
           onChange={(e) => chooseModel(e.target.value)}
         >
@@ -253,10 +254,10 @@ export default function AskPanel({
         {messages.length === 0 ? (
           <div className="ask-intro">
             <p>
-              Claude looks at the scan of {where ? <code>{where}</code> : "the folder on screen"}{" "}
-              and says what the biggest folders are for, what is safe to clear and what to leave
-              alone. Nothing is deleted; it runs through the Claude Code already signed in on this
-              Mac.
+              Ask about your Mac: why it was slow, what an app was doing, or what is safe to clear
+              in {where ? <code>{where}</code> : "the folder on screen"}. The AI sees Tidemark's
+              figures, the scan and the crash reports you ask about, not your files, and nothing is
+              changed. It runs through the AI tool already signed in on this Mac.
             </p>
             <div className="ask-chips">
               {SUGGESTIONS.map((s) => (
@@ -329,7 +330,7 @@ export default function AskPanel({
           ref={box}
           rows={2}
           value={q}
-          placeholder={messages.length ? "Ask a follow-up…" : "Ask about the space here…"}
+          placeholder={messages.length ? "Ask a follow-up…" : "Ask about your Mac…"}
           aria-label="Your question"
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {

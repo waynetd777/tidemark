@@ -1,5 +1,5 @@
 <!-- sift:begin (generated — edits inside this block are overwritten on upgrade; add local notes below the end marker) -->
-# `_sift` — what sift keeps for disk-usage-visualiser
+# `_sift` — what sift keeps for tidemark
 
 What cannot be re-derived from the code: the rule about what must never be committed, a dated record of decisions, a journal of bugs and their root causes, and a one-line description of every source file. Mostly written by an LLM working in this repo, committed alongside the code, and reviewed like any other source.
 
