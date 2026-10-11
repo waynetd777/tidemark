@@ -30,7 +30,7 @@ Write tightly: short paragraphs or bullets, headings only when they help, paths 
 /// The guide sections that explain the app's own figures, so the model explains them as the
 /// guide does rather than guessing.
 const GUIDE_SECTIONS: [&str; 8] = [
-    "Performance",
+    "Recent",
     "Trends",
     "History",
     "The map",

@@ -2,7 +2,7 @@
 
 | Keys | What they do |
 |---|---|
-| ⌘1 ⌘2 ⌘3 ⌘4 | Now, Performance, Disk Map, Trends |
+| ⌘1 ⌘2 ⌘3 ⌘4 | Now, Recent, Trends, Disk Map |
 | ⌘, | Settings |
 | ⌘[ and ⌘] | Back and forward, across screens and folders |
 | ⌘K | Ask |

@@ -153,6 +153,25 @@ export interface AppUse {
   mem: number;
   /// Watts.
   energy: number;
+  /// Disk read and written, bytes a second.
+  disk?: number;
+  /// The busiest moment of each, within a minute or a span (history only; 0 before it was kept).
+  cpu_max?: number;
+  mem_max?: number;
+  energy_max?: number;
+  disk_max?: number;
+}
+
+/// The busiest apps over a span: on average (by_*) and at their busiest moment (peak_*).
+export interface AppsAt {
+  by_cpu: AppUse[];
+  by_mem: AppUse[];
+  by_energy: AppUse[];
+  by_disk: AppUse[];
+  peak_cpu: AppUse[];
+  peak_mem: AppUse[];
+  peak_energy: AppUse[];
+  peak_disk: AppUse[];
 }
 
 export interface Status {

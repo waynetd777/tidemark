@@ -258,7 +258,7 @@ export default function Trends({
           <section className="card list">
             <div className="row between head">
               <span className="eyebrow">Top folders that rose · {RANGES[range].label}</span>
-              <button className="link small" onClick={() => go("disk")} title="Open the map (⌘3)">
+              <button className="link small" onClick={() => go("disk")} title="Open the map (⌘4)">
                 Open the map
               </button>
             </div>

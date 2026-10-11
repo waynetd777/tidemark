@@ -73,7 +73,7 @@ function Section({
 /// the whole guide, and "The whole guide" at the foot shows every section.
 const FOR_SCREEN: Record<Screen, string[]> = {
   now: ["Now", "Reading the charts", "Ask", "Menu bar", "Keyboard shortcuts"],
-  performance: ["Performance", "Reading the charts", "History", "Ask", "Keyboard shortcuts"],
+  performance: ["Recent", "Reading the charts", "History", "Ask", "Keyboard shortcuts"],
   disk: [
     "Disk Map",
     "The map",

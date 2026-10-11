@@ -187,7 +187,8 @@ export interface AreaProps {
   /// Extra lines for the readout at a point (the bucket's peak, say).
   extra?: (i: number) => ReactNode;
   label: string;
-  onPick?: (p: Pt) => void;
+  /// A moment picked: a point on the line, or (`atPeak`) the peak's dot.
+  onPick?: (p: Pt, atPeak?: boolean) => void;
   /// Draw the y-axis labels (top and middle) at the left.
   axis?: boolean;
   /// Each point's peak (the busiest reading inside a minute), drawn as a faint band behind the
@@ -204,6 +205,8 @@ export interface AreaProps {
   /// Thinner lines over the main one, each with its own dash: the parts of the whole (the
   /// performance and the efficiency cores of the CPU). The legend keys them by the same dash.
   also?: { pts: Pt[]; label: string; dash: string }[];
+  /// The moment picked elsewhere on the screen (unix seconds), marked across the chart.
+  marker?: number;
 }
 
 /// A line over its area, with a crosshair that follows the pointer, snaps to the nearest
@@ -228,6 +231,7 @@ export function Area({
   sleeps,
   tone,
   also,
+  marker,
 }: AreaProps) {
   const color = toneColor(tone);
   const hatch = useId();
@@ -247,6 +251,24 @@ export function Area({
   const [hover, setHover] = useState<number | null>(null);
   // Pointing inside a gap shows the gap, not the nearest reading: the gap and where the pointer is.
   const [gapHover, setGapHover] = useState<{ g: Gap; px: number } | null>(null);
+  // The readout sits above the chart, or below it where the screen's top bar would cover it.
+  const tip = useRef<HTMLDivElement>(null);
+  const [tipBelow, setTipBelow] = useState(false);
+  useLayoutEffect(() => {
+    const el = tip.current;
+    const plot = ref.current;
+    if (!el || !plot) return;
+    // The screen's top bar, and Recent's tab strip pinned under it.
+    const roof = Math.max(
+      0,
+      ...[...document.querySelectorAll(".topbar, .ptabs")].map(
+        (e) => e.getBoundingClientRect().bottom,
+      ),
+    );
+    setTipBelow(plot.getBoundingClientRect().top - 6 - el.offsetHeight < roof + 4);
+    // Measured again for each reading pointed at: the readout's height follows its lines.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hover, gapHover]);
   const H = height;
   const left = axis ? 44 : 0;
   const w = Math.max(0, W - left);
@@ -256,7 +278,10 @@ export function Area({
   const t0 = domain?.[0] ?? (pts.length ? pts[0].t : 0);
   const t1 = domain?.[1] ?? (pts.length ? pts[pts.length - 1].t : 1);
   const x = (t: number) => left + ((t - t0) / (t1 - t0 || 1)) * w;
-  const y = (v: number) => H - 1 - ((v - lo) / (hi - lo || 1)) * (H - 4);
+  // Headroom above the scale where there is a peak to label, so its label always fits above
+  // its dot instead of falling onto the line.
+  const room = peak ? 26 : 0;
+  const y = (v: number) => H - 1 - ((v - lo) / (hi - lo || 1)) * (H - 4 - room);
   const paths = useMemo(() => {
     return runs(pts, gapMin(step(pts))).map((r) => {
       const line = "M" + r.map((p) => `${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" L");
@@ -300,9 +325,14 @@ export function Area({
     return best;
   };
   const hp = hover != null ? pts[hover] : null;
+  // Now: a dot on the latest reading, where the chart runs up to the present and its line
+  // reaches it (not across a pause or a sleep).
+  const last = pts[pts.length - 1];
+  // Within five minutes, or a reading's step on a chart recorded less often (hourly disk space).
+  const nowPt =
+    domain && last && domain[1] - last.t <= Math.max(300, 1.5 * step(pts)) ? last : null;
   const tipLeft = hp ? Math.min(Math.max(x(hp.t), left + 70), W - 70) : 0;
   // A peak at the top of the chart has its label below the dot, inside the card.
-  const peakBelow = peak ? y(peak.v) < 28 : false;
   return (
     <div className="area">
       <div
@@ -332,8 +362,14 @@ export function Area({
       >
         {W > 0 && (
           <svg width={W} height={H} role="img" aria-label={label}>
-            <line className="gridl" x1={left} x2={W} y1={0.5} y2={0.5} />
-            <line className="gridl" x1={left} x2={W} y1={H / 2} y2={H / 2} />
+            <line
+              className="gridl"
+              x1={left}
+              x2={W}
+              y1={room ? y(hi) : 0.5}
+              y2={room ? y(hi) : 0.5}
+            />
+            <line className="gridl" x1={left} x2={W} y1={y((hi + lo) / 2)} y2={y((hi + lo) / 2)} />
             <line className="basel" x1={left} x2={W} y1={H - 0.5} y2={H - 0.5} />
             <defs>
               <pattern id={hatch} width="6" height="6" patternUnits="userSpaceOnUse">
@@ -344,23 +380,17 @@ export function Area({
               const gx = Math.max(left, x(g.from));
               const gw = Math.max(0, Math.min(W, x(g.to)) - gx);
               if (gw < 1) return null;
-              const what = g.kind === "sleep" ? "Asleep" : "Not recording";
+              // Unlabelled: the legend keys the shading, and pointing at a gap says what it was.
               return (
-                <g key={`g${i}`}>
-                  <rect
-                    className={`gap ${g.kind}`}
-                    x={gx}
-                    y={0}
-                    width={gw}
-                    height={H}
-                    fill={g.kind === "off" ? `url(#${hatch})` : undefined}
-                  />
-                  {gw >= 64 && (
-                    <text className="gaplabel" x={gx + gw / 2} y={14} textAnchor="middle">
-                      {what}
-                    </text>
-                  )}
-                </g>
+                <rect
+                  key={`g${i}`}
+                  className={`gap ${g.kind}`}
+                  x={gx}
+                  y={0}
+                  width={gw}
+                  height={H}
+                  fill={g.kind === "off" ? `url(#${hatch})` : undefined}
+                />
               );
             })}
             {bandPaths.map((d, i) => (
@@ -406,44 +436,60 @@ export function Area({
                 strokeDasharray="4 3"
               />
             )}
-            {/* Now: the right-hand end of a chart that runs up to the present. */}
-            {domain && (
-              <line
-                className="nowl"
-                x1={x(domain[1]) - 0.5}
-                x2={x(domain[1]) - 0.5}
-                y1={0}
-                y2={H}
-                strokeDasharray="2 3"
-              />
-            )}
             {peak && <line className="peakl" x1={x(peak.t)} x2={x(peak.t)} y1={0} y2={H} />}
+            {marker != null && marker >= t0 && marker <= t1 && (
+              <line className="pickl" x1={x(marker)} x2={x(marker)} y1={0} y2={H} />
+            )}
             {hp && <line className="cross" x1={x(hp.t)} x2={x(hp.t)} y1={0} y2={H} />}
           </svg>
         )}
         {axis && W > 0 && (
           <>
-            <span className="ax" style={{ top: 0 }}>
+            <span className="ax" style={{ top: room ? y(hi) : 0 }}>
               {fmt(hi)}
             </span>
-            <span className="ax" style={{ top: H / 2 }}>
+            <span className="ax" style={{ top: y((hi + lo) / 2) }}>
               {fmt((hi + lo) / 2)}
             </span>
           </>
         )}
         {mark && mark.v > 0 && W > 0 && (
-          <span className="tmlabel" style={{ top: y(mark.v) + 3, left: left + 4 }}>
+          // Above the line, where the chart is clear (the tidemark is the week's high); below it
+          // only when the line is too near the top for the label to fit.
+          <span
+            className="tmlabel"
+            style={{
+              top: y(mark.v) >= 18 ? y(mark.v) - 3 : y(mark.v) + 3,
+              transform: y(mark.v) >= 18 ? "translateY(-100%)" : undefined,
+              // At the other end from the range's peak, so the two labels never meet.
+              ...(peak && x(peak.t) < (left + W) / 2 ? { right: 4 } : { left: left + 4 }),
+            }}
+          >
             {mark.label}
           </span>
         )}
         {peak && W > 0 && (
           <>
+            {onPick ? (
+              // The peak as a target of its own: easier to hit than its point on the line.
+              <button
+                className="dot peakdot pick"
+                style={{ left: x(peak.t), top: y(peak.v), "--c": color } as CSSProperties}
+                aria-label={`Show the peak: ${peak.label}`}
+                title="Show what every app was doing at the peak"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPick({ t: peak.t, v: peak.v }, true);
+                }}
+              />
+            ) : (
+              <span
+                className="dot peakdot"
+                style={{ left: x(peak.t), top: y(peak.v), background: color }}
+              />
+            )}
             <span
-              className="dot peakdot"
-              style={{ left: x(peak.t), top: y(peak.v), background: color }}
-            />
-            <span
-              className={`peaklabel${peakBelow ? " below" : ""}`}
+              className="peaklabel"
               style={{
                 left: Math.min(Math.max(x(peak.t), left + 50), W - 50),
                 top: y(peak.v),
@@ -453,9 +499,16 @@ export function Area({
             </span>
           </>
         )}
+        {nowPt && W > 0 && (
+          <span
+            className="dot nowdot"
+            style={{ left: x(nowPt.t), top: y(nowPt.v), "--c": color } as CSSProperties}
+          />
+        )}
         {gapHover && (
           <div
-            className="readout"
+            ref={tip}
+            className={`readout${tipBelow ? " below" : ""}`}
             style={{ left: Math.min(Math.max(gapHover.px, left + 80), W - 80) }}
           >
             <b>{gapHover.g.kind === "sleep" ? "Asleep" : "Not recording"}</b>
@@ -469,7 +522,11 @@ export function Area({
         {hp && (
           <>
             <span className="dot hoverdot" style={{ left: x(hp.t), top: y(hp.v) }} />
-            <div className="readout" style={{ left: tipLeft }}>
+            <div
+              ref={tip}
+              className={`readout${tipBelow ? " below" : ""}`}
+              style={{ left: tipLeft }}
+            >
               <b>{fmt(hp.v)}</b>
               <span>
                 {name} · {fmtT(hp.t)}
@@ -663,12 +720,14 @@ export function Meter({
 export function Cores({ use, kinds, tone }: { use: number[]; kinds: string; tone?: Tone }) {
   const SEG = 8;
   const all = use.map((v, i) => ({ v, i, k: kinds[i] ?? "" }));
-  const groups = kinds
-    ? [
-        { name: "performance", cores: all.filter((c) => c.k === "P") },
-        { name: "efficiency", cores: all.filter((c) => c.k === "E") },
-      ].filter((g) => g.cores.length)
-    : [{ name: "", cores: all }];
+  // Grouped by kind where every core is a P or an E; one group otherwise, so none is dropped.
+  const groups =
+    [...kinds].length === use.length && /^[PE]+$/.test(kinds)
+      ? [
+          { name: "performance", cores: all.filter((c) => c.k === "P") },
+          { name: "efficiency", cores: all.filter((c) => c.k === "E") },
+        ].filter((g) => g.cores.length)
+      : [{ name: "", cores: all }];
   return (
     <div className="cores" style={{ "--c": toneColor(tone) } as CSSProperties}>
       {groups.map((g) => (

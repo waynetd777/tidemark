@@ -56,10 +56,12 @@ MEM_TOTAL = 24 * GB
 
 SCENES = [
     # Now mid-build: the CPU busy (amber) while memory runs out (red), so the shot shows both.
-    {"name": "now", "screen": "now", "height": 1290, "strained": True},
+    {"name": "now", "screen": "now", "height": 1129, "strained": True},
     {"name": "performance", "screen": "performance", "height": 1000},
+    {"name": "performance-cpu", "screen": "performance", "focus": "cpu", "height": 1129},
+    {"name": "performance-memory", "screen": "performance", "focus": "memory", "height": 1129},
     {"name": "disk-map", "screen": "disk", "height": 900},
-    {"name": "trends", "screen": "trends", "height": 1180},
+    {"name": "trends", "screen": "trends", "height": 1129},
     {"name": "settings", "screen": "settings", "height": 640},
     {"name": "menu-bar", "tray": True},
 ]
@@ -241,7 +243,9 @@ CREATE TABLE perf (
   net_in REAL, net_out REAL, net_max REAL, thermal INTEGER, power REAL, power_max REAL,
   battery REAL, on_ac INTEGER, gpu REAL, gpu_max REAL, mem_app REAL, mem_wired REAL,
   mem_comp REAL, net_in_max REAL, net_out_max REAL, cpu_p REAL, cpu_e REAL);
-CREATE TABLE procs (ts INTEGER, app TEXT, cpu REAL, mem REAL, energy REAL, PRIMARY KEY (ts, app));
+CREATE TABLE procs (
+  ts INTEGER, app TEXT, cpu REAL, mem REAL, energy REAL, disk REAL, cpu_max REAL, mem_max REAL,
+  energy_max REAL, disk_max REAL, PRIMARY KEY (ts, app));
 CREATE TABLE incidents (
   id INTEGER PRIMARY KEY, kind TEXT, started INTEGER, ended INTEGER, peak REAL, peak_at INTEGER,
   snapshot TEXT);
@@ -256,6 +260,8 @@ CREATE TABLE disk_daily (day TEXT PRIMARY KEY, used REAL, used_max REAL, total R
 
 def make_demo():
     r = random.Random(7)
+    # Each app's peaks in its minute, from a random of their own so the rest stays as it was.
+    rp = random.Random(13)
     shutil.rmtree(DEMO, ignore_errors=True)
     data = DEMO / "data"
     data.mkdir(parents=True)
@@ -350,10 +356,24 @@ def make_demo():
         weights = [0.32, 0.26 if work else 0.04, 0.08, 0.1, 0.06, 0.05, 0.03, 0.05]
         mems = [3.4, 2.9 if work else 0.6, 0.9, 0.8, 0.4, 0.7, 0.2, 0.1]
         for a, w, m in zip(APPS, weights, mems, strict=True):
-            procs.append((t, a, cpu * w, m * GB, power * w * 0.5))
+            disk = (rd + wr) * w
+            procs.append(
+                (
+                    t,
+                    a,
+                    cpu * w,
+                    m * GB,
+                    power * w * 0.5,
+                    disk,
+                    min(100, cpu * w * rp.uniform(1.2, 2.6)),
+                    m * GB * rp.uniform(1.0, 1.04),
+                    power * w * 0.5 * rp.uniform(1.1, 1.8),
+                    disk * rp.uniform(1.5, 4),
+                )
+            )
         t += 60
     db.executemany("INSERT INTO perf VALUES (" + ",".join("?" * 29) + ")", perf)
-    db.executemany("INSERT INTO procs VALUES (?,?,?,?,?)", procs)
+    db.executemany("INSERT INTO procs VALUES (" + ",".join("?" * 10) + ")", procs)
     snap_cpu = json.dumps(
         [
             {"app": "Xcode", "cpu": 71.0, "mem": 3.1 * GB, "energy": 9.0},
@@ -546,7 +566,8 @@ def write_live(data, strained=False):
             "charging": False,
             "on_ac": False,
             "fully_charged": False,
-            "watts": 10.4,
+            # What the battery reports drawing, as the samples have it.
+            "watts": samples[-1]["power"],
             "minutes_left": 312,
             "cycles": 143,
             "health": 96.0,
@@ -687,6 +708,10 @@ def shoot(scene, theme, data):
         bbox = im.getchannel("A").getbbox() if im.mode == "RGBA" else None
         if bbox:
             im = im.crop(bbox)
+    if not scene.get("tray") and im.height != scene["height"]:
+        # macOS fits a window to its screen: a shorter screen crops the shot, and the site's
+        # image heights (site/index.html) no longer match.
+        print(f"  {scene['name']} {theme}: {im.height} px tall, not {scene['height']}")
     out = OUT / f"{scene['name']}-{theme}.png"
     im.save(out, optimize=True)
     print(f"  {out.relative_to(ROOT)}  {im.width}x{im.height}")

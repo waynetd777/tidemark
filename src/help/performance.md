@@ -1,8 +1,9 @@
-## Performance
+## Recent
 
 Every live measure in detail, over 1 hour, 24 hours, 7 or 14 days.
 
 - The range you pick is remembered. Click a chart to see what every app was doing at that moment.
+- **All** shows one chart a measure, each the same size. The other tabs (**CPU**, **GPU**, **Memory**, **Disk I/O**, **Network**, **Energy**) give one measure more room, with what goes with it: its parts, the apps that used the most, its incidents and its busiest moments. The tab you pick is remembered, and a card's **Details** opens its tab.
 - **CPU**, **GPU** (where the Mac reports it) and **Memory** charts, each with the week's tidemark and the range's peak.
 - Memory splits as Activity Monitor does: what apps use, **wired** (the system's own, never moved to disk) and **compressed**. Compressed and swap growing while pressure turns red means the Mac is short of memory.
 - The GPU line is how busy the graphics processor is (video, games, 3D, machine learning). macOS doesn't report apps' shares of it.
@@ -12,8 +13,8 @@ Every live measure in detail, over 1 hour, 24 hours, 7 or 14 days.
 - Power and battery come from the battery's controller, so a Mac without a battery shows only the apps.
 - Each app's energy is a share of what your apps used. macOS's per-app count leaves out the display and the system, so watts would look too small. Only your own apps can be measured.
 - **Disk space**: the disk's used space, recorded hourly, over the range (the last 24 hours on the 1-hour range), with the week's tidemark.
-- **Crashes and hangs**: apps that crashed or stopped responding in the last 14 days, how often and when last, from the reports macOS writes (Console's Crash Reports). Faults an app survived are left out.
-- Tiles show **swap** and the Mac's **thermal** state.
+- **Crashes and hangs** (on the CPU tab): apps that crashed or stopped responding in the last 14 days, how often and when last, from the reports macOS writes (Console's Crash Reports). Faults an app survived are left out.
+- **Swap** is on the Memory tab, and the Mac's **thermal** state on the CPU, GPU and Energy tabs.
 
 The panel on the right:
 

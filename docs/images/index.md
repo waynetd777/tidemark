@@ -6,17 +6,19 @@ Every screenshot in the docs at full size, in light and dark mode. They're taken
 
 On [the README](../../README.md) and [Features](../features.md#now-1): [light](now-light.png) · [dark](now-dark.png)
 
-## Performance
+## Recent
 
-On [Features](../features.md#performance-2): [light](performance-light.png) · [dark](performance-dark.png)
+On [Features](../features.md#recent-2): [light](performance-light.png) · [dark](performance-dark.png)
+
+The CPU tab: [light](performance-cpu-light.png) · [dark](performance-cpu-dark.png). The Memory tab: [light](performance-memory-light.png) · [dark](performance-memory-dark.png)
 
 ## Disk Map
 
-On [Features](../features.md#disk-map-3) and [Disk Map](../disk-map.md): [light](disk-map-light.png) · [dark](disk-map-dark.png)
+On [Features](../features.md#disk-map-4) and [Disk Map](../disk-map.md): [light](disk-map-light.png) · [dark](disk-map-dark.png)
 
 ## Trends
 
-On [Features](../features.md#trends-4): [light](trends-light.png) · [dark](trends-dark.png)
+On [Features](../features.md#trends-3): [light](trends-light.png) · [dark](trends-dark.png)
 
 ## Settings
 

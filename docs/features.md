@@ -13,26 +13,21 @@ How your Mac is doing, at a glance.
 - The week's tidemarks (peaks, incidents, crashes) and what grew on the disk.
 - **Details** on a card opens the screen with more.
 
-## Performance (⌘2)
+## Recent (⌘2)
 
 Every live measure in detail, over 1 hour to 14 days.
 
-<a href="images/index.md#performance"><picture><source media="(prefers-color-scheme: dark)" srcset="images/performance-dark.png"><img alt="The Performance screen" src="images/performance-light.png" width="900"></picture></a>
+<a href="images/index.md#recent"><picture><source media="(prefers-color-scheme: dark)" srcset="images/performance-dark.png"><img alt="The Recent screen" src="images/performance-light.png" width="900"></picture></a>
 
-- CPU, GPU and memory charts, with each point's peak as a band and the week's tidemark.
+- **All**: one chart a measure, each the same size. A tab for each measure (CPU, GPU, Memory, Disk I/O, Network, Energy) gives it more room, with its parts, the apps that used the most, its incidents and busiest moments.
+- CPU, GPU and memory charts, with each point's peak as a band and the week's tidemark; the CPU's performance and efficiency cores on its tab.
 - Memory split into apps, wired and compressed.
 - Disk I/O and network, each way; energy with battery health and what sleep cost; disk space, hourly.
 - Click any moment to see what every app was doing.
 - **Incidents**: CPU above 90% for 30 seconds, memory pressure red, or swap up 1 GB in 10 minutes, each with a snapshot.
 - Apps that crashed or hung, from macOS's own reports.
 
-## Disk Map (⌘3)
-
-What is using the disk: every folder as a block, sized by what it takes up. See [Disk Map](disk-map.md).
-
-<a href="images/index.md#disk-map"><picture><source media="(prefers-color-scheme: dark)" srcset="images/disk-map-dark.png"><img alt="The Disk Map screen" src="images/disk-map-light.png" width="900"></picture></a>
-
-## Trends (⌘4)
+## Trends (⌘3)
 
 The disk over weeks and months, and when the Mac is busiest.
 
@@ -40,6 +35,12 @@ The disk over weeks and months, and when the Mac is busiest.
 
 - Disk space over 7 days to 12 months: how fast it grows, and when it would be full.
 - The folders that rose, CPU by weekday and hour, and the range's highs.
+
+## Disk Map (⌘4)
+
+What is using the disk: every folder as a block, sized by what it takes up. See [Disk Map](disk-map.md).
+
+<a href="images/index.md#disk-map"><picture><source media="(prefers-color-scheme: dark)" srcset="images/disk-map-dark.png"><img alt="The Disk Map screen" src="images/disk-map-light.png" width="900"></picture></a>
 
 ## Settings (⌘,)
 

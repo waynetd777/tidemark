@@ -10,6 +10,7 @@ import { AskIcon } from "./AskButton";
 import { Mark } from "./Mark";
 import Now from "./Now";
 import Performance from "./Performance";
+import { tabFor } from "./perfTabs";
 import SettingsPage from "./Settings";
 import Trends from "./Trends";
 import { useLive, usePoll } from "./perf";
@@ -85,7 +86,7 @@ const NAV: { id: Screen; label: string; key: string; icon: ReactNode }[] = [
   },
   {
     id: "performance",
-    label: "Performance",
+    label: "Recent",
     key: "⌘2",
     icon: (
       <svg
@@ -101,27 +102,9 @@ const NAV: { id: Screen; label: string; key: string; icon: ReactNode }[] = [
     ),
   },
   {
-    id: "disk",
-    label: "Disk Map",
-    key: "⌘3",
-    icon: (
-      <svg
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <rect x="2" y="3.5" width="12" height="9" rx="2" />
-        <path d="M2 9.5h12M11 11h.01" />
-      </svg>
-    ),
-  },
-  {
     id: "trends",
     label: "Trends",
-    key: "⌘4",
+    key: "⌘3",
     icon: (
       <svg
         viewBox="0 0 16 16"
@@ -133,6 +116,24 @@ const NAV: { id: Screen; label: string; key: string; icon: ReactNode }[] = [
       >
         <path d="M2 12.5l3.5-4 3 2.5L14 4" />
         <path d="M10.5 4H14v3.5" />
+      </svg>
+    ),
+  },
+  {
+    id: "disk",
+    label: "Disk Map",
+    key: "⌘4",
+    icon: (
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="2" y="3.5" width="12" height="9" rx="2" />
+        <path d="M2 9.5h12M11 11h.01" />
       </svg>
     ),
   },
@@ -442,7 +443,13 @@ export default function App() {
     let tries = 0;
     let timer: number | undefined;
     const find = () => {
-      const el = document.querySelector<HTMLElement>(`[data-focus="${focus.id}"]`);
+      // On Recent, only a card on the tab the target opens: not the All tab's, going away.
+      const el = [...document.querySelectorAll<HTMLElement>(`[data-focus="${focus.id}"]`)].find(
+        (e) => {
+          const tab = e.closest("[data-tab]")?.getAttribute("data-tab");
+          return !tab || tab === tabFor(focus.id);
+        },
+      );
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" });
         el.classList.remove("flash");
@@ -473,6 +480,7 @@ export default function App() {
       .scene()
       .then((sc) => {
         if (sc?.screen) setScreen(sc.screen);
+        if (sc?.focus) setFocus({ id: sc.focus, n: Date.now() });
       })
       .catch(() => {});
   }, [setScreen]);
@@ -855,6 +863,40 @@ export default function App() {
                 )}
               </div>
             )}
+            {/* The last scan: when, how big and how long, and what it couldn't read. */}
+            <div className="scanstat">
+              {info?.scan ? (
+                <>
+                  <b>Last disk scan {fmtWhen(info.scan.finished)}</b>
+                  <br />
+                  {fmtN(info.scan.items)} items in {fmtDuration(info.scan.duration_ms)}
+                  <br />
+                  {info.scan.denied > 0 ? (
+                    <span
+                      className="warnt"
+                      title="Mostly system folders owned by root (e.g. /private/var/folders, /System/Library/Templates). Full Disk Access opens your own protected folders, not those."
+                    >
+                      {fmtN(info.scan.denied)} folder{info.scan.denied === 1 ? "" : "s"} not
+                      readable
+                    </span>
+                  ) : (
+                    <span>Cached for next launch</span>
+                  )}
+                </>
+              ) : scanning ? (
+                <>
+                  <b>First scan running</b>
+                  <br />
+                  The map appears when it finishes.
+                </>
+              ) : (
+                <>
+                  <b>No scan yet</b>
+                  <br />
+                  Press Reload to scan.
+                </>
+              )}
+            </div>
             <button
               className="ghost"
               onClick={() => void chooseFolder()}
@@ -899,37 +941,6 @@ export default function App() {
         </nav>
         <div className="foot">
           <span>Keeping {historyDays} days of history</span>
-          <br />
-          {info?.scan ? (
-            <>
-              <b>Last disk scan {fmtWhen(info.scan.finished)}</b>
-              <br />
-              {fmtN(info.scan.items)} items in {fmtDuration(info.scan.duration_ms)}
-              <br />
-              {info.scan.denied > 0 ? (
-                <span
-                  className="warnt"
-                  title="Mostly system folders owned by root (e.g. /private/var/folders, /System/Library/Templates). Full Disk Access opens your own protected folders, not those."
-                >
-                  {fmtN(info.scan.denied)} folder{info.scan.denied === 1 ? "" : "s"} not readable
-                </span>
-              ) : (
-                <span>Cached for next launch</span>
-              )}
-            </>
-          ) : scanning ? (
-            <>
-              <b>First scan running</b>
-              <br />
-              The map appears when it finishes.
-            </>
-          ) : (
-            <>
-              <b>No scan yet</b>
-              <br />
-              Press Reload to scan.
-            </>
-          )}
         </div>
       </aside>
 
@@ -938,7 +949,13 @@ export default function App() {
           <Now live={live} growth={growth} home={home} bar={bar} go={show} ask={askAbout} />
         )}
         {screen === "performance" && (
-          <Performance live={live} historyDays={historyDays} bar={bar} ask={askAbout} />
+          <Performance
+            live={live}
+            historyDays={historyDays}
+            bar={bar}
+            ask={askAbout}
+            focus={focus?.id}
+          />
         )}
         {screen === "trends" && (
           <Trends home={home} historyDays={historyDays} bar={bar} go={show} ask={askAbout} />

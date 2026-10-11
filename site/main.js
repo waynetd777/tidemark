@@ -216,7 +216,7 @@
   };
   Object.values(gauges).forEach(drawGauge);
 
-  // Performance: a made-up working week, five days with the nights asleep.
+  // Recent: a made-up working week, five days with the nights asleep.
   const scrub = $("[data-scrub]");
   const ssvg = $("svg", scrub);
   const SW = 1000,

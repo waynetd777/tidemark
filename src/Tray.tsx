@@ -176,7 +176,7 @@ export default function Tray() {
     : about === "disk"
       ? {
           label: "Show the disk map",
-          keys: "⌘3",
+          keys: "⌘4",
           run: () => api.showMain("disk"),
           tip: "Open the map to see what is filling the disk",
         }
@@ -184,7 +184,7 @@ export default function Tray() {
           label: `Show what's using ${about === "cpu" ? "the CPU" : about === "energy" ? "energy" : "memory"}`,
           keys: "⌘2",
           run: () => api.showMain("performance"),
-          tip: "Open Performance to see which apps are responsible",
+          tip: "Open Recent to see which apps are responsible",
         };
 
   // The shortcuts the menu shows work while it is open.
@@ -194,7 +194,7 @@ export default function Tray() {
       ",": () => api.showMain("settings"),
       q: () => api.quit(),
       "2": () => api.showMain("performance"),
-      "3": () => api.showMain("disk"),
+      "4": () => api.showMain("disk"),
     };
     const k = (e: KeyboardEvent) => {
       if (e.key === "Escape") return hide();
@@ -304,7 +304,7 @@ export default function Tray() {
     },
     {
       name: "Network",
-      level: latest ? latest.net_in / hourTop((m) => m.net_in_max) : null,
+      level: latest ? latest.net_in / hourTop((m) => Math.max(m.net_in_max, m.net_in)) : null,
       note: latest ? `↑ ${fmtRate(latest.net_out)} up` : "Recording",
       flag: null,
       value: latest ? `↓ ${fmtRate(latest.net_in)}` : "–",
@@ -401,9 +401,9 @@ export default function Tray() {
           <button
             key={r.name}
             className="menu-item tall"
-            title={`Open Performance at ${r.name.toLowerCase()}`}
+            title={`Open Recent at ${r.name.toLowerCase()}`}
             onClick={() => {
-              // Performance's card for the row: "network" for its download row.
+              // Recent's card for the row: "network" for its download row.
               void api.showMain(
                 "performance",
                 r.name === "Network" ? "network" : r.name.toLowerCase(),
@@ -430,7 +430,7 @@ export default function Tray() {
           <button
             key={a.app}
             className="menu-item"
-            title="Open Performance to see every app"
+            title="Open Recent to see every app"
             onClick={() => {
               void api.showMain("performance");
               hide();

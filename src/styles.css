@@ -423,10 +423,18 @@ pre,
   padding: 8px 6px 0;
   line-height: 1.5;
 }
-.foot b {
+.foot b,
+.scanstat b {
   color: var(--text);
   font-weight: 600;
 }
+.scanstat {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 8px 6px 4px;
+  line-height: 1.5;
+}
+.scanstat .warnt,
 .foot .warnt {
   color: var(--warn);
 }
@@ -1877,8 +1885,9 @@ pre,
   }
 }
 /* Now's two lists, side by side, half each. */
-.cards2.halves {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+/* Three lists side by side, wrapping to fewer on a narrow window. */
+.cards2.thirds {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
 }
 .cards2 {
   display: grid;
@@ -2083,6 +2092,31 @@ pre,
   stroke: var(--text);
   opacity: 0.25;
 }
+/* The snapshot's figures: the moment's average, as the line shows it, and the peak in it. */
+.snapstats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 10px;
+}
+.snapstats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.snapstats b {
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: 650;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+/* The moment the snapshot is of, on every chart of the screen. */
+.area .pickl {
+  stroke: var(--tide);
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
 /* Gaps: the Mac asleep (a soft shade) or Tidemark not recording (hatched). Neutral, so they
    never read as a measure. */
 .gap.sleep {
@@ -2091,11 +2125,6 @@ pre,
 .hatchl {
   stroke: color-mix(in srgb, var(--muted) 40%, transparent);
   stroke-width: 1;
-}
-.area .gaplabel {
-  fill: var(--muted);
-  font-size: 11px;
-  pointer-events: none;
 }
 .sleepkey,
 .offkey {
@@ -2114,10 +2143,6 @@ pre,
     transparent 1px 4px
   );
   outline: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
-}
-.area .nowl {
-  stroke: var(--muted);
-  opacity: 0.7;
 }
 .area .cross {
   stroke: var(--text);
@@ -2148,6 +2173,57 @@ pre,
   box-shadow: 0 0 0 2px var(--panel);
   pointer-events: none;
 }
+/* A peak dot that picks its moment: a wider target, and it lights up under the pointer. */
+.area .peakdot.pick {
+  z-index: 4;
+  padding: 0;
+  border: 0;
+  background: var(--c);
+  pointer-events: auto;
+  cursor: pointer;
+  transition:
+    transform 0.12s,
+    background 0.12s,
+    box-shadow 0.12s;
+}
+.area .peakdot.pick::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+}
+.area .peakdot.pick:hover,
+.area .peakdot.pick:focus-visible {
+  background: var(--text);
+  transform: scale(1.35);
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 4px var(--c);
+  outline: none;
+}
+/* Now: the latest reading, a dot in the chart's colour with a soft ring that breathes. */
+.area .nowdot {
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  background: var(--c);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 28%, transparent);
+  animation: nowring 2.4s ease-out infinite;
+}
+@keyframes nowring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--c) 0%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .area .nowdot {
+    animation: none;
+  }
+}
 .area .hoverdot {
   background: var(--panel);
   border: 2px solid var(--tide);
@@ -2167,9 +2243,6 @@ pre,
   white-space: nowrap;
   pointer-events: none;
 }
-.area .peaklabel.below {
-  transform: translate(-50%, 60%);
-}
 .area .readout {
   position: absolute;
   top: -6px;
@@ -2187,6 +2260,11 @@ pre,
   color: var(--muted);
   white-space: nowrap;
   pointer-events: none;
+}
+.area .readout.below {
+  top: auto;
+  bottom: -6px;
+  transform: translate(-50%, 100%);
 }
 .area .readout b {
   font-size: 13px;
@@ -2297,6 +2375,8 @@ pre,
   flex-direction: row;
   flex-wrap: wrap;
   align-items: flex-start;
+  /* The tab strip carries the room above it, so nothing shows through as the page scrolls. */
+  padding-top: 0;
 }
 .perfmain {
   flex: 999 1 480px;
@@ -2349,6 +2429,13 @@ pre,
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* Pinned at the top while the charts scroll past, and scrolling on its own when it is taller
+     than the window (the top bar and the page's padding left out). */
+  position: sticky;
+  /* Under the pinned tab strip. */
+  top: 62px;
+  max-height: calc(100vh - 154px);
+  overflow-y: auto;
 }
 .blame {
   display: flex;
@@ -2391,6 +2478,45 @@ pre,
   color: var(--tide-ink);
 }
 
+/* A chart's legend on a line of its own, so every chart card's header is the same height. */
+.card.chart > .row .chartlegend {
+  flex-basis: 100%;
+}
+/* A Details link's card lands below the pinned tab strip, not under it. */
+.page.perf [data-focus] {
+  scroll-margin-top: 52px;
+}
+/* Performance's tabs: All, or one measure with what goes with it. */
+.ptabs {
+  flex-basis: 100%;
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  /* Pinned at the top, over the charts as they scroll under it. */
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  padding-top: 8px;
+  background: var(--bg);
+}
+.ptabs button {
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ptabs button:hover {
+  color: var(--text);
+}
+.ptabs button.on {
+  color: var(--text);
+  border-bottom-color: var(--tide);
+}
 .netpair {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

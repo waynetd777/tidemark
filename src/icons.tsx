@@ -101,6 +101,28 @@ export function Labelled({ m, children }: { m: Metric; children: React.ReactNode
   );
 }
 
+/// Four tiles: every measure at once (Recent's All tab).
+export function AllIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      className="micon"
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="2" y="2" width="5" height="5" rx="1.2" />
+      <rect x="9" y="2" width="5" height="5" rx="1.2" />
+      <rect x="2" y="9" width="5" height="5" rx="1.2" />
+      <rect x="9" y="9" width="5" height="5" rx="1.2" />
+    </svg>
+  );
+}
+
 /// A globe, for links to the website.
 export function Globe({ size = 14 }: { size?: number }) {
   return (

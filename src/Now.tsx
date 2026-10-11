@@ -239,7 +239,7 @@ export default function Now({
       // Rates fill against the hour's busiest moment, so a quiet minute reads as quiet.
       level: latest
         ? (latest.disk_r + latest.disk_w) /
-          Math.max(1, ...(hour?.points ?? []).map((m) => m.disk_max))
+          Math.max(1, ...(hour?.points ?? []).map((m) => Math.max(m.disk_max, m.disk_r + m.disk_w)))
         : null,
       max: Math.max(1, ...(hour?.points ?? []).map((m) => m.disk_r + m.disk_w)),
       mark: null,
@@ -257,7 +257,8 @@ export default function Now({
       sub: latest ? `${fmt(movedToday("net_in"))} down today` : "",
       pts: series("net_in"),
       level: latest
-        ? latest.net_in / Math.max(1, ...(hour?.points ?? []).map((m) => m.net_in_max))
+        ? latest.net_in /
+          Math.max(1, ...(hour?.points ?? []).map((m) => Math.max(m.net_in_max, m.net_in)))
         : null,
       max: Math.max(1, ...(hour?.points ?? []).map((m) => m.net_in)),
       mark: null,
@@ -279,7 +280,8 @@ export default function Now({
         latest?.net_out,
       ),
       level: latest
-        ? latest.net_out / Math.max(1, ...(hour?.points ?? []).map((m) => m.net_out_max))
+        ? latest.net_out /
+          Math.max(1, ...(hour?.points ?? []).map((m) => Math.max(m.net_out_max, m.net_out)))
         : null,
       max: Math.max(1, ...(hour?.points ?? []).map((m) => m.net_out)),
       mark: null,
@@ -364,6 +366,41 @@ export default function Now({
   ];
 
   const perCore = (live?.core_use.length ?? 0) > 1;
+  // The week's list in two: the peaks (incidents, the disk's high), and what crashed or hung.
+  const peaks = marks.filter((m) => !m.crash);
+  const breaks = marks.filter((m) => m.crash);
+  const markRow = (m: (typeof marks)[number], i: number) => (
+    <div className="rowline" key={i}>
+      <span className="mono muted when">{fmtAt(m.t)}</span>
+      <span className="col">
+        <span className="row wrap">
+          <b>{m.what}</b>
+          {m.incident && <span className="badge warn">Incident · snapshot kept</span>}
+          {m.crash && (
+            <span className="badge warn">
+              {m.crash === "hang" ? "Hang report" : "Crash report"}
+            </span>
+          )}
+        </span>
+        <span className="muted small">{m.why}</span>
+      </span>
+      {(m.inc || m.group) && (
+        <AskButton
+          title={
+            m.inc
+              ? "Ask why this happened, with what every app was using at its peak"
+              : "Ask what went wrong, with the reports macOS wrote"
+          }
+          onAsk={async () => {
+            if (m.inc) ask(incidentQuestion(m.inc), incidentDetail(m.inc));
+            else if (m.group)
+              ask(crashQuestion(m.group), await crashDetail(m.group, crashes ?? []));
+          }}
+        />
+      )}
+    </div>
+  );
+
   // One measure's card: its figure, a chart of the range with the tidemark, and its high.
   const card = (c: (typeof cards)[number]) => {
     const flag = flagFor(st, c.name);
@@ -505,50 +542,29 @@ export default function Now({
 
         <div className="cards4">{cards.map((c) => card(c))}</div>
 
-        <div className="cards2 halves">
+        <div className="cards2 thirds">
           <section className="card list">
             <div className="row between head">
               <span className="eyebrow">This week's tidemarks</span>
-              <button className="link small" onClick={() => go("trends")} title="Open Trends (⌘4)">
+              <button className="link small" onClick={() => go("trends")} title="Open Trends (⌘3)">
                 All trends
               </button>
             </div>
-            {marks.length === 0 && (
+            {peaks.length === 0 && (
               <div className="muted rowline">
                 No incidents this week. Peaks appear here as they happen.
               </div>
             )}
-            {marks.slice(-5).map((m, i) => (
-              <div className="rowline" key={i}>
-                <span className="mono muted when">{fmtAt(m.t)}</span>
-                <span className="col">
-                  <span className="row wrap">
-                    <b>{m.what}</b>
-                    {m.incident && <span className="badge warn">Incident · snapshot kept</span>}
-                    {m.crash && (
-                      <span className="badge warn">
-                        {m.crash === "hang" ? "Hang report" : "Crash report"}
-                      </span>
-                    )}
-                  </span>
-                  <span className="muted small">{m.why}</span>
-                </span>
-                {(m.inc || m.group) && (
-                  <AskButton
-                    title={
-                      m.inc
-                        ? "Ask why this happened, with what every app was using at its peak"
-                        : "Ask what went wrong, with the reports macOS wrote"
-                    }
-                    onAsk={async () => {
-                      if (m.inc) ask(incidentQuestion(m.inc), incidentDetail(m.inc));
-                      else if (m.group)
-                        ask(crashQuestion(m.group), await crashDetail(m.group, crashes ?? []));
-                    }}
-                  />
-                )}
-              </div>
-            ))}
+            {peaks.slice(-5).map(markRow)}
+          </section>
+          <section className="card list">
+            <div className="row between head">
+              <span className="eyebrow">Crashes and hangs this week</span>
+            </div>
+            {breaks.length === 0 && (
+              <div className="muted rowline">No app crashed or hung this week.</div>
+            )}
+            {breaks.slice(-5).map(markRow)}
           </section>
           <section className="card list">
             <div className="row between head">
@@ -577,7 +593,7 @@ export default function Now({
             <button
               className="link small left"
               onClick={() => go("disk")}
-              title="Open the map with this week's growth marked (⌘3)"
+              title="Open the map with this week's growth marked (⌘4)"
             >
               Show the growth on the map →
             </button>

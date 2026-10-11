@@ -286,7 +286,10 @@ struct Acc {
     minute: i64,
     n: f64,
     m: Minute,
-    apps: HashMap<String, (f64, f64, f64)>,
+    /// Each app's sums over the minute, and its busiest reading (the *_max fields). A reading of
+    /// an app covers the time since the last pass over every process: 2 s while a window is
+    /// open, 15 s otherwise, so a peak is the busiest 2 or 15 seconds.
+    apps: HashMap<String, AppUse>,
     /// Power readings in the minute (not every sample has one) and their sum.
     power_n: f64,
     gpu_n: f64,
@@ -341,9 +344,14 @@ impl Acc {
         }
         for a in apps {
             let e = self.apps.entry(a.app.clone()).or_default();
-            e.0 += a.cpu;
-            e.1 += a.mem;
-            e.2 += a.energy;
+            e.cpu += a.cpu;
+            e.mem += a.mem;
+            e.energy += a.energy;
+            e.disk += a.disk;
+            e.cpu_max = e.cpu_max.max(a.cpu);
+            e.mem_max = e.mem_max.max(a.mem);
+            e.energy_max = e.energy_max.max(a.energy);
+            e.disk_max = e.disk_max.max(a.disk);
         }
         self.n += 1.0;
     }
@@ -388,25 +396,33 @@ impl Acc {
         let mut apps: Vec<AppUse> = self
             .apps
             .drain()
-            .map(|(app, (c, mm, e))| AppUse {
+            .map(|(app, a)| AppUse {
                 app,
-                cpu: c / n,
-                mem: mm / n,
-                energy: e / n,
+                cpu: a.cpu / n,
+                mem: a.mem / n,
+                energy: a.energy / n,
+                disk: a.disk / n,
+                ..a
             })
             .collect();
-        apps.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
-        let mut keep: Vec<AppUse> = apps.iter().take(APPS_PER_MINUTE).cloned().collect();
-        apps.sort_by(|a, b| b.mem.total_cmp(&a.mem));
-        for a in apps.iter().take(APPS_PER_MINUTE) {
-            if !keep.iter().any(|k| k.app == a.app) {
-                keep.push(a.clone());
-            }
-        }
-        apps.sort_by(|a, b| b.energy.total_cmp(&a.energy));
-        for a in apps.into_iter().take(APPS_PER_MINUTE) {
-            if !keep.iter().any(|k| k.app == a.app) {
-                keep.push(a);
+        // The busiest by each measure, on average and at a moment (a short spike's app too).
+        let mut keep: Vec<AppUse> = Vec::new();
+        let by: [fn(&AppUse) -> f64; 8] = [
+            |a| a.cpu,
+            |a| a.cpu_max,
+            |a| a.mem,
+            |a| a.mem_max,
+            |a| a.energy,
+            |a| a.energy_max,
+            |a| a.disk,
+            |a| a.disk_max,
+        ];
+        for f in by {
+            apps.sort_by(|a, b| f(b).total_cmp(&f(a)));
+            for a in apps.iter().take(APPS_PER_MINUTE) {
+                if !keep.iter().any(|k| k.app == a.app) {
+                    keep.push(a.clone());
+                }
             }
         }
         history::add_minute(&m, &keep);
@@ -640,6 +656,7 @@ fn run() {
                 e.cpu += p.cpu_usage() as f64 / cores;
                 e.mem += p.memory() as f64;
                 e.energy += meter.watts(p.pid().as_u32() as i32, dt).unwrap_or(0.0);
+                e.disk += (d.read_bytes + d.written_bytes) as f64 / dt;
             }
             meter.keep_only(&sys.processes().keys().map(|p| p.as_u32() as i32).collect());
             let mut apps: Vec<AppUse> = by_app.into_values().collect();
@@ -1030,18 +1047,30 @@ pub async fn perf_history(secs: i64, points: Option<i64>, mark_days: Option<i64>
 
 #[derive(Serialize)]
 pub struct AppsAt {
+    /// Busiest on average over the span.
     pub by_cpu: Vec<AppUse>,
     pub by_mem: Vec<AppUse>,
     pub by_energy: Vec<AppUse>,
+    pub by_disk: Vec<AppUse>,
+    /// Busiest at their busiest moment in the span (each app's *_max).
+    pub peak_cpu: Vec<AppUse>,
+    pub peak_mem: Vec<AppUse>,
+    pub peak_energy: Vec<AppUse>,
+    pub peak_disk: Vec<AppUse>,
 }
 
-/// The busiest apps between two times (a peak's minute, or a whole range).
+/// The busiest apps between two times (a moment's span, or a whole range).
 #[tauri::command]
 pub async fn perf_apps(from: i64, to: i64) -> AppsAt {
     AppsAt {
         by_cpu: history::top_apps(from, to, By::Cpu, 8),
         by_mem: history::top_apps(from, to, By::Mem, 8),
         by_energy: history::top_apps(from, to, By::Energy, 8),
+        by_disk: history::top_apps(from, to, By::Disk, 8),
+        peak_cpu: history::peak_apps(from, to, By::Cpu, 8),
+        peak_mem: history::peak_apps(from, to, By::Mem, 8),
+        peak_energy: history::peak_apps(from, to, By::Energy, 8),
+        peak_disk: history::peak_apps(from, to, By::Disk, 8),
     }
 }
 
@@ -1360,5 +1389,22 @@ mod tests {
         }
         assert_eq!(a.m.cpu_max, 90.0);
         assert_eq!(a.m.cpu / a.n, 40.0);
+    }
+
+    #[test]
+    fn an_app_keeps_its_peak_in_the_minute() {
+        let mut a = Acc::default();
+        for (cpu, disk) in [(5.0, 0.0), (80.0, 4e6), (5.0, 0.0)] {
+            let app = AppUse {
+                app: "Xcode".into(),
+                cpu,
+                disk,
+                ..Default::default()
+            };
+            a.add(&Sample::default(), 1.0, &[app]);
+        }
+        let x = &a.apps["Xcode"];
+        assert_eq!((x.cpu, x.cpu_max), (90.0, 80.0)); // the sum, and the busiest reading
+        assert_eq!(x.disk_max, 4e6);
     }
 }

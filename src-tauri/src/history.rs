@@ -99,6 +99,11 @@ fn open() -> Connection {
         "ALTER TABLE perf ADD COLUMN net_out_max REAL",
         "ALTER TABLE perf ADD COLUMN cpu_p REAL",
         "ALTER TABLE perf ADD COLUMN cpu_e REAL",
+        "ALTER TABLE procs ADD COLUMN cpu_max REAL",
+        "ALTER TABLE procs ADD COLUMN mem_max REAL",
+        "ALTER TABLE procs ADD COLUMN energy_max REAL",
+        "ALTER TABLE procs ADD COLUMN disk REAL",
+        "ALTER TABLE procs ADD COLUMN disk_max REAL",
     ] {
         let _ = c.execute(sql, []);
     }
@@ -194,6 +199,20 @@ pub struct AppUse {
     /// Watts.
     #[serde(default)]
     pub energy: f64,
+    /// Disk read and written, bytes a second.
+    #[serde(default)]
+    pub disk: f64,
+    /// The busiest moment of each: within the minute for a history row, within the span for
+    /// `peak_apps`; 0 where it wasn't recorded (rows from before these were kept). A moment is
+    /// one reading of the app: 2 seconds while a window is open, 15 otherwise (monitor.rs).
+    #[serde(default)]
+    pub cpu_max: f64,
+    #[serde(default)]
+    pub mem_max: f64,
+    #[serde(default)]
+    pub energy_max: f64,
+    #[serde(default)]
+    pub disk_max: f64,
 }
 
 pub fn add_minute(m: &Minute, apps: &[AppUse]) {
@@ -213,10 +232,22 @@ pub fn add_minute(m: &Minute, apps: &[AppUse]) {
             ],
         )?;
         let mut st = c.prepare_cached(
-            "INSERT OR REPLACE INTO procs (ts, app, cpu, mem, energy) VALUES (?1,?2,?3,?4,?5)",
+            "INSERT OR REPLACE INTO procs (ts, app, cpu, mem, energy, disk, cpu_max, mem_max,
+               energy_max, disk_max) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
         )?;
         for a in apps {
-            st.execute(params![m.ts, a.app, a.cpu, a.mem, a.energy])?;
+            st.execute(params![
+                m.ts,
+                a.app,
+                a.cpu,
+                a.mem,
+                a.energy,
+                a.disk,
+                a.cpu_max,
+                a.mem_max,
+                a.energy_max,
+                a.disk_max
+            ])?;
         }
         Ok(())
     })
@@ -308,6 +339,7 @@ pub enum By {
     Cpu,
     Mem,
     Energy,
+    Disk,
 }
 
 /// The apps that used the most between `from` and `to`, averaged over the minutes they ran,
@@ -317,11 +349,33 @@ pub fn top_apps(from: i64, to: i64, by: By, n: usize) -> Vec<AppUse> {
         By::Cpu => "cpu",
         By::Mem => "mem",
         By::Energy => "energy",
+        By::Disk => "disk",
     };
+    apps_query(from, to, order, n)
+}
+
+/// The apps that were busiest at their busiest between `from` and `to`, by each app's peak
+/// within a minute: the app behind a short spike, at its real figure. A row from before peaks
+/// were kept counts its average.
+pub fn peak_apps(from: i64, to: i64, by: By, n: usize) -> Vec<AppUse> {
+    let order = match by {
+        By::Cpu => "cpu_max",
+        By::Mem => "mem_max",
+        By::Energy => "energy_max",
+        By::Disk => "disk_max",
+    };
+    apps_query(from, to, order, n)
+}
+
+fn apps_query(from: i64, to: i64, order: &str, n: usize) -> Vec<AppUse> {
     with(|c| {
         let mut st = c.prepare(&format!(
-            "SELECT app, AVG(cpu) cpu, AVG(mem) mem, AVG(COALESCE(energy, 0)) energy FROM procs
-             WHERE ts >= ?1 AND ts <= ?2 GROUP BY app ORDER BY {order} DESC LIMIT ?3"
+            "SELECT app, AVG(cpu) cpu, AVG(mem) mem, AVG(COALESCE(energy, 0)) energy,
+                    AVG(COALESCE(disk, 0)) disk, MAX(COALESCE(cpu_max, cpu)) cpu_max,
+                    MAX(COALESCE(mem_max, mem)) mem_max,
+                    MAX(COALESCE(energy_max, energy, 0)) energy_max,
+                    MAX(COALESCE(disk_max, disk, 0)) disk_max
+             FROM procs WHERE ts >= ?1 AND ts <= ?2 GROUP BY app ORDER BY {order} DESC LIMIT ?3"
         ))?;
         let rows = st.query_map(params![from, to, n as i64], |r| {
             Ok(AppUse {
@@ -329,6 +383,11 @@ pub fn top_apps(from: i64, to: i64, by: By, n: usize) -> Vec<AppUse> {
                 cpu: r.get(1)?,
                 mem: r.get(2)?,
                 energy: r.get(3)?,
+                disk: r.get(4)?,
+                cpu_max: r.get(5)?,
+                mem_max: r.get(6)?,
+                energy_max: r.get(7)?,
+                disk_max: r.get(8)?,
             })
         })?;
         rows.collect()

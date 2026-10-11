@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AppInfo,
-  AppUse,
+  AppsAt,
   Crash,
   DiskTrend,
   FileEntry,
@@ -68,8 +68,7 @@ export const api = {
   /// The last `secs` seconds of minutes, folded into at most `points` points.
   perf: (secs: number, points = 480, markDays = 7) =>
     invoke<PerfHistory>("perf_history", { secs, points, markDays }),
-  appsBetween: (from: number, to: number) =>
-    invoke<{ by_cpu: AppUse[]; by_mem: AppUse[]; by_energy: AppUse[] }>("perf_apps", { from, to }),
+  appsBetween: (from: number, to: number) => invoke<AppsAt>("perf_apps", { from, to }),
   sleeps: (days: number) => invoke<Sleep[]>("sleeps", { days }),
   crashes: (days: number) => invoke<Crash[]>("crashes", { days }),
   /// One crash or hang report, summarised for Ask.
@@ -93,7 +92,13 @@ export const api = {
   quit: () => invoke<void>("quit"),
   /// Screenshot mode (tools/screenshots.py): the screen or menu-bar window to show, and the theme.
   scene: () =>
-    invoke<{ screen?: Screen; tray?: boolean; theme?: "light" | "dark" } | null>("scene"),
+    invoke<{
+      screen?: Screen;
+      /// A section to open at, as a Details link would (a Performance tab, say).
+      focus?: string;
+      tray?: boolean;
+      theme?: "light" | "dark";
+    } | null>("scene"),
   activityMonitor: () => invoke<void>("open_activity_monitor"),
   /// Open at Login: [available, on].
   loginItem: () => invoke<[boolean, boolean]>("login_item"),
