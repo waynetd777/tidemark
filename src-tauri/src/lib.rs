@@ -26,6 +26,7 @@ mod settings;
 mod system;
 mod tray;
 mod trends;
+mod updates;
 mod volume;
 
 use std::sync::{Arc, Mutex};
@@ -98,8 +99,8 @@ fn about(app: &tauri::AppHandle) {
     let _ = app;
 }
 
-/// The standard menu bar, with Tidemark's own About item (for the website link) and its help
-/// and website in the Help menu.
+/// The standard menu bar, with Tidemark's own About item (for the website link) and Check for
+/// Updates… after it, and its help and website in the Help menu.
 fn help_menu(app: &tauri::App) -> tauri::Result<()> {
     use tauri::menu::{Menu, MenuItem, MenuItemKind, HELP_SUBMENU_ID};
     use tauri::Emitter;
@@ -111,6 +112,16 @@ fn help_menu(app: &tauri::App) -> tauri::Result<()> {
             app_menu.insert(
                 &MenuItem::with_id(app, "about", "About Tidemark", true, None::<&str>)?,
                 0,
+            )?;
+            app_menu.insert(
+                &MenuItem::with_id(
+                    app,
+                    "check-updates",
+                    "Check for Updates…",
+                    true,
+                    None::<&str>,
+                )?,
+                1,
             )?;
         }
     }
@@ -141,9 +152,23 @@ fn help_menu(app: &tauri::App) -> tauri::Result<()> {
         }
         "website" => open_website(),
         "about" => about(app),
+        "check-updates" => updates::check_now(app),
         _ => {}
     });
     Ok(())
+}
+
+/// What restarting for an update would cut short (updates.rs): a scan, the app's or the
+/// helper's (the helper is stopped for the update), or Ask answering.
+fn busy(app: &tauri::AppHandle) -> Option<String> {
+    let st: State<disk::AppState> = app.state();
+    if st.scanning.load(std::sync::atomic::Ordering::SeqCst) || disk::scan_lock().is_none() {
+        return Some("A scan is running.".into());
+    }
+    if app.state::<Arc<assistant::Running>>().busy() {
+        return Some("Ask is answering.".into());
+    }
+    None
 }
 
 /// `Tidemark --record`: the background helper (recorder.rs) rather than the app. Some(never
@@ -166,6 +191,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Arc::new(assistant::Running::default()))
         .manage(disk::AppState::new(root.clone()))
         .invoke_handler(tauri::generate_handler![
@@ -265,6 +291,7 @@ pub fn run() {
                 scene::setup(app);
                 return Ok(());
             }
+            updates::start(&handle, busy);
 
             if let Some(w) = app.get_webview_window("main") {
                 // Paint the native window in the theme's background colour before it is shown,
@@ -350,15 +377,17 @@ pub fn run() {
                 }
 
                 // Closing the window hides it; the app leaves the Dock and stays in the menu bar,
-                // recording.
+                // recording. Focusing it shows an update a background check found.
                 let w2 = w.clone();
-                w.on_window_event(move |ev| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = ev {
+                w.on_window_event(move |ev| match ev {
+                    tauri::WindowEvent::CloseRequested { api, .. } => {
                         api.prevent_close();
                         let _ = w2.app_handle().save_window_state(STATE_FLAGS);
                         let _ = w2.hide();
                         tray::set_in_dock(w2.app_handle(), false);
                     }
+                    tauri::WindowEvent::Focused(true) => updates::focused(w2.app_handle()),
+                    _ => {}
                 });
             }
             stamp("setup() done");

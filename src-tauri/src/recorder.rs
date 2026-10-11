@@ -297,6 +297,26 @@ pub fn refresh() {
     }
 }
 
+/// Before an update swaps the bundle (updates.rs): unloads the agent if it runs this binary,
+/// as `make install-app` does, so launchd neither restarts the helper from a half-swapped app
+/// nor leaves it on the old build. True when it was loaded, for `start_after_update`.
+pub fn stop_for_update() -> bool {
+    let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned());
+    if agent_program() != exe.ok() || !loaded() {
+        return false;
+    }
+    let _ = launchctl(&["bootout", &format!("{}/{LABEL}", domain())]);
+    true
+}
+
+/// Loads the agent again after the swap. The bundle's path is unchanged, so this starts the
+/// new binary, which keeps its build itself as it starts: the restarted app finds it current.
+pub fn start_after_update() {
+    if !install() {
+        eprintln!("recorder: the helper didn't start again after the update");
+    }
+}
+
 /// Off the main thread (async): it runs launchctl, which can take a moment.
 #[tauri::command(async)]
 pub fn background_helper() -> Helper {

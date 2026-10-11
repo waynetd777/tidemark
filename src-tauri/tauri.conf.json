@@ -47,6 +47,14 @@
     "macOSPrivateApi": true,
     "withGlobalTauri": true
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE5OEEwNkNDMTJFNTI5RDcKUldUWEtlVVN6QWFLR1hRL2VXRVcrNnRVZEZhT05EM0xQNERhTHE5YjRQOHZZMTU2VjJXVGdWVEQK",
+      "endpoints": [
+        "https://github.com/waynetd777/tidemark/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "copyright": "Copyright (c) 2026 Wayne Davies",

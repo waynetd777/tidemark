@@ -30,6 +30,8 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 tauri-plugin-window-state = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
+# Checks the GitHub releases for a newer version (updates.rs).
+tauri-plugin-updater = "2"
 # The scan: one rayon task per directory, work-stealing across all cores.
 rayon = "1"
 # statfs for the volume's capacity and free space; sysctl for memory pressure.

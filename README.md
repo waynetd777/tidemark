@@ -22,6 +22,8 @@ Apple Silicon, macOS 13 or later.
 2. Open it. macOS warns because it is self-signed rather than notarised: click **Done**, then System Settings › Privacy & Security › **Open Anyway**, and **Open Anyway** again when macOS asks. Or run `xattr -dr com.apple.quarantine "/Applications/Tidemark.app"`.
 3. Give it **Full Disk Access** (System Settings › Privacy & Security) so it can see inside Mail, Safari, Photos and the other protected folders.
 
+Tidemark checks for a new version daily and asks before installing it; Tidemark › Check for Updates… checks now.
+
 ## Docs
 
 | Page | About |

@@ -89,6 +89,10 @@ impl Running {
             ch.retain(|(_, p)| *p != pid);
         }
     }
+    /// A CLI is answering: an update's restart would stop it (updates.rs waits).
+    pub fn busy(&self) -> bool {
+        self.children.lock().is_ok_and(|ch| !ch.is_empty())
+    }
     pub fn kill_all(&self) {
         if let Ok(ch) = self.children.lock() {
             for (_, pid) in ch.iter() {

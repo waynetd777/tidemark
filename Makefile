@@ -80,9 +80,11 @@ install-app: app
 
 ## Build the app and pack it into dist-release/Tidemark.dmg for a GitHub release, laid out
 ## like other Mac installers (tools/dmg/). Finder lays out the window, so the first run asks to
-## let the terminal control Finder.
+## let the terminal control Finder. Beside it go the in-app updater's files (Tidemark.app.tar.gz,
+## its .sig and latest.json; tools/update_files.py), signed with ~/.tauri/waynetd777-updater.key.
 dmg: app
 	@python3 tools/dmg/make_dmg.py
+	@python3 tools/update_files.py
 
 ## Redraw design/icon.png and the tray template, then regenerate the Tauri icon set.
 icons:
