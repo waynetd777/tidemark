@@ -32,7 +32,10 @@ def run(*cmd, **kw):
 
 def background(tmp: Path) -> Path:
     """background.tiff, at 1x and 2x so it's sharp on Retina screens."""
-    page = HERE / "background.html"
+    # The page uses the product page's fonts, and WebKit only reads files beside it.
+    page = tmp / "background.html"
+    shutil.copy(HERE / "background.html", page)
+    shutil.copytree(ROOT / "site/fonts", tmp / "fonts")
     pngs = []
     for scale in (1, 2):
         png = tmp / f"background@{scale}x.png"

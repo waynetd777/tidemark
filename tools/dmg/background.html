@@ -2,11 +2,18 @@
 <!-- Copyright (c) 2026 Wayne Davies
      SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root) -->
 
-<!-- The DMG window's background, 660×400. make_dmg.py puts the icons on it: the app centred at
-     (165, 230), Applications at (495, 230). The dashed tidemark runs behind them at y=230, and the
-     same water as the app icon lies along the bottom. Colours are the app's light theme. -->
+<!-- The DMG window's background, 660×400, dressed as the product page (site/): its hero's night
+     sea with stars, the mark and name, and the waves breaking onto the light page. make_dmg.py puts
+     the icons on the light part, where Finder's labels can be read: the app centred at (165, 230),
+     Applications at (495, 230), with the dashed tidemark behind them. It renders this beside a copy
+     of site/fonts, so fonts/geist.woff2 is the site's Geist. -->
 <meta charset="utf-8" />
 <style>
+  @font-face {
+    font-family: "Geist";
+    src: url("fonts/geist.woff2") format("woff2");
+    font-weight: 100 900;
+  }
   html,
   body {
     margin: 0;
@@ -16,34 +23,70 @@
   }
   body {
     background: #fbfbfc;
-    color: #1d1d1f;
-    font-family: -apple-system, "SF Pro Text", sans-serif;
+    color: #12181c;
+    font-family:
+      "Geist",
+      -apple-system,
+      "SF Pro Display",
+      sans-serif;
+    letter-spacing: -0.011em;
     position: relative;
     -webkit-font-smoothing: antialiased;
   }
-  .sea {
+  /* The site's hero: night over the sea. */
+  .night {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 160px;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #17485a 0%, transparent 70%),
+      linear-gradient(180deg, #0a2129 0%, #0c2a33 60%, #0f3a46 100%);
+  }
+  .stars {
     position: absolute;
     inset: 0;
+  }
+  .sea {
+    position: absolute;
+    left: 0;
+    top: 112px;
+    width: 660px;
+    height: 52px;
   }
   .head {
     position: absolute;
     top: 26px;
     width: 100%;
-    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #fff;
   }
-  .name {
-    font-family:
-      "SF Pro Display",
-      -apple-system,
-      sans-serif;
-    font-size: 22px;
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 25px;
     font-weight: 650;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
+  }
+  .brand svg {
+    width: 30px;
+    height: 30px;
+    filter: drop-shadow(0 4px 12px rgb(34 161 187 / 40%));
   }
   .tag {
-    font-size: 14px;
-    color: #68686e;
-    margin-top: 2px;
+    margin-top: 6px;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    background: linear-gradient(100deg, #7fd6e8, #e9f7f8 55%, #7fd6e8);
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+  .tidemark {
+    position: absolute;
+    inset: 0;
   }
   .arrow {
     position: absolute;
@@ -54,29 +97,60 @@
   }
   .hint {
     position: absolute;
-    top: 336px;
+    top: 340px;
     width: 100%;
     text-align: center;
     font-size: 14px;
-    color: #3d3d42;
+    color: #4a555c;
   }
   .hint b {
     font-weight: 600;
-    color: #1d1d1f;
+    color: #12181c;
   }
 </style>
 <body>
-  <svg class="sea" viewBox="0 0 660 400" aria-hidden="true">
+  <div class="night"><canvas class="stars" width="1320" height="320"></canvas></div>
+  <!-- The site's three waves; the last is the page's ground, so the night ends in a breaking wave. -->
+  <svg class="sea" viewBox="0 0 660 52" preserveAspectRatio="none" aria-hidden="true">
     <path
-      d="M0 338 Q 55 326 110 338 T 220 338 T 330 338 T 440 338 T 550 338 T 660 338 V 400 H 0 Z"
-      fill="#1b9db3"
-      fill-opacity=".16"
+      d="M0 18c55-14 110-14 165 0s110 14 165 0 110-14 165 0 110 14 165 0V52H0z"
+      fill="#22a1bb"
+      fill-opacity=".55"
     />
     <path
-      d="M0 362 Q 55 352 110 362 T 220 362 T 330 362 T 440 362 T 550 362 T 660 362 V 400 H 0 Z"
-      fill="#13819a"
-      fill-opacity=".18"
+      d="M-60 28c55-14 110-14 165 0s110 14 165 0 110-14 165 0 110 14 165 0 110-14 165 0V52H-60z"
+      fill="#17809a"
+      fill-opacity=".85"
     />
+    <path
+      d="M-30 38c55-12 110-12 165 0s110 12 165 0 110-12 165 0 110 12 165 0 110-12 165 0V52H-30z"
+      fill="#fbfbfc"
+    />
+  </svg>
+  <div class="head">
+    <div class="brand">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <defs>
+          <clipPath id="c"><rect width="64" height="64" rx="14" /></clipPath>
+        </defs>
+        <g clip-path="url(#c)">
+          <rect width="64" height="64" fill="#12313b" />
+          <path d="M0 27.5h64" stroke="#2b6474" stroke-width="1.2" />
+          <path d="M0 37c6-4 10-4 16 0s10 4 16 0 10-4 16 0 10 4 16 0v27H0z" fill="#22a1bb" />
+          <path d="M0 43c6-4 10-4 16 0s10 4 16 0 10-4 16 0 10 4 16 0v21H0z" fill="#17809a" />
+          <path
+            d="M12 21h4M22 21h4M32 21h4M42 21h4M52 21h4"
+            stroke="#f4f1ea"
+            stroke-width="3.4"
+            stroke-linecap="round"
+          />
+        </g>
+      </svg>
+      Tidemark
+    </div>
+    <div class="tag">The high-water marks of your Mac</div>
+  </div>
+  <svg class="tidemark" viewBox="0 0 660 400" aria-hidden="true">
     <line
       x1="40"
       x2="620"
@@ -85,13 +159,9 @@
       stroke="#0b6e8a"
       stroke-width="2"
       stroke-dasharray="8 7"
-      stroke-opacity=".35"
+      stroke-opacity=".3"
     />
   </svg>
-  <div class="head">
-    <div class="name">Tidemark</div>
-    <div class="tag">The high-water marks of your Mac</div>
-  </div>
   <svg
     class="arrow"
     viewBox="0 0 160 48"
@@ -106,4 +176,21 @@
     <path d="M126 8 L148 24 L126 40" />
   </svg>
   <div class="hint">Drag <b>Tidemark</b> onto <b>Applications</b> to install it</div>
+  <script>
+    // The hero's stars, fixed: the same repeatable random each time, fading towards the sea.
+    const c = document.querySelector(".stars").getContext("2d");
+    c.scale(2, 2);
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    c.fillStyle = "#dff4f8";
+    for (let i = 0; i < 70; i++) {
+      const x = rand() * 660,
+        y = rand() * 112,
+        r = rand() * 0.9 + 0.3;
+      c.globalAlpha = (0.3 + 0.5 * rand()) * (1 - y / 125);
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      c.fill();
+    }
+  </script>
 </body>
