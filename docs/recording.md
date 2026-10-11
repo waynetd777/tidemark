@@ -44,6 +44,8 @@ One SQLite file: `~/Library/Application Support/Tidemark/history.sqlite`, on thi
 
 ## The background helper
 
-- **Keep recording when quit** (Settings) registers the app's own binary as `Tidemark --record`, a launch agent registered with `SMAppService` (the plist is in `Contents/Library/LaunchAgents`).
+- **Keep recording when quit** (Settings) runs the app's own binary as `Tidemark --record` from a plain launch agent: the app writes `~/Library/LaunchAgents/com.wayned.tidemark.helper.plist`, pointing at the installed app, and loads it with `launchctl`. It is listed in System Settings › General › Login Items › Allow in the Background, where it can be switched off.
+- launchd restarts it only after a failure, at most every 5 minutes. Each launch of the installed app points the agent at its binary again if the app has moved, and restarts the helper after an update.
+- It used to be registered with `SMAppService`, but macOS would not start a helper registered that way for an app with a self-signed certificate. The installed app moves an old registration over, keeping whether it was on. The plain agent has a label of its own, because launchd refuses to start one that shares the old registration's label (macOS keeps a record under it).
 - The app and the helper share a lock: whichever holds it records, and the other follows its live readings in `live.json`, taking over if it stops.
 - The helper also runs the scheduled disk scans.

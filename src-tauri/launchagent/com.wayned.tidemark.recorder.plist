@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Tidemark's background helper (src/recorder.rs): the app's own binary, recording while the
-     app is quit. Bundled into Contents/Library/LaunchAgents and registered with SMAppService. -->
+<!-- Legacy: Tidemark's background helper was once registered with SMAppService from this
+     plist (bundled into Contents/Library/LaunchAgents). It is kept only so an old registration
+     can be removed; the helper is now a plain agent the app writes to ~/Library/LaunchAgents
+     (src/recorder.rs). -->
 <plist version="1.0">
 <dict>
   <key>Label</key>

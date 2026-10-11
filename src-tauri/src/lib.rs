@@ -246,8 +246,9 @@ pub fn run() {
             }
 
             monitor::start();
-            // A helper registered by an earlier build would never start: register it afresh.
-            std::thread::spawn(recorder::renew_if_rebuilt);
+            // The background helper's agent: moved off an old registration, kept pointing at
+            // this binary, restarted on a new build.
+            std::thread::spawn(recorder::refresh);
             schedule::start(handle.clone());
             tray::setup(app)?;
             help_menu(app)?;
