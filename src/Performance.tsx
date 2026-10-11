@@ -5,9 +5,13 @@
 // smaller tiles for swap, disk, network and heat, and what every app was doing at a chosen
 // moment (the peak, or wherever the chart is clicked).
 
+import { useAssistant } from "./assistant";
 import { useMemo, useState, type ReactNode } from "react";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
+import type { AskDetail } from "./Ask";
+import { AskButton } from "./AskButton";
+import { flaggedDetail } from "./askDetails";
 import { flagFor } from "./status";
 import { api } from "./api";
 import { Area, Legend, Spark, type Pt } from "./charts";
@@ -53,8 +57,9 @@ export default function Performance({
   live: Live | null;
   historyDays: number;
   bar: (left: ReactNode) => ReactNode;
-  ask: (q: string) => void;
+  ask: (q: string, detail?: AskDetail) => void;
 }) {
+  const assistant = useAssistant();
   const [chosen, setRange] = useRemembered("performance.range", 1, index(RANGES.length));
   // Ranges longer than the history kept are not offered; a remembered one is held to what is.
   const allowed = RANGES.filter(
@@ -318,6 +323,23 @@ export default function Performance({
                     {flagFor(live?.status, c.name)?.label}
                   </span>
                 )}
+                {flagFor(live?.status, c.name) && (
+                  <AskButton
+                    title={`Ask why ${c.name.toLowerCase()} is flagged (opens Ask with this chart's figures)`}
+                    onAsk={() => {
+                      const vals = c.pts.map((p) => p.v);
+                      const { question, detail } = flaggedDetail(live, c.name, [
+                        `Now: ${c.now}, ${c.sub}.`,
+                        vals.length
+                          ? `Over the last ${RANGES[range].label}: lowest ${c.fmt(Math.min(...vals))}, highest ${c.fmt(Math.max(...vals))}, average ${c.fmt(vals.reduce((a, b) => a + b, 0) / vals.length)}.`
+                          : "",
+                        c.peak ? `The range's peak: ${c.peak.label}.` : "",
+                        c.mark ? `The week's ${c.mark.label.toLowerCase()}.` : "",
+                      ]);
+                      ask(question, detail);
+                    }}
+                  />
+                )}
                 <span className="muted small">{c.sub}</span>
                 <span className="grow" />
                 <Legend
@@ -468,6 +490,20 @@ export default function Performance({
                 <span className={`badge ${flagFor(live?.status, "Energy")?.tone}`}>
                   {flagFor(live?.status, "Energy")?.label}
                 </span>
+              )}
+              {flagFor(live?.status, "Energy") && (
+                <AskButton
+                  title="Ask why energy is flagged (opens Ask with this chart's figures)"
+                  onAsk={() => {
+                    const { question, detail } = flaggedDetail(live, "Energy", [
+                      `Power drawn now: ${latest?.power != null ? fmtW(latest.power) : "unknown"}.`,
+                      live?.battery
+                        ? `Battery: ${batteryLine(live.battery)}.`
+                        : "No battery on this Mac.",
+                    ]);
+                    ask(question, detail);
+                  }}
+                />
               )}
               <span className="muted small">
                 {live?.battery
@@ -644,9 +680,30 @@ export default function Performance({
                 const first = pts[0];
                 return (
                   <>
-                    <span className="cnow">
+                    <span
+                      className={`cnow${flagFor(live?.status, "Disk space") ? ` ${flagFor(live?.status, "Disk space")?.cls}` : ""}`}
+                    >
                       {last ? `${fmt(last.total - last.used)} free` : "–"}
                     </span>
+                    {flagFor(live?.status, "Disk space") && (
+                      <span className={`badge ${flagFor(live?.status, "Disk space")?.tone}`}>
+                        {flagFor(live?.status, "Disk space")?.label}
+                      </span>
+                    )}
+                    {flagFor(live?.status, "Disk space") && last && (
+                      <AskButton
+                        title="Ask what is filling the disk (opens Ask with the disk's figures)"
+                        onAsk={() => {
+                          const { question, detail } = flaggedDetail(live, "Disk space", [
+                            `${fmt(last.total - last.used)} free: ${fmt(last.used)} of ${fmt(last.total)} used.`,
+                            first && pts.length > 1
+                              ? `${fmtDelta(last.used - first.used)} over the last ${secs < 86400 ? "24 hours" : RANGES[range].label}.`
+                              : "",
+                          ]);
+                          ask(question, detail);
+                        }}
+                      />
+                    )}
                     <span className="muted small">
                       {last ? `${fmt(last.used)} of ${fmt(last.total)} used` : ""}
                       {first && last && pts.length > 1
@@ -814,7 +871,12 @@ export default function Performance({
           <div className="row wrap gap8">
             <button
               className="btn primary"
-              title="Put this moment to Ask (⌘K)"
+              disabled={!assistant.available}
+              title={
+                assistant.available
+                  ? "Put this moment to Ask (⌘K)"
+                  : (assistant.reason ?? undefined)
+              }
               onClick={() =>
                 ask(
                   at

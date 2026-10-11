@@ -123,6 +123,130 @@ pub async fn crashes(days: i64) -> Vec<history::Crash> {
     history::crashes(history::now() - days * 86_400)
 }
 
+/// What Ask is told about one report: the app, the exception and why macOS ended it, and the
+/// top of the crashed thread's stack. Only a report in the history can be read. A hang report is
+/// text, so its first lines are given as they are.
+#[tauri::command(async)]
+pub fn crash_report(file: String) -> Result<String, String> {
+    if !history::crash_files().contains(&file) {
+        return Err("Not a report Tidemark has recorded.".into());
+    }
+    let raw =
+        std::fs::read_to_string(&file).map_err(|e| format!("Couldn't read the report: {e}"))?;
+    Ok(summarise(&file, &raw))
+}
+
+/// At most this much of a report goes to Ask.
+const MAX: usize = 4000;
+
+pub fn summarise(file: &str, raw: &str) -> String {
+    let (first, body) = raw.split_once('\n').unwrap_or((raw, ""));
+    let head: serde_json::Value = serde_json::from_str(first).unwrap_or_default();
+    let s = |v: &serde_json::Value, k: &str| v[k].as_str().unwrap_or("").to_string();
+    let mut out = vec![format!("Report: {file}")];
+    let app = [s(&head, "app_name"), s(&head, "name")]
+        .into_iter()
+        .find(|a| !a.is_empty())
+        .unwrap_or_default();
+    out.push(format!(
+        "App: {app} {} · {} · {}",
+        s(&head, "app_version"),
+        s(&head, "os_version"),
+        s(&head, "timestamp")
+    ));
+    let Ok(b) = serde_json::from_str::<serde_json::Value>(body) else {
+        // A hang (spindump) or an older plain-text report.
+        out.push(String::new());
+        out.push(body.lines().take(80).collect::<Vec<_>>().join("\n"));
+        return clip(out.join("\n"));
+    };
+    let ex = &b["exception"];
+    if ex.is_object() {
+        out.push(format!(
+            "Exception: {} {} {}",
+            s(ex, "type"),
+            s(ex, "signal"),
+            s(ex, "codes")
+        ));
+    }
+    let term = &b["termination"];
+    if term.is_object() {
+        let reasons: Vec<&str> = term["reasons"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|r| r.as_str()).collect())
+            .unwrap_or_default();
+        out.push(format!(
+            "Termination: {} {} {}",
+            s(term, "namespace"),
+            s(term, "indicator"),
+            reasons.join("; ")
+        ));
+    }
+    if let Some(asi) = b["asi"].as_object() {
+        for (k, v) in asi {
+            let lines: Vec<&str> = v
+                .as_array()
+                .map(|a| a.iter().filter_map(|l| l.as_str()).collect())
+                .unwrap_or_default();
+            out.push(format!("Application info ({k}): {}", lines.join(" ")));
+        }
+    }
+    let images: Vec<String> = b["usedImages"]
+        .as_array()
+        .map(|a| a.iter().map(|i| s(i, "name")).collect())
+        .unwrap_or_default();
+    let n = b["faultingThread"].as_u64().unwrap_or(0) as usize;
+    let thread = &b["threads"][n];
+    let frames = thread["frames"].as_array().cloned().unwrap_or_default();
+    if !frames.is_empty() {
+        let label = [s(thread, "name"), s(thread, "queue")]
+            .into_iter()
+            .filter(|x| !x.is_empty())
+            .collect::<Vec<_>>()
+            .join(", ");
+        out.push(format!(
+            "Crashed thread {n}{}:",
+            if label.is_empty() {
+                String::new()
+            } else {
+                format!(" ({label})")
+            }
+        ));
+        for f in frames.iter().take(16) {
+            let image = f["imageIndex"]
+                .as_u64()
+                .and_then(|i| images.get(i as usize))
+                .filter(|x| !x.is_empty())
+                .cloned()
+                .unwrap_or_else(|| "?".into());
+            let sym = s(f, "symbol");
+            out.push(if sym.is_empty() {
+                format!("  {image} +{}", f["imageOffset"].as_u64().unwrap_or(0))
+            } else {
+                format!(
+                    "  {image} {sym} +{}",
+                    f["symbolLocation"].as_u64().unwrap_or(0)
+                )
+            });
+        }
+    } else {
+        out.push("The crashed thread's stack is empty: the app was stopped before it ran.".into());
+    }
+    clip(out.join("\n"))
+}
+
+fn clip(mut s: String) -> String {
+    if s.len() > MAX {
+        let mut cut = MAX;
+        while !s.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        s.truncate(cut);
+        s.push_str("\n…");
+    }
+    s
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,5 +262,26 @@ mod tests {
         let other =
             r#"{"app_name":"x","timestamp":"2026-10-06 10:49:20.00 +0200","bug_type":"211"}"#;
         assert_eq!(parse_header(other), None);
+    }
+
+    #[test]
+    fn summarises_a_crash_for_ask() {
+        let raw = concat!(
+            r#"{"app_name":"Xcode","app_version":"26.0","os_version":"macOS 27.0","timestamp":"2026-10-10 22:16:50.00 +0200","bug_type":"309"}"#,
+            "\n",
+            r#"{"exception":{"type":"EXC_BAD_ACCESS","signal":"SIGSEGV","codes":"0x1"},"termination":{"namespace":"SIGNAL","indicator":"Segmentation fault: 11"},"faultingThread":1,"usedImages":[{"name":"Xcode"},{"name":"libsystem_kernel.dylib"}],"threads":[{"frames":[]},{"queue":"main","frames":[{"imageIndex":1,"symbol":"__pthread_kill","symbolLocation":8},{"imageIndex":0,"imageOffset":4096}]}]}"#
+        );
+        let s = summarise("/x.ips", raw);
+        assert!(s.contains("App: Xcode 26.0"));
+        assert!(s.contains("Exception: EXC_BAD_ACCESS SIGSEGV"));
+        assert!(s.contains("Crashed thread 1 (main):"));
+        assert!(s.contains("libsystem_kernel.dylib __pthread_kill +8"));
+        assert!(s.contains("Xcode +4096"));
+        // A text report keeps its first lines.
+        let hang = summarise(
+            "/h.ips",
+            "{\"app_name\":\"Photos\"}\nDate/Time: today\nDuration: 9s",
+        );
+        assert!(hang.contains("Duration: 9s"));
     }
 }

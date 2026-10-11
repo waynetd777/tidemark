@@ -72,6 +72,8 @@ export const api = {
     invoke<{ by_cpu: AppUse[]; by_mem: AppUse[]; by_energy: AppUse[] }>("perf_apps", { from, to }),
   sleeps: (days: number) => invoke<Sleep[]>("sleeps", { days }),
   crashes: (days: number) => invoke<Crash[]>("crashes", { days }),
+  /// One crash or hang report, summarised for Ask.
+  crashReport: (file: string) => invoke<string>("crash_report", { file }),
   incidents: (days: number) => invoke<Incident[]>("incidents", { days }),
   pauseRecording: (minutes: number) => invoke<number | null>("pause_recording", { minutes }),
   macInfo: () => invoke<MacInfo>("mac_info"),

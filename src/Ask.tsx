@@ -24,6 +24,24 @@ interface Message {
   role: "user" | "assistant";
   text: string;
   error?: boolean;
+  /** What the question came with: "CPU incident, Wed 14:57". */
+  about?: string;
+}
+
+/** Details a button hands to Ask with its question: an incident, a crash report, a chart. */
+export interface AskDetail {
+  /** A few words naming it, shown above the box and on the question. */
+  label: string;
+  /** What the assistant is told about it. */
+  text: string;
+}
+
+/** A question handed in from elsewhere, typed into the box to edit or send. */
+export interface AskSeed {
+  text: string;
+  /** Makes a repeat of the same text count. */
+  n: number;
+  detail?: AskDetail;
 }
 
 const uid = () =>
@@ -41,8 +59,8 @@ export default function AskPanel({
   onClose: () => void;
   /** What is on screen now; null until the map has something to show. */
   context: () => Context | null;
-  /** A question handed in from elsewhere (Help), typed into the box to edit or send. */
-  seed?: { text: string; n: number } | null;
+  /** A question handed in from elsewhere (Help, an Ask button), typed into the box. */
+  seed?: AskSeed | null;
 }) {
   const [preferred, setModel] = useState(loadModel);
   const assistant = useAssistant();
@@ -54,6 +72,8 @@ export default function AskPanel({
   const [session, setSession] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
+  // The details the next question carries, until it is sent or removed.
+  const [detail, setDetail] = useState<AskDetail | null>(null);
   const lastPath = useRef<string | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -110,7 +130,10 @@ export default function AskPanel({
   const [seen, setSeen] = useState(seed);
   if (seed !== seen) {
     setSeen(seed);
-    if (seed) setQ(seed.text);
+    if (seed) {
+      setQ(seed.text);
+      setDetail(seed.detail ?? null);
+    }
   }
   useEffect(() => {
     if (!seed) return;
@@ -126,15 +149,24 @@ export default function AskPanel({
     if (!text || busy) return;
     const ctx = context();
     let prompt = text;
+    // The details go with this question only, in a new chat or a follow-up alike.
+    const about = detail ? `About this — ${detail.label}:\n${detail.text}\n\n` : "";
     if (ctx && (!session || ctx.path !== lastPath.current)) {
-      prompt = `${ctx.text}\n\nQuestion: ${text}`;
+      prompt = `${ctx.text}\n\n${about}Question: ${text}`;
       lastPath.current = ctx.path;
     } else if (!ctx && !session) {
-      prompt = `There is no scan on screen yet.\n\nQuestion: ${text}`;
+      prompt = `There is no scan on screen yet.\n\n${about}Question: ${text}`;
+    } else if (about) {
+      prompt = `${about}Question: ${text}`;
     }
     setQ("");
+    setDetail(null);
     setBusy(true);
-    setMessages((m) => [...m, { role: "user", text }, { role: "assistant", text: "" }]);
+    setMessages((m) => [
+      ...m,
+      { role: "user", text, about: detail?.label },
+      { role: "assistant", text: "" },
+    ]);
     try {
       await api.ask(chatId, prompt, model, session);
     } catch (e) {
@@ -238,6 +270,7 @@ export default function AskPanel({
           messages.map((m, i) =>
             m.role === "user" ? (
               <div key={i} className="ask-q">
+                {m.about && <span className="ask-about">{m.about}</span>}
                 {m.text}
               </div>
             ) : m.text ? (
@@ -270,6 +303,21 @@ export default function AskPanel({
           )
         )}
       </div>
+      {detail && (
+        <div className="ask-detail">
+          <span className="ell" title={detail.text}>
+            With the details of <b>{detail.label}</b>
+          </span>
+          <button
+            type="button"
+            className="link small"
+            onClick={() => setDetail(null)}
+            title="Ask without these details"
+          >
+            Remove
+          </button>
+        </div>
+      )}
       <form
         className="ask-input"
         onSubmit={(e) => {

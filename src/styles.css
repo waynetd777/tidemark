@@ -1282,6 +1282,39 @@ pre,
   white-space: pre-wrap;
   user-select: text;
 }
+/* The details an Ask button attached, above the box, and on the question once sent. */
+.ask-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 14px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--tide-soft);
+  font-size: 12px;
+}
+.ask-about {
+  display: block;
+  font-size: 11px;
+  opacity: 0.75;
+  margin-bottom: 2px;
+}
+/* The small Ask beside an incident, a crash or a flagged chart. */
+.btn.askbtn {
+  height: 22px;
+  padding: 0 8px;
+  gap: 4px;
+  font-size: 11.5px;
+}
+.btn.askbtn svg {
+  width: 12px;
+  height: 12px;
+}
+.rowline .tipwrap {
+  margin-left: auto;
+  flex: none;
+}
 .ask-turn {
   align-self: stretch;
   position: relative;

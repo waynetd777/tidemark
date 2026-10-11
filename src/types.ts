@@ -120,6 +120,8 @@ export interface Crash {
   ts: number;
   app: string;
   kind: "crash" | "hang";
+  /// The report macOS wrote.
+  file: string;
 }
 
 export interface Battery {

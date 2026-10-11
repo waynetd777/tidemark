@@ -183,6 +183,7 @@ pub fn run() {
             monitor::incidents,
             monitor::sleeps,
             crashes::crashes,
+            crashes::crash_report,
             monitor::pause_recording,
             monitor::mac_info,
             monitor::perf_brief,

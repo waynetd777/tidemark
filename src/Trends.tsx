@@ -5,6 +5,7 @@
 // that rose, when the Mac is usually busy, and the range's highs. Disk totals go back a year;
 // performance goes back as far as the history setting keeps it (14 days at most).
 
+import { useAssistant } from "./assistant";
 import { type ReactNode } from "react";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
@@ -71,6 +72,7 @@ export default function Trends({
   go: (s: Screen, target?: string) => void;
   ask: (q: string) => void;
 }) {
+  const assistant = useAssistant();
   // Remembered as days, not as a place in the list, so adding a range never shifts the choice.
   const [days, setDays] = useRemembered("trends.days", 30, (v): v is number =>
     RANGES.some((r) => r.days === v),
@@ -304,14 +306,20 @@ export default function Trends({
           ))}
         </div>
 
-        <section className="askstrip">
+        <section className="askstrip" title={assistant.reason ?? undefined}>
           <span className="lbl">Ask Tidemark</span>
           {[
             "Will I run out of disk this year?",
             `What grew most in the last ${RANGES[range].label}?`,
             "When is my Mac usually busiest, and why?",
           ].map((q) => (
-            <button className="chip" key={q} onClick={() => ask(q)} title="Ask this (⌘K opens Ask)">
+            <button
+              className="chip"
+              key={q}
+              disabled={!assistant.available}
+              onClick={() => ask(q)}
+              title="Ask this (⌘K opens Ask)"
+            >
               {q}
             </button>
           ))}

@@ -349,6 +349,8 @@ pub struct Crash {
     pub app: String,
     /// "crash" or "hang".
     pub kind: String,
+    /// The report macOS wrote, for Ask.
+    pub file: String,
 }
 
 pub fn add_crash(ts: i64, app: &str, kind: &str, file: &str) {
@@ -373,12 +375,13 @@ pub fn crash_files() -> std::collections::HashSet<String> {
 pub fn crashes(from: i64) -> Vec<Crash> {
     with(|c| {
         let mut st =
-            c.prepare("SELECT ts, app, kind FROM crashes WHERE ts >= ?1 ORDER BY ts DESC")?;
+            c.prepare("SELECT ts, app, kind, file FROM crashes WHERE ts >= ?1 ORDER BY ts DESC")?;
         let rows = st.query_map(params![from], |r| {
             Ok(Crash {
                 ts: r.get(0)?,
                 app: r.get(1)?,
                 kind: r.get(2)?,
+                file: r.get(3)?,
             })
         })?;
         rows.collect()

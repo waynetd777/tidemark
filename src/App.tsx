@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { open as pickFolder } from "@tauri-apps/plugin-dialog";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { api, on } from "./api";
-import Ask from "./Ask";
+import Ask, { type AskDetail, type AskSeed } from "./Ask";
+import { AskIcon } from "./AskButton";
 import { Mark } from "./Mark";
 import Now from "./Now";
 import Performance from "./Performance";
@@ -43,18 +44,6 @@ const RELOAD_ICON = (
   >
     <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
     <path d="M13.6 1.8v3.4h-3.4" />
-  </svg>
-);
-const ASK_ICON = (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M2.5 3.5A1.5 1.5 0 0 1 4 2h8a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 12 11H7l-3.2 2.7V11H4a1.5 1.5 0 0 1-1.5-1.5z" />
   </svg>
 );
 const HELP_ICON = (
@@ -227,7 +216,7 @@ export default function App() {
   const [askOpen, setAskOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   // A question Help hands to Ask, typed into its box; `n` makes a repeat of the same text count.
-  const [askSeed, setAskSeed] = useState<{ text: string; n: number } | null>(null);
+  const [askSeed, setAskSeed] = useState<AskSeed | null>(null);
   // Ask and Help share the right edge, so opening one closes the other.
   const openAsk = useCallback((on: boolean) => {
     setAskOpen(on);
@@ -736,9 +725,9 @@ export default function App() {
     return { path: tree?.path ?? info?.root ?? "/", text: parts.join("\n\n") };
   }, [tree, info, growth, brief]);
   const askAbout = useCallback(
-    (text: string) => {
+    (text: string, detail?: AskDetail) => {
       if (!assistant.available) return;
-      setAskSeed({ text, n: Date.now() });
+      setAskSeed({ text, n: Date.now(), detail });
       openAsk(true);
     },
     [assistant.available, openAsk],
@@ -756,7 +745,7 @@ export default function App() {
           aria-pressed={askOpen}
           title="Ask about the disk or performance (⌘K)"
         >
-          {ASK_ICON}
+          <AskIcon />
           <span>Ask</span>
         </button>
       </span>

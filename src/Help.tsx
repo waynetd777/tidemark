@@ -5,6 +5,7 @@
 // (src/help/*.md) section by section. Typing searches it; a link in the guide opens its section.
 // It stays open while you use the map beside it; Esc or × closes it.
 
+import { useAssistant } from "./assistant";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { Screen } from "./types";
 import { GUIDE, type HelpSection, helpHtml, searchHelp } from "./guides";
@@ -102,6 +103,7 @@ export default function HelpDrawer({
   /** Opens Ask with a question typed in, for what the guide doesn't answer. */
   onAsk: (question: string) => void;
 }) {
+  const assistant = useAssistant();
   const [q, setQ] = useState("");
   const [at, setAt] = useState<string | null>(null);
   const [all, setAll] = useState(false);
@@ -211,10 +213,11 @@ export default function HelpDrawer({
         />
       </div>
       <div className="help-body">{body}</div>
-      <div className="help-foot">
+      <div className="help-foot" title={assistant.reason ?? undefined}>
         <button
           type="button"
           className="btn small"
+          disabled={!assistant.available}
           title="Ask the AI how something in Tidemark works"
           onClick={() => onAsk(query ? `How do I ${query} in Tidemark?` : "How do I ")}
         >

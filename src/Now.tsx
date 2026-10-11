@@ -4,7 +4,17 @@
 // Now: how the Mac is doing, in a sentence; CPU, memory and disk with their tidemarks; the
 // week's high-water marks and incidents; what grew on the disk; and questions for Ask.
 
+import { useAssistant } from "./assistant";
 import type { ReactNode } from "react";
+import type { AskDetail } from "./Ask";
+import { AskButton } from "./AskButton";
+import {
+  crashDetail,
+  crashQuestion,
+  flaggedDetail,
+  incidentDetail,
+  incidentQuestion,
+} from "./askDetails";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
 import { flagFor } from "./status";
@@ -12,7 +22,7 @@ import { api } from "./api";
 import { Area, Legend, type Pt } from "./charts";
 import { crashGroups, crashTitle, incidentTitle, incidentWhy } from "./incidents";
 import { gapsOf, now, startOfToday, upToNow, usePoll } from "./perf";
-import type { GrowthInfo, Live, Screen } from "./types";
+import type { Crash, GrowthInfo, Incident, Live, Screen } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
 
 const DAY = 86400;
@@ -31,8 +41,9 @@ export default function Now({
   home: string;
   bar: (left: ReactNode) => ReactNode;
   go: (s: Screen, target?: string) => void;
-  ask: (q: string) => void;
+  ask: (q: string, detail?: AskDetail) => void;
 }) {
+  const assistant = useAssistant();
   // The charts: the last hour, minute by minute. The day: today's highs and totals.
   const hour = usePoll(() => api.perf(HOUR, 60), 30_000);
   const day = usePoll(() => api.perf(DAY, 288), 60_000);
@@ -96,12 +107,16 @@ export default function Now({
     why: string;
     incident: boolean;
     crash?: "crash" | "hang";
+    /// What its Ask button asks about.
+    inc?: Incident;
+    group?: { app: string; kind: Crash["kind"]; n: number; last: number };
   }[] = [
     ...(incidents ?? []).map((i) => ({
       t: i.started,
       what: incidentTitle(i),
       why: incidentWhy(i),
       incident: true,
+      inc: i,
     })),
     // Crashes and hangs this week, one line per app.
     ...crashGroups(crashes ?? []).map((g) => ({
@@ -110,6 +125,7 @@ export default function Now({
       why: g.n > 1 ? `${g.n} reports this week.` : "From the report macOS wrote.",
       incident: false,
       crash: g.kind,
+      group: g,
     })),
   ];
   if (disk?.high && diskPts.length > 1)
@@ -368,6 +384,25 @@ export default function Now({
           <span className="muted ell" title={c.high}>
             {c.high}
           </span>
+          {flag && (
+            <AskButton
+              title={`Ask why ${c.name.toLowerCase()} is flagged (opens Ask with this chart's figures)`}
+              onAsk={() => {
+                const pts = c.pts.filter((p) => p.v != null);
+                const vals = pts.map((p) => p.v);
+                const f = c.fmt;
+                const { question, detail } = flaggedDetail(live, c.name, [
+                  `Now: ${c.value} ${c.unit}. ${c.sub}.`,
+                  vals.length
+                    ? `${c.range}: lowest ${f(Math.min(...vals))}, highest ${f(Math.max(...vals))}, average ${f(vals.reduce((a, b) => a + b, 0) / vals.length)}.`
+                    : "",
+                  c.mark ? `The week's tidemark: ${c.mark.label}.` : "",
+                  c.high ? `${c.high}.` : "",
+                ]);
+                ask(question, detail);
+              }}
+            />
+          )}
           <button
             className="link"
             onClick={() =>
@@ -445,6 +480,20 @@ export default function Now({
                   </span>
                   <span className="muted small">{m.why}</span>
                 </span>
+                {(m.inc || m.group) && (
+                  <AskButton
+                    title={
+                      m.inc
+                        ? "Ask why this happened, with what every app was using at its peak"
+                        : "Ask what went wrong, with the reports macOS wrote"
+                    }
+                    onAsk={async () => {
+                      if (m.inc) ask(incidentQuestion(m.inc), incidentDetail(m.inc));
+                      else if (m.group)
+                        ask(crashQuestion(m.group), await crashDetail(m.group, crashes ?? []));
+                    }}
+                  />
+                )}
               </div>
             ))}
           </section>
@@ -482,10 +531,16 @@ export default function Now({
           </section>
         </div>
 
-        <section className="askstrip">
+        <section className="askstrip" title={assistant.reason ?? undefined}>
           <span className="lbl">Ask Tidemark</span>
           {questions.map((q) => (
-            <button className="chip" key={q} onClick={() => ask(q)} title="Ask this (⌘K opens Ask)">
+            <button
+              className="chip"
+              key={q}
+              disabled={!assistant.available}
+              onClick={() => ask(q)}
+              title="Ask this (⌘K opens Ask)"
+            >
               {q}
             </button>
           ))}
