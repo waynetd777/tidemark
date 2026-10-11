@@ -19,6 +19,9 @@ import type {
   Screen,
   Settings,
   Sleep,
+  UpdateMessage,
+  UpdateOffer,
+  UpdateProgress,
   View,
 } from "./types";
 
@@ -107,6 +110,8 @@ export const api = {
       focus?: string;
       tray?: boolean;
       theme?: "light" | "dark";
+      /// The update dialog, open on this offer (and this progress or message).
+      update?: { offer?: UpdateOffer; progress?: UpdateProgress; message?: UpdateMessage };
     } | null>("scene"),
   activityMonitor: () => invoke<void>("open_activity_monitor"),
   /// Open at Login: [available, on].
@@ -115,4 +120,9 @@ export const api = {
   /// The background helper that records while the app is quit (recorder.rs).
   helper: () => invoke<Helper>("background_helper"),
   setHelper: (on: boolean) => invoke<Helper>("set_background_helper", { on }),
+  /// The update on offer (updates.rs), for a page that loaded after it was sent; and the answers.
+  updateOffered: () => invoke<UpdateOffer | null>("update_offered"),
+  updateInstall: () => invoke<void>("update_install"),
+  updateLater: () => invoke<void>("update_later"),
+  updateSkip: () => invoke<void>("update_skip"),
 };

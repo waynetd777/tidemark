@@ -344,3 +344,25 @@ export interface MacInfo {
 }
 
 export type Screen = "now" | "disk" | "performance" | "trends" | "settings";
+
+/// A new version on offer (updates.rs): `notes` are the release's, in Markdown; `date` its day.
+export interface UpdateOffer {
+  name: string;
+  version: string;
+  current: string;
+  notes: string | null;
+  date: string | null;
+}
+
+/// Installing it: downloaded `done` of `total` bytes, then installing, then restarting.
+export interface UpdateProgress {
+  phase: "downloading" | "installing" | "restarting";
+  done: number;
+  total: number | null;
+}
+
+/// What a check or an install has to say: up to date, couldn't check, the update will wait.
+export interface UpdateMessage {
+  title: string;
+  text: string;
+}

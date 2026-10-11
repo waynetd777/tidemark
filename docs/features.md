@@ -64,6 +64,12 @@ Below them, About shows the version, with a **Website** button. The foot shows h
 
 In a development build the two switches are disabled. When the helper has been switched off in System Settings, Settings says so.
 
+## Updates
+
+Tidemark checks for a new version shortly after it opens and then daily, and asks in its own window: **Install and Restart**, **Later** (Esc) or **Skip This Version**, with the release's notes. Installing shows the download's progress, then restarts Tidemark and the background helper. Tidemark › Check for Updates… checks now.
+
+<a href="images/index.md#updates"><picture><source media="(prefers-color-scheme: dark)" srcset="images/update-dark.png"><img alt="The update dialog" src="images/update-light.png" width="900"></picture></a>
+
 ## Menu bar
 
 Closing the window keeps Tidemark recording in the menu bar.

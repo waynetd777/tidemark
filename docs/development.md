@@ -51,7 +51,7 @@ make install-app      # signed build, copied to /Applications
 | Energy, GPU and memory, crashes | `src-tauri/src/energy.rs`, `system.rs`, `crashes.rs` |
 | History and trends | `src-tauri/src/history.rs`, `trends.rs` |
 | Schedule, the background helper, Open at Login | `src-tauri/src/schedule.rs`, `recorder.rs`, `login_item.rs`, `login_launch.rs` |
-| Updates | `src-tauri/src/updates.rs`, `tools/update_files.py` |
+| Updates | `src-tauri/src/updates.rs`, its dialog `src/Update.tsx`, `tools/update_files.py` |
 | The menu-bar window | `src-tauri/src/tray.rs`, `src/Tray.tsx` |
 | The window, sidebar and shortcuts | `src/App.tsx` |
 | Screens and charts | `src/Now.tsx`, `Performance.tsx` (Recent), `Trends.tsx`, `Settings.tsx`, `charts.tsx`, `status.ts` |

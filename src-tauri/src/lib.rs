@@ -235,6 +235,10 @@ pub fn run() {
             recorder::background_helper,
             recorder::set_background_helper,
             scene::scene,
+            updates::update_offered,
+            updates::update_install,
+            updates::update_later,
+            updates::update_skip,
         ])
         .setup(move |app| {
             stamp("setup() start");

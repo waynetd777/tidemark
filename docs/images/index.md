@@ -24,6 +24,10 @@ On [Features](../features.md#trends-3): [light](trends-light.png) · [dark](tren
 
 On [Features](../features.md#settings-): [light](settings-light.png) · [dark](settings-dark.png)
 
+## Updates
+
+On [Features](../features.md#updates): [light](update-light.png) · [dark](update-dark.png)
+
 ## Menu bar
 
 On [Features](../features.md#menu-bar): [light](menu-bar-light.png) · [dark](menu-bar-dark.png)

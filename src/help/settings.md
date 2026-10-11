@@ -8,7 +8,7 @@ A few choices; everything else looks after itself.
 - **Scan the disk**: **Daily** (the default) scans once a day when the Mac has been idle for 5 minutes and is on power; once the last scan is two days old, it scans when idle on battery too. **Hourly** scans every hour, idle or not, on power or not, and costs some battery. **Off** never scans by itself, not even at launch: only when you press Reload.
 - **Appearance**: **Match the Mac** (the default), **Light** or **Dark**. The menu-bar window follows.
 - **About** shows the version; **Website** opens tidemark.davies.co.za. Tidemark › About Tidemark shows it too, as a link, and Help › Tidemark Website opens it.
-- **Updates**: Tidemark checks for a new version shortly after it opens and then once a day, and asks before installing it: **Install and Restart**, **Later** or **Skip This Version**. Tidemark › Check for Updates… checks now. A new version found in the background waits until you next bring Tidemark's window forward, and one won't install during a scan or while Ask is answering. Installing restarts Tidemark, and the background helper with it.
+- **Updates**: Tidemark checks for a new version shortly after it opens and then once a day, and asks before installing it, with the release's notes: **Install and Restart**, **Later** (Esc) or **Skip This Version**. Tidemark › Check for Updates… checks now. A new version found in the background waits until you next bring Tidemark's window forward, and one won't install during a scan or while Ask is answering. Installing shows the download's progress, then restarts Tidemark, and the background helper with it.
 - The foot shows how much space the history takes, and whether Tidemark has Full Disk Access.
 
 ## History

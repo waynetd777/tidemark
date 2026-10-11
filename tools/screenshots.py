@@ -56,6 +56,21 @@ GIB = 2**30
 HOME_LABEL = "/Users/alex"
 MEM_TOTAL = 24 * GIB
 
+UPDATE = {
+    "name": "Tidemark",
+    "version": "2.2.0",
+    "current": "2.1.3",
+    "date": "2026-10-11",
+    "notes": "\n".join(
+        [
+            "- Updates are offered in Tidemark's own window, with the download's progress",
+            "- Trends compares this month with the same month last year",
+            "- The disk map's labels stay readable on very small blocks",
+            "- Fixed: the menu-bar window could open on the wrong screen",
+        ]
+    ),
+}
+
 SCENES = [
     # Now mid-build: the CPU busy (amber) while memory runs out (red), so the shot shows both.
     {"name": "now", "screen": "now", "height": 1129, "strained": True},
@@ -66,6 +81,8 @@ SCENES = [
     {"name": "trends", "screen": "trends", "height": 1129},
     {"name": "settings", "screen": "settings", "height": 640},
     {"name": "menu-bar", "tray": True},
+    # The update dialog (src/Update.tsx) over the disk map, offering a made-up next version.
+    {"name": "update", "screen": "disk", "height": 900, "update": {"offer": UPDATE}},
 ]
 
 APPS = ["Safari", "Xcode", "Mail", "Slack", "Music", "Photos", "Finder", "Terminal"]

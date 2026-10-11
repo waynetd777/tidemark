@@ -708,14 +708,16 @@ pre,
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.scan .bar {
+.scan .bar,
+.upd-progress .bar {
   grid-column: 1 / -1;
   height: 4px;
   border-radius: 99px;
   background: rgba(127, 127, 127, 0.22);
   overflow: hidden;
 }
-.scan .bar i {
+.scan .bar i,
+.upd-progress .bar i {
   display: block;
   height: 100%;
   border-radius: 99px;
@@ -723,7 +725,8 @@ pre,
   width: 0;
   transition: width 0.3s ease-out;
 }
-.scan .bar.indet i {
+.scan .bar.indet i,
+.upd-progress .bar.indet i {
   width: 35%;
   animation: slide 1.2s ease-in-out infinite;
 }
@@ -1048,6 +1051,69 @@ pre,
 .menu button:hover:not(:disabled) .k {
   color: rgba(255, 255, 255, 0.8);
 }
+/* The update dialog (Update.tsx): a panel like the menus', over a dimmed window. */
+.upd {
+  width: min(460px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  padding: 20px 20px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.3);
+  flex-direction: column;
+  gap: 14px;
+}
+.upd[open] {
+  display: flex;
+}
+.upd:focus {
+  outline: none;
+}
+.upd::backdrop {
+  background: rgba(0, 0, 0, 0.28);
+}
+.upd-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.upd-head h2 {
+  margin: 0;
+}
+.upd-sub {
+  margin: 2px 0 0;
+  color: var(--muted);
+  user-select: text;
+}
+.upd-notes {
+  min-height: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 10px 12px 2px;
+  background: var(--sunk);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.upd-notes > :first-child {
+  margin-top: 0;
+}
+.upd-buttons {
+  display: flex;
+  gap: 8px;
+}
+.upd-progress {
+  display: grid;
+  gap: 8px;
+  padding: 4px 0 2px;
+}
+.upd-progress .nums {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .toast {
   position: fixed;
   left: 50%;
@@ -1090,10 +1156,12 @@ pre,
 @media (prefers-reduced-motion: reduce) {
   .spinner,
   .pill.info::before,
-  .scan .bar.indet i {
+  .scan .bar.indet i,
+  .upd-progress .bar.indet i {
     animation: none;
   }
   .scan .bar i,
+  .upd-progress .bar i,
   .btn.toggle .sw,
   .btn.toggle .sw::after {
     transition: none;

@@ -16,6 +16,7 @@ import Trends from "./Trends";
 import { now, useLive, usePoll } from "./perf";
 import { sceneMode, useRemembered } from "./remember";
 import HelpDrawer from "./Help";
+import UpdateDialog from "./Update";
 import Tooltips from "./Tooltips";
 import { describeView } from "./context";
 import { useAssistant } from "./assistant";
@@ -1192,6 +1193,7 @@ export default function App() {
         onAsk={askAbout}
       />
       <Tooltips />
+      <UpdateDialog />
     </div>
   );
 }
