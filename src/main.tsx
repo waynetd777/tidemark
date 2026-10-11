@@ -11,6 +11,15 @@ import { sceneMode } from "./remember";
 import { applyTheme, followTheme } from "./theme";
 import "./splash";
 
+// WebKit's own right-click menu offers Reload, which throws away the app's state. Keep it only
+// where it's useful — in text fields and on selected text — and leave custom menus to their owners.
+document.addEventListener("contextmenu", (e) => {
+  const t = e.target as HTMLElement | null;
+  if (t?.closest("input, textarea, [contenteditable]:not([contenteditable='false'])")) return;
+  if (window.getSelection()?.toString()) return;
+  e.preventDefault();
+});
+
 followTheme();
 
 // Endless animations cost a wakeup and a repaint each frame: the Now dots' breathing ring stops
