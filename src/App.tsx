@@ -19,7 +19,7 @@ import HelpDrawer from "./Help";
 import Tooltips from "./Tooltips";
 import { describeView } from "./context";
 import { useAssistant } from "./assistant";
-import { hideSplash } from "./main";
+import { hideSplash } from "./splash";
 import Treemap, { REVEAL, type Block } from "./Treemap";
 import type { AppInfo, GrowthInfo, Progress, Screen, Settings, View } from "./types";
 import {
@@ -78,9 +78,9 @@ const NAV: { id: Screen; label: string; key: string; icon: ReactNode }[] = [
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
+        strokeLinejoin="round"
       >
-        <path d="M2 5h12" strokeDasharray="1.6 2" />
-        <path d="M1.5 10.5c1.6-1.7 3-1.7 4.3 0s2.8 1.7 4.3 0 2.8-1.7 4.4 0" />
+        <path d="M1.5 8.5h3l2-5 3 9 2-4h3" />
       </svg>
     ),
   },
@@ -95,9 +95,9 @@ const NAV: { id: Screen; label: string; key: string; icon: ReactNode }[] = [
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
-        strokeLinejoin="round"
       >
-        <path d="M1.5 8.5h3l2-5 3 9 2-4h3" />
+        <path d="M2 5h12" strokeDasharray="1.6 2" />
+        <path d="M1.5 10.5c1.6-1.7 3-1.7 4.3 0s2.8 1.7 4.3 0 2.8-1.7 4.4 0" />
       </svg>
     ),
   },

@@ -46,52 +46,6 @@ fn service() -> Option<*mut AnyObject> {
     (!svc.is_null()).then_some(svc)
 }
 
-/// The background helper's launch agent: the plist in the bundle's
-/// Contents/Library/LaunchAgents (see recorder.rs). It shows in System Settings > General >
-/// Login Items under "Allow in the Background".
-fn agent() -> Option<*mut AnyObject> {
-    let cls = AnyClass::get(c"SMAppService")?;
-    let name = objc2_foundation::NSString::from_str(crate::recorder::PLIST);
-    let svc: *mut AnyObject = unsafe { msg_send![cls, agentServiceWithPlistName: &*name] };
-    (!svc.is_null()).then_some(svc)
-}
-
-fn status_of(svc: Option<*mut AnyObject>) -> Status {
-    let Some(svc) = svc else {
-        return Status::NotFound;
-    };
-    let raw: isize = unsafe { msg_send![svc, status] };
-    match raw {
-        0 => Status::NotRegistered,
-        1 => Status::Enabled,
-        2 => Status::RequiresApproval,
-        _ => Status::NotFound,
-    }
-}
-
-fn set_on(svc: Option<*mut AnyObject>, on: bool) {
-    if let Some(svc) = svc {
-        let mut err: *mut AnyObject = std::ptr::null_mut();
-        let _ok: bool = unsafe {
-            if on {
-                msg_send![svc, registerAndReturnError: &mut err]
-            } else {
-                msg_send![svc, unregisterAndReturnError: &mut err]
-            }
-        };
-    }
-}
-
-pub fn agent_status() -> Status {
-    status_of(agent())
-}
-
-/// Registers or unregisters the helper; the status afterwards, as for `set`.
-pub fn agent_set(on: bool) -> Status {
-    set_on(agent(), on);
-    agent_status()
-}
-
 /// Whether this is a bundled app, which is what SMAppService registers. The menu item is enabled
 /// on this rather than on `status()`: macOS reports NotFound for an app bundle that has never been
 /// registered, as well as for the unbundled `make dev` binary.

@@ -12,20 +12,16 @@
 //! print-disabled`). It used to be registered through SMAppService from a plist inside the
 //! bundle, but for an app signed with a self-signed identity macOS gave that registration no
 //! build it would allow, and launchd refused to start it (OS_REASON_CODESIGNING, exit 78) and
-//! retried for days. `refresh`, at each launch of the installed app, moves an old registration
-//! over, keeps the agent pointing at the binary, and restarts it on a new build.
+//! retried for days. `refresh`, at each launch of the installed app, keeps the agent pointing
+//! at the binary and restarts it on a new build.
 
 use serde::Serialize;
 
-/// The launch agent's label and plist. Not the old SMAppService one's (`PLIST`): macOS keeps a
-/// background-item record under that label, and launchd refuses to start a plain agent that
-/// shares it.
+/// The launch agent's label and plist. Not the old SMAppService one's
+/// (com.wayned.tidemark.recorder): macOS keeps a background-item record under that label, and
+/// launchd refuses to start a plain agent that shares it.
 pub const LABEL: &str = "com.wayned.tidemark.helper";
 const AGENT_PLIST: &str = "com.wayned.tidemark.helper.plist";
-/// The bundle's legacy plist (Contents/Library/LaunchAgents), kept only so an old SMAppService
-/// registration can be removed; and the label a plain agent briefly had too.
-pub const PLIST: &str = "com.wayned.tidemark.recorder.plist";
-const OLD_LABEL: &str = "com.wayned.tidemark.recorder";
 
 /// The argument the launch agent passes.
 pub const ARG: &str = "--record";
@@ -50,14 +46,13 @@ pub struct Helper {
     pub needs_approval: bool,
 }
 
-/// ~/Library/LaunchAgents/<name>.
-fn agents_dir() -> Option<std::path::PathBuf> {
-    Some(std::path::PathBuf::from(std::env::var_os("HOME")?).join("Library/LaunchAgents"))
-}
-
 /// ~/Library/LaunchAgents/com.wayned.tidemark.helper.plist.
 fn agent_path() -> Option<std::path::PathBuf> {
-    Some(agents_dir()?.join(AGENT_PLIST))
+    Some(
+        std::path::PathBuf::from(std::env::var_os("HOME")?)
+            .join("Library/LaunchAgents")
+            .join(AGENT_PLIST),
+    )
 }
 
 /// The launchd domain of this user's session: gui/<uid>.
@@ -84,6 +79,12 @@ fn agent_program() -> Option<String> {
     let v: plist::Value = plist::from_file(agent_path()?).ok()?;
     let args = v.as_dictionary()?.get("ProgramArguments")?.as_array()?;
     args.first()?.as_string().map(str::to_string)
+}
+
+/// Loaded into launchd now. Switching Tidemark off in System Settings' Login Items unloads it
+/// (and macOS lists it under the same switch as the app's old registration).
+fn loaded() -> bool {
+    launchctl(&["print", &format!("{}/{LABEL}", domain())])
 }
 
 /// Switched off in System Settings' Login Items (launchd keeps it as disabled).
@@ -149,8 +150,10 @@ fn helper() -> Helper {
             needs_approval: false,
         };
     }
+    // Installed but not loaded, or disabled: switched off in Login Items, where only the user
+    // can allow it again.
     let installed = agent_program().is_some();
-    let off = installed && disabled();
+    let off = installed && (!loaded() || disabled());
     Helper {
         available: available(),
         on: installed && !off,
@@ -185,35 +188,11 @@ fn remember_build() {
     }
 }
 
-/// At the installed app's launch: moves an old SMAppService registration to the plain agent
-/// (keeping whether it was on), points the agent at this binary if the app has moved, and
+/// At the installed app's launch: points the agent at this binary if the app has moved, and
 /// restarts the helper on a new build so it runs the new code.
 pub fn refresh() {
     if crate::scene::active() || !available() {
         return;
-    }
-    // Installed just now: already running this binary, so not loaded again below.
-    let mut fresh = false;
-    #[cfg(target_os = "macos")]
-    objc2::rc::autoreleasepool(|_| {
-        use crate::login_item::{self, Status};
-        // SMAppService hands back autoreleased objects; this thread has no pool of its own.
-        let old = login_item::agent_status();
-        if matches!(old, Status::Enabled | Status::RequiresApproval) {
-            login_item::agent_set(false);
-            if old == Status::Enabled && agent_program().is_none() {
-                fresh = install();
-            }
-        }
-    });
-    // A plain agent under the old label (one build wrote it): it can't start; this one replaces
-    // it.
-    if let Some(old) = agents_dir().map(|d| d.join(PLIST)).filter(|p| p.exists()) {
-        let _ = launchctl(&["bootout", &format!("{}/{OLD_LABEL}", domain())]);
-        let _ = std::fs::remove_file(old);
-        if agent_program().is_none() {
-            fresh = install();
-        }
     }
     let Some(program) = agent_program() else {
         return;
@@ -224,7 +203,8 @@ pub fn refresh() {
     // ThrottleInterval when the helper had just started.)
     let moved = exe.as_deref().ok() != Some(program.as_str());
     let rebuilt = std::fs::read_to_string(build_file()).ok() != build_id();
-    if !fresh && (moved || rebuilt) {
+    // Not when it was switched off in Login Items: that is the user's to undo.
+    if (moved || rebuilt) && loaded() {
         install();
     }
     remember_build();
@@ -246,7 +226,9 @@ pub fn set_background_helper(on: bool) -> Helper {
         if install() {
             remember_build();
         }
-        if disabled() {
+        // Refused, or loaded but disabled: switched off in Login Items, which only the user can
+        // switch back on.
+        if !loaded() || disabled() {
             #[cfg(target_os = "macos")]
             crate::login_item::open_settings();
         }

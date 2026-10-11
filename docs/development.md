@@ -44,7 +44,7 @@ make install-app      # signed build, copied to /Applications
 | The recorder and incidents | `src-tauri/src/monitor.rs` |
 | Energy, GPU and memory, crashes | `src-tauri/src/energy.rs`, `system.rs`, `crashes.rs` |
 | History and trends | `src-tauri/src/history.rs`, `trends.rs` |
-| Schedule and the background helper | `src-tauri/src/schedule.rs`, `recorder.rs`, `src-tauri/launchagent/` |
+| Schedule and the background helper | `src-tauri/src/schedule.rs`, `recorder.rs` |
 | The menu-bar window | `src-tauri/src/tray.rs`, `src/Tray.tsx` |
 | Screens and charts | `src/Now.tsx`, `Performance.tsx`, `Trends.tsx`, `Settings.tsx`, `charts.tsx`, `status.ts` |
 | The map and file table | `src/Treemap.tsx`, `src/FileTable.tsx` |

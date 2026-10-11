@@ -25,7 +25,6 @@ lint:
 	npm run lint
 	ruff check tools && ruff format --check tools
 	shellcheck $(wildcard tools/*.sh) .githooks/*
-	plutil -lint -s src-tauri/launchagent/*.plist
 
 ## Reformat everything in place (rustfmt, Prettier, ruff).
 fmt:

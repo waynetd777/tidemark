@@ -9,25 +9,9 @@ import "./styles.css";
 import { api } from "./api";
 import { sceneMode } from "./remember";
 import { applyTheme, followTheme } from "./theme";
+import "./splash";
 
 followTheme();
-
-/// How long the splash stays up at minimum, so a fast start reads as a deliberate opening
-/// rather than a blink.
-const MIN_SPLASH_MS = 900;
-const splashShownAt = Date.now();
-
-/// Fade out the splash that index.html painted, once there is a real screen to replace it.
-export function hideSplash() {
-  const el = document.getElementById("splash");
-  if (!el || el.classList.contains("gone") || el.dataset.going) return;
-  const wait = Math.max(0, MIN_SPLASH_MS - (Date.now() - splashShownAt));
-  el.dataset.going = "1";
-  setTimeout(() => {
-    el.classList.add("gone");
-    setTimeout(() => el.remove(), 250);
-  }, wait);
-}
 
 /// The menu-bar window loads the same page with ?view=tray (tauri.conf.json).
 const tray = new URLSearchParams(location.search).get("view") === "tray";

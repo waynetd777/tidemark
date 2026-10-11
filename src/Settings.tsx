@@ -66,7 +66,7 @@ export default function Settings({
                   {!helper?.available
                     ? "Available in the installed app (make install-app), not in a development build."
                     : helper.needs_approval
-                      ? "macOS needs you to allow it: System Settings › General › Login Items › Allow in the Background."
+                      ? "Switched off in System Settings › General › Login Items › Allow in the Background. Switch Tidemark on there to keep recording."
                       : "A small background helper records while Tidemark is quit, and starts when you log in."}
                 </span>
               </span>
