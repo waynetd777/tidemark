@@ -807,3 +807,13 @@ export function Cores({ use, kinds, tone }: { use: number[]; kinds: string; tone
     </div>
   );
 }
+
+/// The heading over the charts of other measures a tab shows for comparison: why they're there.
+export function Alongside({ why }: { why: string }) {
+  return (
+    <div className="alongside">
+      <span className="lbl">For comparison</span>
+      <span>{why}</span>
+    </div>
+  );
+}

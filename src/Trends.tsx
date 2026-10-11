@@ -12,7 +12,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { AllIcon, Labelled, MetricIcon } from "./icons";
 import { metricOf } from "./metrics";
 import { api } from "./api";
-import { Area, Heatmap, Legend, Spark, type Pt } from "./charts";
+import { Alongside, Area, Heatmap, Legend, Spark, type Pt } from "./charts";
 import { now, usePoll, usePolled } from "./perf";
 import { isTab, TABS, tabFor, type Tab } from "./perfTabs";
 import { useRemembered } from "./remember";
@@ -234,11 +234,23 @@ const M: Record<string, Measure> = {
 const TAB_CHARTS: Record<Exclude<Tab, "disk">, string[]> = {
   all: ["CPU", "GPU", "Memory", "Read", "Written", "Downloaded", "Uploaded", "Energy"],
   cpu: ["CPU", "Performance cores", "Efficiency cores"],
-  gpu: ["GPU", "CPU", "Power"],
+  gpu: ["GPU"],
   memory: ["Memory", "Swap", "Pressure"],
   diskio: ["Read", "Written"],
   network: ["Downloaded", "Uploaded"],
-  energy: ["Energy", "Power", "CPU", "GPU"],
+  energy: ["Energy", "Power"],
+};
+
+/// Other measures a tab shows for comparison, and why.
+const TAB_ALSO: Partial<Record<Tab, { why: string; charts: string[] }>> = {
+  gpu: {
+    why: "The CPU sets the GPU's work, and both draw power: a busy GPU day is usually busy in one or both.",
+    charts: ["CPU", "Power"],
+  },
+  energy: {
+    why: "The CPU and the GPU draw most of the power: a day's energy follows them.",
+    charts: ["CPU", "GPU"],
+  },
 };
 
 export default function Trends({
@@ -340,7 +352,7 @@ export default function Trends({
   };
 
   // One measure's card: its figure now (the last day), the range in a line, and its chart.
-  const chart = (m: Measure, height: number) => {
+  const chart = (m: Measure, height: number, related = false) => {
     const pts = series(m.avg);
     const band = m.peak ? series(m.peak) : undefined;
     const vals = pts.map((p) => p.v);
@@ -363,7 +375,7 @@ export default function Trends({
     const mins = withV.reduce((a, d) => a + d.minutes, 0);
     const typical = mins ? withV.reduce((a, d) => a + (m.avg(d) ?? 0) * d.minutes, 0) / mins : 0;
     return (
-      <section className="card chart" key={m.name}>
+      <section className={`card chart${related ? " related" : ""}`} key={m.name}>
         <div className="row base wrap">
           <b className="cname">
             <Labelled
@@ -824,6 +836,14 @@ export default function Trends({
                 // emptying and filling again; only the tabs wait to know.
                 .filter((n) => !known || has(n) || n === "CPU")
                 .map((n, i) => chart(M[n], shown !== "all" && i === 0 ? 220 : 170))}
+              {TAB_ALSO[shown] && TAB_ALSO[shown].charts.some((n) => !known || has(n)) && (
+                <>
+                  <Alongside why={TAB_ALSO[shown].why} />
+                  {TAB_ALSO[shown].charts
+                    .filter((n) => !known || has(n))
+                    .map((n) => chart(M[n], 170, true))}
+                </>
+              )}
               {shown === "all" ? (
                 diskCard(170)
               ) : (

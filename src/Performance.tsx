@@ -14,7 +14,7 @@ import { AskButton } from "./AskButton";
 import { flaggedDetail } from "./askDetails";
 import { flagFor } from "./status";
 import { api } from "./api";
-import { Area, Legend, type Pt } from "./charts";
+import { Alongside, Area, Legend, type Pt } from "./charts";
 import { crashGroups, crashTitle, incidentTitle } from "./incidents";
 import { gapsOf, now, upToNow, usePoll, usePolled } from "./perf";
 import { isTab, TABS, tabFor, type Tab } from "./perfTabs";
@@ -557,8 +557,12 @@ export default function Performance({
   // One measure's chart card (CPU, GPU, memory): its figure, flag, legend and chart.
   // `extras` draws the parts of the whole too (the CPU's kinds of core); the All tab leaves them
   // to the measure's own tab.
-  const chartCard = (c: ChartSpec, height = 170, extras = true) => (
-    <section className="card chart" key={c.name} data-focus={c.focus ?? c.name.toLowerCase()}>
+  const chartCard = (c: ChartSpec, height = 170, extras = true, related = false) => (
+    <section
+      className={`card chart${related ? " related" : ""}`}
+      key={c.name}
+      data-focus={c.focus ?? c.name.toLowerCase()}
+    >
       <div className="row base wrap">
         <b className="cname">
           <Labelled m={metricOf(c.name)}>{c.name}</Labelled>
@@ -977,11 +981,22 @@ export default function Performance({
     };
   };
   const more = (name: string) => allMore().find((c) => c.name === name);
-  // A tab's charts: its own measure taller, each part below it the All tab's size.
-  const column = (main: (ChartSpec | undefined)[], rest: (ChartSpec | undefined)[]) => (
+  // A tab's charts: its own measure taller, each part below it the All tab's size, then other
+  // measures for comparison under a heading that says why they're there.
+  const column = (
+    main: (ChartSpec | undefined)[],
+    rest: (ChartSpec | undefined)[],
+    also?: { why: string; charts: (ChartSpec | undefined)[] },
+  ) => (
     <>
       {main.filter((c) => !!c).map((c) => chartCard(c, 220, false))}
       {rest.filter((c) => !!c).map((c) => chartCard(c, 170, false))}
+      {also?.charts.some((c) => !!c) && (
+        <>
+          <Alongside why={also.why} />
+          {also.charts.filter((c) => !!c).map((c) => chartCard(c, 170, false, true))}
+        </>
+      )}
     </>
   );
   // The battery: its charge, health and what the last sleep cost (the Energy tab).
@@ -1194,7 +1209,10 @@ export default function Performance({
   );
   const gpuTab = () => (
     <div className="perfmain" {...panel("gpu")}>
-      {column([gpuChart], [cpuChart, more("Energy")])}
+      {column([gpuChart], [], {
+        why: "The CPU sets the GPU's work, and both draw power: a GPU spike usually shows in one or both.",
+        charts: [cpuChart, more("Energy")],
+      })}
       <div className="cards2">
         {momentsCard("Busiest GPU moments", "GPU", (m) => m.gpu_max ?? 0, pct)}
         <div className="tiles">{thermalTile}</div>
@@ -1203,7 +1221,10 @@ export default function Performance({
   );
   const ioTab = () => (
     <div className="perfmain" {...panel("diskio")}>
-      {column([more("Disk reads"), more("Disk writes")], [swapSpec])}
+      {column([more("Disk reads"), more("Disk writes")], [], {
+        why: "Swap is memory written out to the disk: heavy swapping shows up as disk writes.",
+        charts: [swapSpec],
+      })}
       <div className="cards2">
         {momentsCard("Busiest disk moments", "Disk I/O", (m) => m.disk_max, fmtRate)}
         {appsCard(
@@ -1239,9 +1260,11 @@ export default function Performance({
                 { sub: live?.battery ? batteryLine(live.battery) : "", peak: null },
               )
             : undefined,
-          cpuChart,
-          gpuChart,
         ],
+        {
+          why: "The CPU and the GPU draw most of the power: what the Mac drew follows them.",
+          charts: [cpuChart, gpuChart],
+        },
       )}
       <div className="cards2">
         {energyAppsCard}

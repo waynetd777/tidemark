@@ -4,13 +4,13 @@ Every live measure in detail, over 1 hour, 24 hours, 7 or 14 days.
 
 - The range and the tab you pick are remembered, and a card's **Details** on Now or a row of the menu opens its tab.
 - **All** shows one chart a measure, each the same size and lined up in time: CPU, GPU (where the Mac reports it), memory, disk reads, disk writes, download, upload, energy and disk space.
-- The other tabs give one measure more room, a chart for each of its parts, lined up the same way, with its busiest apps, incidents and busiest moments below:
+- The other tabs give one measure more room, a chart for each of its parts, lined up the same way, with its busiest apps, incidents and busiest moments below. Charts of other measures that tend to move with it come last, under **For comparison**, which says why:
   - **CPU**: the CPU, its performance cores and its efficiency cores; the apps using the most CPU, CPU incidents, the Mac's thermal state, and the apps that crashed or hung.
-  - **GPU**: the GPU beside the CPU and the power drawn, and its busiest moments. macOS doesn't report apps' shares of the GPU.
+  - **GPU**: the GPU, then the CPU and the power drawn for comparison, and its busiest moments. macOS doesn't report apps' shares of the GPU.
   - **Memory**: memory in use, then what it's made of as Activity Monitor splits it (what apps use, **wired**, the system's own and never moved to disk, and **compressed**), swap and pressure; the apps holding the most and memory incidents. Compressed and swap growing while pressure turns red means the Mac is short of memory.
-  - **Disk I/O**: reads, writes and swap; the busiest moments and the apps using the disk.
+  - **Disk I/O**: reads and writes, then swap for comparison (heavy swapping shows up as disk writes); the busiest moments and the apps using the disk.
   - **Network**: download and upload, and the busiest of each. Every interface counts except the Mac talking to itself.
-  - **Energy**: the power the whole Mac draws, battery charge, the CPU and GPU that most of it follows, the apps using the most energy and the battery's health, cycles and what the last sleep cost.
+  - **Energy**: the power the whole Mac draws and battery charge, then the CPU and GPU that most of it follows for comparison, the apps using the most energy and the battery's health, cycles and what the last sleep cost.
   - **Disk space**: the disk's used space, recorded hourly, over the range (the last 24 hours on the 1-hour range), its free space, the change and the week's tidemark, and what grew this week.
 - Power and battery come from the battery's controller, so a Mac without a battery shows only the apps.
 - Each app's energy is a share of what the busiest apps used. macOS's per-app count leaves out the display and the system, so watts would look too small. Only your own apps can be measured.
