@@ -12,7 +12,7 @@ A few choices; everything else looks after itself.
 
 ## History
 
-Everything Tidemark remembers stays on this Mac, in ~/Library/Application Support/Tidemark: the history in history.sqlite, the last scan of each folder you scanned (in scans), your choices in settings.json, and the background helper's messages in helper.log (emptied once it passes 1 MB). Small files beside them (the .lock files, live.json and others) let the app and the helper share the work. Ask runs its AI tool in an empty folder of its own, ~/Library/Application Support/com.wayned.tidemark.
+Everything Tidemark remembers stays on this Mac, in ~/Library/Application Support/Tidemark: the history in history.sqlite, the last scan of each folder you scanned (in scans), your choices in settings.json, and the background helper's messages in helper.log (emptied once it passes 1 MB). Small files beside them (the .lock files, the live.sock socket and others) let the app and the helper share the work. Ask runs its AI tool in an empty folder of its own, ~/Library/Application Support/com.wayned.tidemark.
 
 | What | Kept for |
 |---|---|

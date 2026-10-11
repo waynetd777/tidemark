@@ -5,8 +5,8 @@
 //! open, 5 s otherwise), keeps the last 15 minutes in memory for the live charts, writes one row
 //! a minute (averages and maxima) with the busiest apps of that minute to the history, and opens
 //! an incident when something crosses a line: CPU above 90% for 30 s, memory pressure critical,
-//! or swap growing by 1 GB within 10 minutes. Each incident keeps what every app was doing at
-//! its peak.
+//! or swap growing by 1 GB within 10 minutes. Each incident keeps what the busiest apps were
+//! doing at its peak.
 //!
 //! Processes are grouped by the app they belong to (the outermost .app in the executable's
 //! path), so Chrome's dozens of helpers count as Google Chrome. CPU is a share of the whole
@@ -16,7 +16,10 @@ use crate::energy::{Battery, Meter};
 use crate::history::{self, AppUse, By, Minute};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use sysinfo::{Networks, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
@@ -435,9 +438,9 @@ impl Acc {
 // ---- one recorder at a time ----
 //
 // The app and the background helper (`Tidemark --record`, a launch agent: see recorder.rs) can
-// both be running. Whichever holds recorder.lock records; the app, when it doesn't, reads what
-// the helper shares in live.json. The lock goes with the process, so when the recorder stops, the other takes over
-// within seconds.
+// both be running. Whichever holds recorder.lock records; the app, when it doesn't, follows the
+// helper's live readings down a Unix socket (live.sock), which costs no disk writes. The lock goes
+// with the process, so when the recorder stops, the other takes over within seconds.
 
 /// This process holds the lock and is recording.
 static RECORDING: AtomicBool = AtomicBool::new(false);
@@ -466,12 +469,10 @@ fn try_lock() -> bool {
     true
 }
 
-fn live_path() -> std::path::PathBuf {
-    crate::cache::dir().join("live.json")
-}
-/// Touched by a process with a window on screen, so the recorder samples faster.
-fn watching_path() -> std::path::PathBuf {
-    crate::cache::dir().join("watching")
+/// Where the recorder serves its live readings to the app: a Unix socket, so nothing is written
+/// to disk however often they change.
+fn socket_path() -> std::path::PathBuf {
+    crate::cache::dir().join("live.sock")
 }
 /// When recording is paused until, as the pause control left it (unix seconds; absent: not).
 fn pause_path() -> std::path::PathBuf {
@@ -485,50 +486,125 @@ fn read_pause() -> Option<i64> {
         .filter(|&t| t > history::now())
 }
 
-/// Touched by the app while it follows the recorder (the helper, which shows nothing, doesn't),
-/// so the recorder writes live.json only while someone reads it.
-fn following_path() -> std::path::PathBuf {
-    crate::cache::dir().join("following")
-}
-
-/// Touched within the last `secs` seconds.
-fn touched(path: &std::path::Path, secs: u64) -> bool {
-    std::fs::metadata(path)
-        .and_then(|m| m.modified())
-        .is_ok_and(|t| t.elapsed().is_ok_and(|e| e.as_secs() < secs))
-}
-
 /// This process is the background helper: no window, no menu bar, nothing to follow for.
 pub static HEADLESS: AtomicBool = AtomicBool::new(false);
 
-/// The recorder's state, for the process that isn't recording. Written only while the app
-/// follows: in full while a window is on screen (the live charts), else just the latest
-/// reading and the busiest apps, which is all the menu bar's status needs.
-fn share(watched: bool) {
-    if !touched(&following_path(), 10) {
+/// A process following the recorder: the stream its readings go down, and whether it has a window
+/// on screen, which it says down the same stream ("1" or "0", a line each time it changes).
+struct Follower {
+    out: UnixStream,
+    watched: Arc<AtomicBool>,
+}
+
+static FOLLOWERS: Mutex<Vec<Follower>> = Mutex::new(Vec::new());
+
+/// A write to a follower that has gone fails rather than raising SIGPIPE.
+fn no_sigpipe(s: &UnixStream) {
+    use std::os::fd::AsRawFd;
+    let on: libc::c_int = 1;
+    unsafe {
+        libc::setsockopt(
+            s.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_NOSIGPIPE,
+            &on as *const _ as *const libc::c_void,
+            std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+        );
+    }
+}
+
+/// Opens live.sock for followers, once this process holds the lock. Each follower gets a thread
+/// that reads what it says (whether a window is on screen); readings go out from `share`.
+fn serve() {
+    let dir = crate::cache::dir();
+    // Files earlier versions shared readings through.
+    for old in ["live.json", "live.tmp", "following", "watching"] {
+        let _ = std::fs::remove_file(dir.join(old));
+    }
+    let path = socket_path();
+    // One left by a recorder that died: the lock says nobody is serving it.
+    let _ = std::fs::remove_file(&path);
+    let listener = match UnixListener::bind(&path) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("live readings: {e}");
+            return;
+        }
+    };
+    let _ = std::thread::Builder::new()
+        .name("live".into())
+        .spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(out) = stream else { continue };
+                let Ok(input) = out.try_clone() else { continue };
+                no_sigpipe(&out);
+                // A follower that stops reading is dropped rather than stalling the recorder.
+                let _ = out.set_write_timeout(Some(Duration::from_secs(1)));
+                let watched = Arc::new(AtomicBool::new(false));
+                let said = watched.clone();
+                let _ = std::thread::Builder::new()
+                    .name("live-follower".into())
+                    .spawn(move || {
+                        for line in BufReader::new(input).lines() {
+                            let Ok(line) = line else { break };
+                            said.store(line.trim() == "1", Ordering::Relaxed);
+                        }
+                        // Gone: `share` drops it at the next failed write.
+                        said.store(false, Ordering::Relaxed);
+                    });
+                FOLLOWERS
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .push(Follower { out, watched });
+            }
+        });
+}
+
+/// A follower has a window on screen: sample faster so its live charts move.
+fn followers_watching() -> bool {
+    FOLLOWERS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .iter()
+        .any(|f| f.watched.load(Ordering::Relaxed))
+}
+
+/// Sends the recorder's state to each follower, a line of JSON: in full to one with a window on
+/// screen (the live charts), else just the latest reading and the busiest apps, which is all the
+/// menu bar's status needs. Nothing to do, and nothing serialised, when nobody follows.
+fn share() {
+    let mut followers = FOLLOWERS.lock().unwrap_or_else(|e| e.into_inner());
+    if followers.is_empty() {
         return;
     }
-    let bytes = live(|l| {
-        if watched {
-            serde_json::to_vec(l)
+    let line = |l: &Live| {
+        let mut b = serde_json::to_vec(l).unwrap_or_default();
+        b.push(b'\n');
+        b
+    };
+    let (mut full, mut brief): (Option<Vec<u8>>, Option<Vec<u8>>) = (None, None);
+    followers.retain_mut(|f| {
+        let bytes = if f.watched.load(Ordering::Relaxed) {
+            full.get_or_insert_with(|| live(|l| line(l)))
         } else {
-            serde_json::to_vec(&Live {
-                samples: l.samples.back().cloned().into_iter().collect(),
-                apps: busiest(&l.apps),
-                processes: l.processes,
-                mem_total: l.mem_total,
-                battery: l.battery.clone(),
-                paused_until: l.paused_until,
-                open: l.open.clone(),
-                cores: l.cores.clone(),
+            brief.get_or_insert_with(|| {
+                live(|l| {
+                    line(&Live {
+                        samples: l.samples.back().cloned().into_iter().collect(),
+                        apps: busiest(&l.apps),
+                        processes: l.processes,
+                        mem_total: l.mem_total,
+                        battery: l.battery.clone(),
+                        paused_until: l.paused_until,
+                        open: l.open.clone(),
+                        cores: l.cores.clone(),
+                    })
+                })
             })
-        }
-        .unwrap_or_default()
+        };
+        // A failed or timed-out write may have sent part of a line: the stream is done with.
+        f.out.write_all(bytes).is_ok()
     });
-    let tmp = live_path().with_extension("tmp");
-    if std::fs::write(&tmp, bytes).is_ok() {
-        let _ = std::fs::rename(&tmp, live_path());
-    }
 }
 
 /// The busiest apps by CPU, by memory and by energy, each list as long as `perf_live` shows, so
@@ -550,22 +626,91 @@ fn busiest(apps: &[AppUse]) -> Vec<AppUse> {
     keep.into_iter().cloned().collect()
 }
 
-/// Reads what the recorder shared, if it is recent (a stopped recorder's file is stale).
-fn follow() {
+/// The app's connection to the recorder in the other process.
+struct Link {
+    input: BufReader<UnixStream>,
+    out: UnixStream,
+    /// What it last told the recorder about its window.
+    said: Option<bool>,
+    /// Part of a line, kept across reads that time out.
+    buf: Vec<u8>,
+    /// The last reading: a recorder silent for 30 s is hung, and is let go.
+    heard: Instant,
+}
+
+impl Link {
+    fn open() -> Option<Link> {
+        let out = UnixStream::connect(socket_path()).ok()?;
+        no_sigpipe(&out);
+        let _ = out.set_write_timeout(Some(Duration::from_secs(1)));
+        Some(Link {
+            input: BufReader::new(out.try_clone().ok()?),
+            out,
+            said: None,
+            buf: Vec::new(),
+            heard: Instant::now(),
+        })
+    }
+}
+
+/// Follows the recorder in the other process for about 2 s, then returns so the caller can take
+/// over if it has stopped: says whether a window is on screen here, and keeps the latest reading.
+/// Returns at once when the recorder goes. The helper, which shows nothing, only waits.
+fn follow(link: &mut Option<Link>) {
+    let wait = Duration::from_secs(2);
     if HEADLESS.load(Ordering::Relaxed) {
+        std::thread::sleep(wait);
         return;
     }
-    let _ = std::fs::create_dir_all(crate::cache::dir());
-    let _ = std::fs::write(following_path(), b"");
-    if FAST.load(Ordering::Relaxed) {
-        let _ = std::fs::write(watching_path(), b"");
+    if link.is_none() {
+        *link = Link::open();
     }
-    let shared: Option<Live> = touched(&live_path(), 30)
-        .then(|| std::fs::read(live_path()).ok())
-        .flatten()
-        .and_then(|b| serde_json::from_slice(&b).ok());
-    if let Some(l) = shared {
-        *LIVE.lock().unwrap_or_else(|e| e.into_inner()) = Some(l);
+    let Some(l) = link.as_mut() else {
+        std::thread::sleep(wait);
+        return;
+    };
+    let fast = FAST.load(Ordering::Relaxed);
+    if l.said != Some(fast) {
+        if l.out.write_all(if fast { b"1\n" } else { b"0\n" }).is_err() {
+            *link = None;
+            return;
+        }
+        l.said = Some(fast);
+    }
+    let until = Instant::now() + wait;
+    let mut latest: Option<Live> = None;
+    let gone = loop {
+        let left = until.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            break l.heard.elapsed() > Duration::from_secs(30);
+        }
+        let _ = l.input.get_ref().set_read_timeout(Some(left));
+        match l.input.read_until(b'\n', &mut l.buf) {
+            Ok(0) => break true,
+            Ok(_) if l.buf.ends_with(b"\n") => {
+                if let Ok(v) = serde_json::from_slice(&l.buf) {
+                    latest = Some(v);
+                }
+                l.buf.clear();
+                l.heard = Instant::now();
+            }
+            Ok(_) => {}
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                break l.heard.elapsed() > Duration::from_secs(30);
+            }
+            Err(_) => break true,
+        }
+    };
+    if let Some(v) = latest {
+        *LIVE.lock().unwrap_or_else(|e| e.into_inner()) = Some(v);
+    }
+    if gone {
+        *link = None;
     }
 }
 
@@ -573,19 +718,23 @@ fn follow() {
 pub fn start() {
     std::thread::Builder::new()
         .name("monitor".into())
-        .spawn(|| loop {
-            // Screenshots record nothing: they show the demo's live readings.
-            if !crate::scene::active() && try_lock() {
-                RECORDING.store(true, Ordering::SeqCst);
-                history::close_dangling();
-                // Any day still in the minutes without its daily row gets one (Trends' record).
-                history::roll_up_recent();
-                // What the previous recorder had open is closed now; forget its copy.
-                live(|l| l.open.clear());
-                run();
+        .spawn(|| {
+            let mut link: Option<Link> = None;
+            loop {
+                // Screenshots record nothing: they show the demo's live readings.
+                if !crate::scene::active() && try_lock() {
+                    RECORDING.store(true, Ordering::SeqCst);
+                    link = None;
+                    serve();
+                    history::close_dangling();
+                    // Any day still in the minutes without its daily row gets one (Trends' record).
+                    history::roll_up_recent();
+                    // What the previous recorder had open is closed now; forget its copy.
+                    live(|l| l.open.clear());
+                    run();
+                }
+                follow(&mut link);
             }
-            follow();
-            std::thread::sleep(Duration::from_secs(2));
         })
         .expect("the monitor thread starts");
 }
@@ -641,9 +790,8 @@ fn run() {
         history::has_minute(m * 60).then_some(m)
     };
     loop {
-        // Faster while a window is on screen here, or in the other process.
-        let watched = touched(&watching_path(), 10);
-        let every = if FAST.load(Ordering::Relaxed) || watched {
+        // Faster while a window is on screen here, or in a follower.
+        let every = if FAST.load(Ordering::Relaxed) || followers_watching() {
             2
         } else {
             5
@@ -663,7 +811,7 @@ fn run() {
         live(|l| l.paused_until = paused);
         if paused.is_some() {
             end_all(last_wall, &mut watches);
-            share(watched);
+            share();
             // Keep the counters current so the first sample after the pause covers 2-5 s, not
             // the whole pause.
             refresh(&mut sys, &mut nets);
@@ -848,7 +996,7 @@ fn run() {
             l.battery = battery;
             l.cores = cores;
         });
-        share(watched);
+        share();
     }
 }
 
