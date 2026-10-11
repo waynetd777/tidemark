@@ -242,6 +242,7 @@ export default function Trends({
   go,
   ask,
   focus,
+  historyDays,
 }: {
   home: string;
   bar: (left: ReactNode) => ReactNode;
@@ -249,6 +250,8 @@ export default function Trends({
   ask: (q: string) => void;
   /// A link's target (a measure, as Recent's Details): its tab opens.
   focus?: string;
+  /// Days of minutes kept, which the by-hour shading is drawn from.
+  historyDays: number;
 }) {
   const assistant = useAssistant();
   // Remembered as days, not as a place in the list, so adding a range never shifts the choice.
@@ -261,6 +264,12 @@ export default function Trends({
   }, [focus, setTab]);
   // The day picked on a chart (its local midnight) and the chart's measure.
   const [picked, setPicked] = useState<{ t: number; why: string } | null>(null);
+  // ...and lets go of a day picked on another (reset as the link arrives, not in an effect).
+  const [focusSeen, setFocusSeen] = useState(focus);
+  if (focus !== focusSeen) {
+    setFocusSeen(focus);
+    if (focus) setPicked(null);
+  }
   const range = Math.max(
     0,
     RANGES.findIndex((r) => r.days === days),
@@ -268,14 +277,26 @@ export default function Trends({
   const perfDays = usePoll(() => api.perfDays(days), 300_000, [days]) ?? [];
   const trend = usePoll(() => api.diskTrend(days), 300_000, [days]);
   const growth = usePoll(() => api.growth("/", days), 300_000, [days]);
-  const hasGpu = perfDays.some((d) => d.gpu != null);
-  const shown: Tab = tab === "gpu" && !hasGpu ? "all" : tab;
+  // A measure the Mac never reported (no GPU, no battery controller's power) has no chart.
+  const has = (n: string) => perfDays.some((d) => M[n].avg(d) != null);
+  const hasGpu = has("GPU");
+  const hasPower = has("Energy");
+  const shown: Tab = (tab === "gpu" && !hasGpu) || (tab === "energy" && !hasPower) ? "all" : tab;
   const tabMeasure = shown === "disk" ? null : M[TAB_CHARTS[shown][0]];
   const heatOf = tabMeasure?.hour ?? "cpu";
-  const heat = usePoll(() => api.byHour(heatOf), 600_000, [heatOf]);
+  // Only the measure tabs show it.
+  const wantsHeat = shown !== "all" && shown !== "disk";
+  const heat = usePoll(() => (wantsHeat ? api.byHour(heatOf) : Promise.resolve(null)), 600_000, [
+    heatOf,
+    wantsHeat,
+  ]);
 
-  const t1 = now();
+  const midnight = new Date();
+  midnight.setHours(24, 0, 0, 0);
+  const t1 = Math.max(now(), midnight.getTime() / 1000);
   const t0 = t1 - days * 86400;
+  // Local midnight today, to know whether the last day recorded is today.
+  const today0 = t1 - 86400;
   const xl = Array.from({ length: 5 }, (_, i) =>
     i === 4 ? "today" : dateLabel(t0 + ((t1 - t0) * i) / 4),
   );
@@ -287,11 +308,13 @@ export default function Trends({
   // The day the side card is about: picked, else the busiest day of the tab's measure.
   // The busiest day: the highest day's figure (average, or total), not the highest peak, which
   // many days share at 100%.
-  const busiestOf = (m: Measure) =>
-    perfDays.reduce<PerfDay | null>(
+  // Days with under an hour recorded (a brief wake, say) are left out of the picks.
+  const full = perfDays.filter((d) => d.minutes >= 60);
+  const busiestOf = (m: Measure): PerfDay | null =>
+    full.reduce<PerfDay | null>(
       (b, d) => ((m.avg(d) ?? -1) > (b ? (m.avg(b) ?? -1) : -1) ? d : b),
       null,
-    );
+    ) ?? (m === M.CPU ? null : busiestOf(M.CPU));
   const measure = picked ? (M[picked.why] ?? tabMeasure ?? M.CPU) : (tabMeasure ?? M.CPU);
   const day = picked
     ? (perfDays.find((d) => Math.abs(at(d) - picked.t) < 43_200) ?? null)
@@ -316,6 +339,14 @@ export default function Trends({
             ? Math.max(1, ...perfDays.map((d) => d.mem_total))
             : Math.max(1, ...vals, ...(band ?? []).map((p) => p.v));
     const totals = m.avgLabel.endsWith("that day");
+    const highs = m.avgLabel.includes("high");
+    // The last day recorded, and the range's typical day: averaged by the minutes recorded, so
+    // a day the Mac was barely on counts for little.
+    const withV = perfDays.filter((d) => m.avg(d) != null);
+    const last = withV[withV.length - 1];
+    const lastV = last ? m.avg(last) : null;
+    const mins = withV.reduce((a, d) => a + d.minutes, 0);
+    const typical = mins ? withV.reduce((a, d) => a + (m.avg(d) ?? 0) * d.minutes, 0) / mins : 0;
     return (
       <section className="card chart" key={m.name}>
         <div className="row base wrap">
@@ -334,16 +365,26 @@ export default function Trends({
               {m.name}
             </Labelled>
           </b>
-          <span className="cnow">{vals.length ? m.fmt(vals[vals.length - 1]) : "–"}</span>
+          <span className="cnow">{last ? m.fmt(lastV!) : "–"}</span>
           <span className="muted small">
-            {vals.length
-              ? totals
-                ? `today so far · ${m.fmt(vals.reduce((a, b) => a + b, 0))} in all`
-                : `today · ${m.fmt(vals.reduce((a, b) => a + b, 0) / vals.length)} on an average day`
+            {last
+              ? `${last.ts >= today0 - 3600 ? (totals ? "today so far" : "today") : dayLabel(last.ts)} · ${
+                  totals
+                    ? `${m.fmt(vals.reduce((a, b) => a + b, 0))} in all`
+                    : highs
+                      ? `the highest ${m.fmt(Math.max(...vals))}`
+                      : `${m.fmt(typical)} on an average day`
+                }`
               : ""}
           </span>
           <Legend
-            line={totals ? `${m.name}, each day` : `${m.name}, each day's average`}
+            line={
+              totals
+                ? `${m.name}, each day`
+                : highs
+                  ? `${m.name}, each day's high`
+                  : `${m.name}, each day's average`
+            }
             band={band ? "Each day's peak" : undefined}
           />
         </div>
@@ -377,7 +418,7 @@ export default function Trends({
   // The range's records for a measure: its busiest day, its highest peak, its busiest week.
   const records = (m: Measure) => {
     const best = (f: (d: PerfDay) => number | null) =>
-      perfDays.reduce<{ d: PerfDay; v: number } | null>((b, d) => {
+      full.reduce<{ d: PerfDay; v: number } | null>((b, d) => {
         const v = f(d);
         return v != null && (!b || v > b.v) ? { d, v } : b;
       }, null);
@@ -386,6 +427,8 @@ export default function Trends({
     // The busiest seven days running, by the measure's daily figure.
     let week: { from: PerfDay; v: number } | null = null;
     for (let i = 6; i < perfDays.length; i++) {
+      // Seven calendar days, not seven rows across a gap (an hour's slack for a clock change).
+      if (perfDays[i].ts - perfDays[i - 6].ts > 6 * 86400 + 3600) continue;
       const vs = perfDays.slice(i - 6, i + 1).map(m.avg);
       if (vs.some((v) => v == null)) continue;
       const v = (vs as number[]).reduce((a, b) => a + b, 0) / 7;
@@ -450,7 +493,9 @@ export default function Trends({
     <section className="card">
       <div className="row between head">
         <span className="eyebrow">When it gets busy · by hour</span>
-        <span className="muted small">the last 14 days</span>
+        <span className="muted small">
+          the last {Math.min(historyDays, 14)} day{Math.min(historyDays, 14) === 1 ? "" : "s"}
+        </span>
       </div>
       {heat ? <Heatmap grid={heat} fmt={heatFmt} /> : null}
       {busiest && <p className="muted small">{busiest}</p>}
@@ -510,7 +555,7 @@ export default function Trends({
           xLabels={xl}
           domain={[t0, t1]}
           marker={diskPicked ? diskPicked.ts : undefined}
-          onPick={(p) => setPicked({ t: p.t, why: "Disk space" })}
+          onPick={shown === "disk" ? (p) => setPicked({ t: p.t, why: "Disk space" }) : undefined}
           label={`Disk space used over the last ${RANGES[range].label}`}
         />
       ) : (
@@ -680,7 +725,9 @@ export default function Trends({
       </aside>
     );
 
-  const tabsShown = TABS.filter((t) => t.id !== "gpu" || hasGpu);
+  const tabsShown = TABS.filter(
+    (t) => (t.id !== "gpu" || hasGpu) && (t.id !== "energy" || hasPower),
+  );
   const panel = (id: Tab) => ({
     role: "tabpanel",
     id: `ttab-${id}-panel`,
@@ -719,7 +766,7 @@ export default function Trends({
               id={`ttab-${t.id}`}
               role="tab"
               aria-selected={shown === t.id}
-              aria-controls={`ttab-${t.id}-panel`}
+              aria-controls={shown === t.id ? `ttab-${t.id}-panel` : undefined}
               tabIndex={shown === t.id ? 0 : -1}
               className={shown === t.id ? "on" : ""}
               title={TIPS[t.id]}
@@ -758,8 +805,7 @@ export default function Trends({
           ) : (
             <>
               {TAB_CHARTS[shown]
-                .filter((n) => n !== "GPU" || hasGpu)
-                .filter((n) => !n.endsWith("cores") || perfDays.some((d) => d.cpu_p != null))
+                .filter((n) => has(n) || n === "CPU")
                 .map((n, i) => chart(M[n], shown !== "all" && i === 0 ? 220 : 170))}
               {shown === "all" ? (
                 diskCard(170)

@@ -385,6 +385,19 @@ pub fn peak_apps(from: i64, to: i64, by: By, n: usize) -> Vec<AppUse> {
     apps_query(from, to, order, n)
 }
 
+/// The apps that used the most in all between `from` and `to` (a day): ranked by their total,
+/// so an app that ran all day at 30% comes before one that ran two minutes at 90%; the figures
+/// are still averages over the minutes each ran.
+pub fn day_apps(from: i64, to: i64, by: By, n: usize) -> Vec<AppUse> {
+    let order = match by {
+        By::Cpu => "SUM(cpu)",
+        By::Mem => "SUM(mem)",
+        By::Energy => "SUM(COALESCE(energy, 0))",
+        By::Disk => "SUM(COALESCE(disk, 0))",
+    };
+    apps_query(from, to, order, n)
+}
+
 fn apps_query(from: i64, to: i64, order: &str, n: usize) -> Vec<AppUse> {
     with(|c| {
         let mut st = c.prepare(&format!(
@@ -940,18 +953,21 @@ pub struct DayApps {
 
 /// A local day's first and last second, and its name (YYYY-MM-DD).
 fn day_span(d: chrono::NaiveDate) -> Option<(i64, i64, String)> {
-    let start = d
-        .and_hms_opt(0, 0, 0)?
-        .and_local_timezone(chrono::Local)
-        .earliest()?
-        .timestamp();
-    let end = d
-        .succ_opt()?
-        .and_hms_opt(0, 0, 0)?
-        .and_local_timezone(chrono::Local)
-        .earliest()?
-        .timestamp();
-    Some((start, end, d.format("%Y-%m-%d").to_string()))
+    // Where the clocks jump forward at midnight that midnight doesn't exist: the day starts at
+    // the first hour that does.
+    let start_of = |d: chrono::NaiveDate| {
+        (0..3).find_map(|h| {
+            d.and_hms_opt(h, 0, 0)?
+                .and_local_timezone(chrono::Local)
+                .earliest()
+                .map(|t| t.timestamp())
+        })
+    };
+    Some((
+        start_of(d)?,
+        start_of(d.succ_opt()?)?,
+        d.format("%Y-%m-%d").to_string(),
+    ))
 }
 
 /// Rolls one day up from its minutes into perf_daily; a day with none is left alone.
@@ -959,16 +975,39 @@ fn roll_up(d: chrono::NaiveDate) {
     let Some((from, to, day)) = day_span(d) else {
         return;
     };
+    // Never a row from fewer minutes than it has: once the start of a day has been pruned (a
+    // history of one day), what is left of it would shrink the day it already recorded.
+    let (now_n, had): (i64, Option<i64>) = with(|c| {
+        Ok((
+            c.query_row(
+                "SELECT COUNT(*) FROM perf WHERE ts >= ?1 AND ts < ?2",
+                params![from, to],
+                |r| r.get(0),
+            )?,
+            c.query_row(
+                "SELECT minutes FROM perf_daily WHERE day = ?1",
+                params![day],
+                |r| r.get(0),
+            )
+            .optional()?,
+        ))
+    });
+    if now_n == 0 || had.is_some_and(|h| now_n < h) {
+        return;
+    }
     let apps = DayApps {
-        cpu: top_apps(from, to - 1, By::Cpu, 8),
-        mem: top_apps(from, to - 1, By::Mem, 8),
-        energy: top_apps(from, to - 1, By::Energy, 8),
-        disk: top_apps(from, to - 1, By::Disk, 8),
+        cpu: day_apps(from, to - 1, By::Cpu, 8),
+        mem: day_apps(from, to - 1, By::Mem, 8),
+        energy: day_apps(from, to - 1, By::Energy, 8),
+        disk: day_apps(from, to - 1, By::Disk, 8),
     };
     let apps = serde_json::to_string(&apps).unwrap_or_default();
     with(|c| {
         c.execute(
-            "INSERT OR REPLACE INTO perf_daily
+            "INSERT OR REPLACE INTO perf_daily (day, ts, minutes, cpu, cpu_max, cpu_p, cpu_e,
+               gpu, gpu_max, mem, mem_max, mem_total, swap_max, pressure, thermal, disk_r, disk_w,
+               disk_max, net_in, net_out, net_in_max, net_out_max, power, power_max, read,
+               written, down, up, energy, incidents, crashes, apps)
              SELECT ?3, ?1, COUNT(*), AVG(cpu), MAX(cpu_max), AVG(cpu_p), AVG(cpu_e), AVG(gpu),
                     MAX(gpu_max), AVG(mem), MAX(mem_max), MAX(mem_total), MAX(swap_max),
                     MAX(pressure), MAX(thermal), AVG(disk_r), AVG(disk_w), MAX(disk_max),

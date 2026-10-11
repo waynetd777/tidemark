@@ -8,10 +8,10 @@ How your Mac is doing, at a glance.
 
 <a href="images/index.md#now"><picture><source media="(prefers-color-scheme: dark)" srcset="images/now-dark.png"><img alt="The Now screen" src="images/now-light.png" width="900"></picture></a>
 
-- A sentence on how the Mac is doing.
-- Eight cards: CPU, GPU, memory, disk I/O, network download, network upload and energy over the last hour; disk space over the last 24 hours.
-- The week's tidemarks (peaks, incidents, crashes) and what grew on the disk.
-- **Details** on a card opens the screen with more.
+- A sentence on how the Mac is doing; every measure needing attention coloured amber or red.
+- Eight cards, each with a meter of how full it is now: CPU (with each core behind a chevron), GPU, memory, disk I/O, network download, network upload and energy over the last hour; disk space over the last 24 hours.
+- The week's tidemarks, its crashes and hangs, and what grew on the disk, side by side.
+- **Details** on a card opens Recent at its tab.
 
 ## Recent (⌘2)
 
@@ -19,11 +19,10 @@ Every live measure in detail, over 1 hour to 14 days.
 
 <a href="images/index.md#recent"><picture><source media="(prefers-color-scheme: dark)" srcset="images/performance-dark.png"><img alt="The Recent screen" src="images/performance-light.png" width="900"></picture></a>
 
-- **All**: one chart a measure, each the same size. A tab for each measure (CPU, GPU, Memory, Disk I/O, Network, Energy, Disk space) gives it more room, with its parts, the apps that used the most, its incidents and busiest moments.
-- CPU, GPU and memory charts, with each point's peak as a band and the week's tidemark; the CPU's performance and efficiency cores on its tab.
-- Memory split into apps, wired and compressed.
-- Disk I/O and network, each way; energy with battery health and what sleep cost; disk space, hourly.
-- Click any moment to see what every app was doing.
+- **All**: one chart a measure, each the same size and lined up in time. A tab for each measure (CPU, GPU, Memory, Disk I/O, Network, Energy, Disk space) gives it more room: a chart for each part (the CPU's performance and efficiency cores; memory's apps, wired, compressed, swap and pressure; reads and writes; download and upload), the apps that used the most, its incidents and busiest moments.
+- Each point's peak as a band, the week's tidemark, the range's peak as a dot, the latest reading as a breathing dot.
+- Click any moment, or a peak dot, to see what every app was doing then: by their average, at their busiest, or an incident's own snapshot. Apps are sorted by the chart's measure; GPU and network, which macOS doesn't split by app, by CPU.
+- Disk space: used and free over the range, what grew this week, and what's using the space.
 - **Incidents**: CPU above 90% for 30 seconds, memory pressure red, or swap up 1 GB in 10 minutes, each with a snapshot.
 - Apps that crashed or hung, from macOS's own reports.
 

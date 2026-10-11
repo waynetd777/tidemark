@@ -69,9 +69,19 @@ fn launchctl(args: &[&str]) -> bool {
         .is_ok_and(|s| s.success())
 }
 
-/// Only an installed app: the agent points at a binary that stays where it is.
+/// Only an installed app: the agent points at a binary that stays where it is. Not one opened
+/// from a disk image or a translocated copy, which go away.
 fn available() -> bool {
-    std::env::current_exe().is_ok_and(|p| p.to_string_lossy().contains(".app/Contents/MacOS/"))
+    std::env::current_exe().is_ok_and(|p| {
+        let p = p.to_string_lossy();
+        let home_apps = std::env::var("HOME")
+            .map(|h| format!("{h}/Applications/"))
+            .unwrap_or_default();
+        p.contains(".app/Contents/MacOS/")
+            && (p.starts_with("/Applications/")
+                || (!home_apps.is_empty() && p.starts_with(&home_apps)))
+            && !p.contains("/AppTranslocation/")
+    })
 }
 
 /// The binary the installed agent runs, from its plist; None when there is no agent.
@@ -130,9 +140,16 @@ fn install() -> bool {
     if plist::to_file_xml(&path, &plist::Value::Dictionary(d)).is_err() {
         return false;
     }
-    // A loaded copy of an older plist goes first, or bootstrap refuses ("already loaded").
+    // A loaded copy of an older plist goes first, or bootstrap refuses ("already loaded"); while
+    // a running helper is still going, launchd refuses again for a moment, so it is retried.
     let _ = launchctl(&["bootout", &format!("{}/{LABEL}", domain())]);
-    launchctl(&["bootstrap", &domain(), &path.to_string_lossy()])
+    for _ in 0..10 {
+        if launchctl(&["bootstrap", &domain(), &path.to_string_lossy()]) || loaded() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    false
 }
 
 fn uninstall() {
@@ -150,14 +167,14 @@ fn helper() -> Helper {
             needs_approval: false,
         };
     }
-    // Installed but not loaded, or disabled: switched off in Login Items, where only the user
-    // can allow it again.
+    // On: installed and running under launchd. Switched off in Login Items is the one case only
+    // the user can undo there; installed but not loaded otherwise just reads as off.
     let installed = agent_program().is_some();
-    let off = installed && (!loaded() || disabled());
+    let off_there = installed && disabled();
     Helper {
         available: available(),
-        on: installed && !off,
-        needs_approval: off,
+        on: installed && loaded() && !off_there,
+        needs_approval: off_there,
     }
 }
 
@@ -203,11 +220,11 @@ pub fn refresh() {
     // ThrottleInterval when the helper had just started.)
     let moved = exe.as_deref().ok() != Some(program.as_str());
     let rebuilt = std::fs::read_to_string(build_file()).ok() != build_id();
-    // Not when it was switched off in Login Items: that is the user's to undo.
-    if (moved || rebuilt) && loaded() {
-        install();
+    // Reloaded only while it runs (not when switched off in Login Items); the build is kept
+    // once the helper is running it, so a reload that didn't take is tried at the next launch.
+    if !(moved || rebuilt) || (loaded() && install()) {
+        remember_build();
     }
-    remember_build();
 }
 
 #[tauri::command]
@@ -226,9 +243,8 @@ pub fn set_background_helper(on: bool) -> Helper {
         if install() {
             remember_build();
         }
-        // Refused, or loaded but disabled: switched off in Login Items, which only the user can
-        // switch back on.
-        if !loaded() || disabled() {
+        // Switched off in Login Items, which only the user can switch back on.
+        if disabled() {
             #[cfg(target_os = "macos")]
             crate::login_item::open_settings();
         }

@@ -34,6 +34,7 @@ One SQLite file: `~/Library/Application Support/Tidemark/history.sqlite`, on thi
 | Every minute's readings and busiest apps | 14 days at most (Settings) |
 | Incidents, sleeps, crashes | The same |
 | Disk space hourly, and big folders from each scan | The same |
+| One row a day of every measure, for Trends (`perf_daily`: averages, peaks, totals, incident and crash counts, the busiest apps), rolled up from the minutes every ten minutes and before they are pruned | A year |
 | One row a day of disk space and its top folders | A year |
 
 ## Sleep and gaps

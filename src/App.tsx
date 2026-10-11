@@ -221,7 +221,9 @@ export default function App() {
     300_000,
     [screen],
   );
-  const trendsFilling = !!record && record.days < 365;
+  // Until the record is a year old (rows exist only for days the Mac was on, so their count
+  // may never reach 365).
+  const trendsFilling = !!record && (!record.days_since || now() - record.days_since < 364 * 86400);
   const dateOf = (t: number) =>
     new Date(t * 1000).toLocaleDateString("en-GB", {
       day: "numeric",
@@ -1011,7 +1013,14 @@ export default function App() {
           />
         )}
         {screen === "trends" && (
-          <Trends home={home} bar={bar} go={show} ask={askAbout} focus={focus?.id} />
+          <Trends
+            home={home}
+            bar={bar}
+            go={show}
+            ask={askAbout}
+            focus={focus?.id}
+            historyDays={historyDays}
+          />
         )}
         {screen === "settings" && (
           <SettingsPage info={info} settings={settings} onChange={setSettings} bar={bar} />

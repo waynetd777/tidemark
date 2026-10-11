@@ -14,7 +14,7 @@ import { AskButton } from "./AskButton";
 import { flaggedDetail } from "./askDetails";
 import { flagFor } from "./status";
 import { api } from "./api";
-import { Area, Legend, Spark, type Pt } from "./charts";
+import { Area, Legend, type Pt } from "./charts";
 import { crashGroups, crashTitle, incidentTitle } from "./incidents";
 import { gapsOf, now, upToNow, usePoll } from "./perf";
 import { isTab, TABS, tabFor, type Tab } from "./perfTabs";
@@ -219,9 +219,6 @@ export default function Performance({
 }) {
   const assistant = useAssistant();
   const [tab, setTab] = useRemembered<Tab>("performance.tab", "all", isTab);
-  useEffect(() => {
-    if (focus) setTab(tabFor(focus));
-  }, [focus, setTab]);
   const [chosen, setRange] = useRemembered("performance.range", 1, index(RANGES.length));
   // Ranges longer than the history kept are not offered; a remembered one is held to what is.
   const allowed = RANGES.filter(
@@ -243,6 +240,16 @@ export default function Performance({
   } | null>(null);
   const pick = (why: string, t: number, atPeak = false) =>
     setPicked({ t, why, mode: atPeak ? "peak" : "line" });
+  // A Details link opens its tab, and lets go of a moment picked on another.
+  useEffect(() => {
+    if (focus) setTab(tabFor(focus));
+  }, [focus, setTab]);
+  // ...and lets go of a moment picked on another (reset as the link arrives, not in an effect).
+  const [focusSeen, setFocusSeen] = useState(focus);
+  if (focus !== focusSeen) {
+    setFocusSeen(focus);
+    if (focus) setPicked(null);
+  }
   const points = useMemo(() => hist?.points ?? [], [hist]);
   // What one point stands for, as the history folds the range (perf_history's 480 points).
   const bucket = Math.max(60, Math.floor(secs / 480));
@@ -289,9 +296,11 @@ export default function Performance({
   const diskRange = usePoll(() => api.diskTrend(diskDays), 300_000, [diskDays]);
   const diskWeek = usePoll(() => api.diskTrend(7), 300_000);
   // The scanned folder's largest folders, for the Disk space tab's card.
+  // Only its top folders are shown, so a coarse tree (folders of 1/50 of it or more), asked for
+  // every half minute: the scan may still be loading into memory just after launch.
   const tree = usePoll(
-    () => (tab === "disk" && info ? api.tree(info.root, 1 / 400) : Promise.resolve(null)),
-    300_000,
+    () => (tab === "disk" && info ? api.tree(info.root, 1 / 50) : Promise.resolve(null)),
+    30_000,
     [tab, info?.root, info?.scan?.finished],
   );
   const sleeps = usePoll(() => api.sleeps(Math.max(1, Math.ceil(secs / 86400))), 60_000, [secs]);
@@ -336,11 +345,11 @@ export default function Performance({
   const span1 = span0 + bucket - 1;
   const apps = usePoll(
     () =>
-      at && atPoint && at.mode !== "incident"
+      at && atPoint && at.mode !== "incident" && tab !== "disk"
         ? api.appsBetween(span0, span1)
         : Promise.resolve(null),
     60_000,
-    [span0, span1, at?.mode, !!atPoint],
+    [span0, span1, at?.mode, !!atPoint, tab],
   );
   const measure = MEASURES[at?.why ?? "CPU"] ?? MEASURES.CPU;
   const mode = at?.mode ?? "peak";
@@ -493,9 +502,21 @@ export default function Performance({
   // what moved in the range, and each direction's peak.
   type Way = "net_in" | "net_out" | "disk_r" | "disk_w";
   const moved = (k: Way) => points.reduce((s, m) => s + m[k] * (m.minutes || 1) * 60, 0);
-  const netTop = Math.max(1, ...points.map((m) => Math.max(m.net_in, m.net_out)));
+  // One scale for download and upload (and below, reads and writes), so their heights compare:
+  // it covers each point's peak and the live reading as well as the averages.
+  const netTop = Math.max(
+    1,
+    ...points.map((m) => Math.max(m.net_in, m.net_out, m.net_in_max, m.net_out_max)),
+    latest?.net_in ?? 0,
+    latest?.net_out ?? 0,
+  );
   // Disk I/O: reads and writes, the same way as the network.
-  const ioTop = Math.max(1, ...points.map((m) => Math.max(m.disk_r, m.disk_w)));
+  const ioTop = Math.max(
+    1,
+    ...points.map((m) => Math.max(m.disk_r, m.disk_w)),
+    latest?.disk_r ?? 0,
+    latest?.disk_w ?? 0,
+  );
   const io = [
     { name: "Reads", k: "disk_r" as const, now: latest?.disk_r, total: moved("disk_r") },
     { name: "Writes", k: "disk_w" as const, now: latest?.disk_w, total: moved("disk_w") },
@@ -621,7 +642,7 @@ export default function Performance({
       max: netTop,
       fmt: fmtRate,
       mark: null,
-      peak: peakIn((m) => m[n.k], fmtRate),
+      peak: peakIn((m) => m[n.k === "net_in" ? "net_in_max" : "net_out_max"], fmtRate),
       extra: () => null,
     })),
     ...(points.some((m) => m.power != null) || latest?.power != null
@@ -741,7 +762,7 @@ export default function Performance({
           return (
             <Area
               onPick={pickable ? (p) => pick("Disk space", p.t) : undefined}
-              // On its own tab, only an hour picked on it: the snapshot's moment there is the CPU's.
+              // On its own tab, only the hour picked on it (the tab has no snapshot moment).
               marker={pickable ? diskAt?.p.ts : at?.t}
               pts={pts}
               max={hi + pad}
@@ -908,7 +929,11 @@ export default function Performance({
     f: (v: number) => string,
     o: Partial<ChartSpec> = {},
   ): ChartSpec => {
-    const top = pts.reduce<Pt | null>((b, p) => (!b || p.v > b.v ? p : b), null);
+    // The peak among the recorded points: the live reading the line ends on isn't one.
+    const lastRecorded = points.length ? points[points.length - 1].ts : Infinity;
+    const top = pts
+      .filter((p) => p.t <= lastRecorded)
+      .reduce<Pt | null>((b, p) => (!b || p.v > b.v ? p : b), null);
     return {
       name,
       now: pts.length ? f(pts[pts.length - 1].v) : "–",
@@ -932,7 +957,8 @@ export default function Performance({
     </>
   );
   // The battery: its charge, health and what the last sleep cost (the Energy tab).
-  const batteryCard = (
+  const lastSleep = (sleeps ?? []).find((x) => x.battery_before != null && x.battery_after != null);
+  const batteryCard = (live?.battery || lastSleep) && (
     <section className="card list">
       <div className="row between head">
         <span className="eyebrow">Battery</span>
@@ -945,18 +971,6 @@ export default function Performance({
                 <Labelled m="battery">Battery</Labelled>
               </span>
               <b className="tv">{Math.round(live.battery.percent)}%</b>
-              <Spark
-                pts={points
-                  .filter((m) => m.battery != null)
-                  .map((m) => ({ t: m.ts, v: m.battery as number }))}
-                min={0}
-                max={100}
-                width={160}
-                height={24}
-                sleeps={sleeps ?? []}
-                domain={[now() - secs, now()]}
-                label="Battery charge over the range"
-              />
               <span className="muted small">{batteryLine(live.battery)}</span>
             </div>
             {live.battery.health != null && (
@@ -1047,6 +1061,7 @@ export default function Performance({
     {
       sub: "memory paged out to the disk",
       band: ser("swap_max"),
+      peak: peakIn((m) => m.swap_max, fmt),
       mark: tm.swap
         ? { v: tm.swap.value, label: `Tidemark ${fmt(tm.swap.value)} · ${fmtAt(tm.swap.at)}` }
         : null,
@@ -1290,10 +1305,10 @@ export default function Performance({
   // The Disk space tab's card: an hour picked on its chart, what is using the space, and the
   // last scan. (The snapshot's apps say nothing about disk space.)
   const diskAt = (() => {
-    if (picked?.why !== "Disk space" || !diskPts.length) return null;
+    if (pickedIn?.why !== "Disk space" || !diskPts.length) return null;
     let i = 0;
     for (let k = 1; k < diskPts.length; k++)
-      if (Math.abs(diskPts[k].ts - picked.t) < Math.abs(diskPts[i].ts - picked.t)) i = k;
+      if (Math.abs(diskPts[k].ts - pickedIn.t) < Math.abs(diskPts[i].ts - pickedIn.t)) i = k;
     return { p: diskPts[i], before: i > 0 ? diskPts[i - 1] : null };
   })();
   const biggest = [...(tree?.kids ?? [])].sort((a, b) => b.size - a.size).slice(0, 8);
@@ -1443,7 +1458,7 @@ export default function Performance({
               id={`ptab-${t.id}`}
               role="tab"
               aria-selected={shown === t.id}
-              aria-controls={`ptab-${t.id}-panel`}
+              aria-controls={shown === t.id ? `ptab-${t.id}-panel` : undefined}
               tabIndex={shown === t.id ? 0 : -1}
               className={shown === t.id ? "on" : ""}
               title={t.tip}

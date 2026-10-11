@@ -72,4 +72,4 @@ Without it, macOS hides your protected folders (Mail, Safari, Photos and others)
 
 - Folders Tidemark can't read are skipped and counted, and a banner offers System Settings.
 - Grant it under Privacy & Security › Full Disk Access, then press Reload.
-- Some system folders owned by root (such as /private/var/folders) stay unreadable even then. The sidebar shows how many were skipped.
+- Some system folders owned by root (such as /private/var/folders) stay unreadable even then. The sidebar's Scanning section shows how many were skipped.
