@@ -26,12 +26,20 @@ export interface Flag {
   label: string;
 }
 
+/// The part of the status about a card: the headline's, or one of the others needing attention.
+export function statusFor(status: Status | null | undefined, card: string): Status | null {
+  if (!status || status.level !== "attention") return null;
+  return (
+    [status, ...(status.also ?? [])].find((s) => (CARDS[s.about] ?? []).includes(card)) ?? null
+  );
+}
+
 /// The flag for a card, or null when the status isn't about it.
 export function flagFor(status: Status | null | undefined, card: string): Flag | null {
-  if (!status || status.level !== "attention") return null;
-  if (!(CARDS[status.about] ?? []).includes(card)) return null;
-  const bad = status.severity === "critical";
-  return { tone: bad ? "bad" : "warn", cls: bad ? "badt" : "warnt", label: status.label };
+  const s = statusFor(status, card);
+  if (!s) return null;
+  const bad = s.severity === "critical";
+  return { tone: bad ? "bad" : "warn", cls: bad ? "badt" : "warnt", label: s.label };
 }
 
 /// The colour for a tone, as charts draw it.

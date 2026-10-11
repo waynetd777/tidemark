@@ -756,6 +756,9 @@ pub struct Status {
     pub label: &'static str,
     pub headline: String,
     pub sub: String,
+    /// The other measures needing attention, worst first, each as its own status (with no
+    /// `also` of its own): the headline is about the first, but every one colours its card.
+    pub also: Vec<Status>,
 }
 
 fn gb(b: f64) -> String {
@@ -786,10 +789,14 @@ pub fn status() -> Status {
         label,
         headline,
         sub,
+        also: Vec::new(),
     };
+    // Everything that needs attention, worst first: the first is the headline, the rest still
+    // colour their own cards.
+    let mut found: Vec<Status> = Vec::new();
     if let Some(s) = &latest {
         if open.contains_key("pressure") || s.pressure >= 4 {
-            return attention(
+            found.push(attention(
                 "memory",
                 "critical",
                 "Critical",
@@ -800,12 +807,12 @@ pub fn status() -> Status {
                     gb(mem_total),
                     gb(s.swap)
                 ),
-            );
+            ));
         }
     }
     let battery = live(|l| l.battery.clone());
     if let Some(b) = battery.as_ref().filter(|b| !b.on_ac && b.percent <= 10.0) {
-        return attention(
+        found.push(attention(
             "energy",
             "critical",
             "Battery low",
@@ -817,22 +824,22 @@ pub fn status() -> Status {
                     .map(|m| format!(", about {} min", m))
                     .unwrap_or_default()
             ),
-        );
+        ));
     }
     if vol.total > 0 && (vol.free as f64) < vol.total as f64 * 0.05 {
-        return attention(
+        found.push(attention(
             "disk",
             "critical",
             "Almost full",
             "The disk is almost full".into(),
             format!("{} free of {}.", gb(vol.free as f64), gb(vol.total as f64)),
-        );
+        ));
     }
-    // Warnings after anything critical, so a busy CPU never hides a flat battery.
+    // Warnings after anything critical, so a busy CPU never heads the list over a flat battery.
     if let Some(s) = &latest {
         if let Some((_, started, _)) = open.get("cpu") {
             let mins = ((history::now() - started) / 60).max(1);
-            return attention(
+            found.push(attention(
                 "cpu",
                 "warn",
                 "Busy",
@@ -842,35 +849,47 @@ pub fn status() -> Status {
                     s.cpu,
                     top.map(|t| format!(", mostly {t}")).unwrap_or_default()
                 ),
-            );
+            ));
         }
         if open.contains_key("swap") {
-            return attention(
+            found.push(attention(
                 "swap",
                 "warn",
                 "Swap growing",
                 "Swap is growing".into(),
                 format!("{} in swap: memory is short.", gb(s.swap)),
-            );
+            ));
         }
     }
     if vol.total > 0 && (vol.free as f64) < vol.total as f64 * 0.1 {
-        return attention(
+        found.push(attention(
             "disk",
             "warn",
             "Nearly full",
             "The disk is nearly full".into(),
             format!("{} free of {}.", gb(vol.free as f64), gb(vol.total as f64)),
-        );
+        ));
     }
     if latest.as_ref().is_some_and(|s| s.pressure == 2) {
-        return attention(
+        found.push(attention(
             "memory",
             "warn",
             "Getting tight",
             "Memory is getting tight".into(),
             "macOS has started compressing memory.".into(),
-        );
+        ));
+    }
+    // One flag a measure: the worst of it, which comes first.
+    let mut seen: Vec<&str> = Vec::new();
+    found.retain(|f| {
+        let fresh = !seen.contains(&f.about);
+        seen.push(f.about);
+        fresh
+    });
+    if !found.is_empty() {
+        let mut first = found.remove(0);
+        first.also = found;
+        return first;
     }
     let week = history::now() - 7 * 86_400;
     let today = chrono::Local::now()
@@ -912,6 +931,7 @@ pub fn status() -> Status {
             Some(what) => format!("Today reached this week's {what} tidemark."),
             None => "Nothing today is near this week's tidemarks.".into(),
         },
+        also: Vec::new(),
     }
 }
 

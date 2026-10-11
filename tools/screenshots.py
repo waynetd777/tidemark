@@ -53,7 +53,8 @@ HOME_LABEL = "/Users/alex"
 MEM_TOTAL = 24 * GB
 
 SCENES = [
-    {"name": "now", "screen": "now", "height": 1290},
+    # Now mid-build: the CPU busy (amber) while memory runs out (red), so the shot shows both.
+    {"name": "now", "screen": "now", "height": 1290, "strained": True},
     {"name": "performance", "screen": "performance", "height": 1000},
     {"name": "disk-map", "screen": "disk", "height": 900},
     {"name": "trends", "screen": "trends", "height": 1180},
@@ -451,7 +452,36 @@ def make_demo():
     )
 
 
-def write_live(data):
+# The strained Now: the last minutes of a build, with the CPU busy and memory short.
+STRAIN_SECS = 6 * 60
+STRAIN_MEM, STRAIN_SWAP = 22.6 * GB, 4.1 * GB
+
+
+def strain(data):
+    """Puts the build into the last minutes of the history, as the app would have recorded it."""
+    r = random.Random(5)
+    db = sqlite3.connect(data / "history.sqlite")
+    (last,) = db.execute("SELECT MAX(ts) FROM perf").fetchone()
+    for ts in range(last - STRAIN_SECS + 60, last + 60, 60):
+        cpu = r.uniform(90, 96)
+        db.execute(
+            "UPDATE perf SET cpu=?, cpu_max=?, cpu_p=?, cpu_e=?, mem=?, mem_max=?, swap=?,"
+            " swap_max=?, pressure=4 WHERE ts=?",
+            (
+                cpu,
+                min(100, cpu + 3),
+                *split(cpu),
+                STRAIN_MEM,
+                STRAIN_MEM * 1.01,
+                *(STRAIN_SWAP,) * 2,
+                ts,
+            ),
+        )
+    db.commit()
+    db.close()
+
+
+def write_live(data, strained=False):
     """The live readings the app follows, fresh (it ignores a stale file)."""
     r = random.Random(11)
     now_ms = int(time.time() * 1000)
@@ -461,13 +491,16 @@ def write_live(data):
         nin = 0.9 * nin + 0.1 * r.uniform(0.3, 2.4) * 1e6
         nout = 0.9 * nout + 0.1 * r.uniform(0.08, 0.45) * 1e6
         cpu = 14 + 8 * math.sin(i / 40) + r.uniform(-4, 4)
+        building = strained and (449 - i) * 2 < STRAIN_SECS
+        if building:
+            cpu = r.uniform(89, 97)
         samples.append(
             {
                 "t": now_ms - (449 - i) * 2000,
                 "cpu": cpu,
-                "mem": 14.2 * GB + r.uniform(-0.1, 0.1) * GB,
-                "swap": 0.6 * GB,
-                "pressure": 1,
+                "mem": (STRAIN_MEM if building else 14.2 * GB) + r.uniform(-0.1, 0.1) * GB,
+                "swap": STRAIN_SWAP if building else 0.6 * GB,
+                "pressure": 4 if building else 1,
                 "disk_r": r.uniform(0.3, 2) * 1e6,
                 "disk_w": r.uniform(0.4, 3) * 1e6,
                 "net_in": nin,
@@ -491,8 +524,8 @@ def write_live(data):
     apps = [
         {"app": a, "cpu": c, "mem": m * GB, "energy": e}
         for a, c, m, e in [
-            ("Safari", 5.1, 3.4, 1.9),
-            ("Xcode", 3.2, 2.9, 1.4),
+            ("Xcode", 71.0, 9.6, 14.2) if strained else ("Safari", 5.1, 3.4, 1.9),
+            ("Safari", 5.1, 3.4, 1.9) if strained else ("Xcode", 3.2, 2.9, 1.4),
             ("Slack", 1.4, 0.8, 0.4),
             ("Mail", 0.9, 0.9, 0.3),
             ("Music", 0.8, 0.4, 0.3),
@@ -517,7 +550,8 @@ def write_live(data):
             "health": 96.0,
         },
         "paused_until": None,
-        "open": {},
+        # The CPU has been above 90% long enough to be an incident.
+        "open": {"cpu": [1, int(time.time()) - STRAIN_SECS, 97.0]} if strained else {},
         "cores": cores,
     }
     (data / "live.json").write_text(json.dumps(live))
@@ -567,10 +601,14 @@ def dev_server():
 
 def capture(scene, theme, data):
     """Launches the app on the scene, unseen, and returns its webview's snapshot, or None."""
-    sc = {k: v for k, v in scene.items() if k != "name"}
+    sc = {k: v for k, v in scene.items() if k not in ("name", "strained")}
     sc["theme"] = theme
-    write_live(data)
     with tempfile.TemporaryDirectory() as tmp:
+        if scene.get("strained"):
+            # A copy, so the build stays out of the other scenes.
+            data = shutil.copytree(data, pathlib.Path(tmp) / "data")
+            strain(data)
+        write_live(data, scene.get("strained", False))
         shot = pathlib.Path(tmp) / "shot.tiff"
         app = subprocess.Popen(
             [str(BIN)],

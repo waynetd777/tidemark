@@ -164,6 +164,8 @@ export interface Status {
   label: string;
   headline: string;
   sub: string;
+  /// The other measures needing attention, worst first: each colours its own card.
+  also: Status[];
 }
 
 export interface Live {

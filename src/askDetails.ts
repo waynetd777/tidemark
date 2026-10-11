@@ -7,6 +7,7 @@
 import type { AskDetail } from "./Ask";
 import { api } from "./api";
 import { incidentTitle } from "./incidents";
+import { statusFor } from "./status";
 import type { AppUse, Crash, Incident, Live } from "./types";
 import { fmt, fmtAt, fmtW, pct } from "./util";
 
@@ -90,7 +91,7 @@ export function flaggedDetail(
   measure: string,
   figures: string[],
 ): { question: string; detail: AskDetail } {
-  const st = live?.status;
+  const st = statusFor(live?.status, measure) ?? live?.status;
   const by: "cpu" | "mem" | "energy" =
     measure === "Memory" ? "mem" : measure === "Energy" ? "energy" : "cpu";
   const apps = [...(live?.apps_cpu ?? []), ...(live?.apps_mem ?? []), ...(live?.apps_energy ?? [])];
