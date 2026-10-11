@@ -47,13 +47,13 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --ground: #141618;
-    --surface: #1d2023;
-    --sunk: #181b1e;
-    --line: #2c3236;
-    --ink: #eef2f3;
-    --ink2: #a9b3b8;
-    --ink3: #87929a;
+    --ground: #161616;
+    --surface: #1f1f1f;
+    --sunk: #1a1a1a;
+    --line: #303030;
+    --ink: #f0f0f0;
+    --ink2: #b0b0b0;
+    --ink3: #8f8f8f;
     --tide: #56bdd3;
     --tide-ink: #86d3e3;
     --tide-soft: #173840;
@@ -323,10 +323,9 @@ kbd {
   margin: 56px auto 0;
   padding: 18px 20px 16px;
   border-radius: 18px;
-  background: rgb(255 255 255 / 5%);
-  border: 1px solid rgb(255 255 255 / 10%);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* The dark theme's card, in both themes: the hero is always dark, its text always light. */
+  background: #1f1f1f;
+  border: 1px solid #303030;
   box-shadow: 0 30px 80px -30px rgb(0 0 0 / 60%);
 }
 .live-head {

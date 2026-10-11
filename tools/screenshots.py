@@ -2,7 +2,8 @@
 # Copyright (c) 2026 Wayne Davies
 # SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-"""Retake the docs screenshots from demo data: docs/images/<scene>-<theme>.png.
+"""Retake the docs screenshots from demo data: docs/images/<scene>-<theme>.png, and the product
+page's site/img/<scene>-<theme>.webp where it has one.
 
 After Keepr's tools/screenshots.py. Makes a demo in .demo/ (gitignored): two weeks of history
 (minutes with the busiest apps, nights asleep, incidents, crashes), a scan of a made-up disk with
@@ -44,6 +45,7 @@ from PIL import Image, ImageCms, ImageDraw, ImageStat
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEMO = ROOT / ".demo"
 OUT = ROOT / "docs" / "images"
+SITE = ROOT / "site" / "img"
 BIN = ROOT / "src-tauri" / "target" / "debug" / "Tidemark"
 DEV_URL = "http://localhost:1420"
 WIDTH = 1400
@@ -688,6 +690,11 @@ def shoot(scene, theme, data):
     out = OUT / f"{scene['name']}-{theme}.png"
     im.save(out, optimize=True)
     print(f"  {out.relative_to(ROOT)}  {im.width}x{im.height}")
+    # The product page's copy, where it has one: lossless, as lossy WebP turns flat colour grainy.
+    web = SITE / f"{scene['name']}-{theme}.webp"
+    if web.exists():
+        im.save(web, "WEBP", lossless=True, quality=100, method=6)
+        print(f"  {web.relative_to(ROOT)}")
     return True
 
 

@@ -91,6 +91,15 @@ pub fn setup(app: &tauri::App) {
         return;
     };
     if !tray() {
+        // macOS fits a window to its screen, so the shot's height depends on the screen it
+        // opens on: always the tallest, so a second, shorter display doesn't crop the shot.
+        if let Ok(ms) = w.available_monitors() {
+            let tall = |m: &tauri::Monitor| m.size().height as f64 / m.scale_factor();
+            if let Some(m) = ms.iter().max_by(|a, b| tall(a).total_cmp(&tall(b))) {
+                let p = m.position();
+                let _ = w.set_position(tauri::PhysicalPosition::new(p.x, p.y));
+            }
+        }
         let h = get().and_then(|s| s["height"].as_f64()).unwrap_or(940.0);
         let _ = w.set_size(tauri::LogicalSize::new(1400.0, h));
     } else {

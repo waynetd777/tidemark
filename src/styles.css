@@ -17,9 +17,9 @@
   --info-soft: #e3f2fd;
   --good: #1f8f4e;
   --good-soft: #e5f5ec;
-  --warn: #b26a00;
+  --warn: #c47600;
   --warn-soft: #fff3e0;
-  --bad: #c62828;
+  --bad: #b0141c;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
   /* The map's nesting levels in the tide colour: deepest at level 1, lighter going in, then a
      greyer set for levels 5-8 so neighbours stay apart. Nesting itself is shown by blocks inside
@@ -55,22 +55,22 @@
 /* Dark: with the Mac unless Settings chose Light, and always when it chose Dark. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #1e1e20;
-    --panel: #2a2a2d;
-    --panel-2: #26262a;
-    --border: #3a3a3f;
-    --text: #f2f2f4;
-    --muted: #9a9aa2;
+    --bg: #161616;
+    --panel: #1f1f1f;
+    --panel-2: #1b1b1b;
+    --border: #303030;
+    --text: #f2f2f2;
+    --muted: #9a9a9a;
     --accent: var(--tide);
     --accent-soft: var(--tide-soft);
-    --sidebar: #232326;
+    --sidebar: #1a1a1a;
     --info: #63a9f0;
     --info-soft: #1a2c40;
     --good: #4cc27a;
     --good-soft: #1b3326;
     --warn: #e8a33a;
     --warn-soft: #3a2c16;
-    --bad: #ef6b60;
+    --bad: #e05a4f;
     /* The same hues, muted for the dark surface. */
     --h1: #17576a;
     --h2: #22758a;
@@ -81,35 +81,35 @@
     --h7: #5a8f9a;
     --h8: #8db8c1;
     --mix: 28%;
-    --files: #7c7c82;
+    --files: #7d7d7d;
     --tide: #56bdd3;
     --tide-ink: #86d3e3;
     --tide-soft: #173840;
     --on-tide: #0b1f24;
-    --mark: #f2f2f4;
-    --hover: #333337;
-    --sunk: #242427;
-    --grid: #333337;
+    --mark: #f2f2f2;
+    --hover: #2a2a2a;
+    --sunk: #1b1b1b;
+    --grid: #2a2a2a;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #1e1e20;
-  --panel: #2a2a2d;
-  --panel-2: #26262a;
-  --border: #3a3a3f;
-  --text: #f2f2f4;
-  --muted: #9a9aa2;
+  --bg: #161616;
+  --panel: #1f1f1f;
+  --panel-2: #1b1b1b;
+  --border: #303030;
+  --text: #f2f2f2;
+  --muted: #9a9a9a;
   --accent: var(--tide);
   --accent-soft: var(--tide-soft);
-  --sidebar: #232326;
+  --sidebar: #1a1a1a;
   --info: #63a9f0;
   --info-soft: #1a2c40;
   --good: #4cc27a;
   --good-soft: #1b3326;
   --warn: #e8a33a;
   --warn-soft: #3a2c16;
-  --bad: #ef6b60;
+  --bad: #e05a4f;
   /* The same hues, muted for the dark surface. */
   --h1: #17576a;
   --h2: #22758a;
@@ -120,15 +120,15 @@
   --h7: #5a8f9a;
   --h8: #8db8c1;
   --mix: 28%;
-  --files: #7c7c82;
+  --files: #7d7d7d;
   --tide: #56bdd3;
   --tide-ink: #86d3e3;
   --tide-soft: #173840;
   --on-tide: #0b1f24;
-  --mark: #f2f2f4;
-  --hover: #333337;
-  --sunk: #242427;
-  --grid: #333337;
+  --mark: #f2f2f2;
+  --hover: #2a2a2a;
+  --sunk: #1b1b1b;
+  --grid: #2a2a2a;
   color-scheme: dark;
 }
 :root[data-theme="light"] {

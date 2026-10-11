@@ -271,7 +271,7 @@ pub fn run() {
                     settings::Theme::System => matches!(w.theme(), Ok(tauri::Theme::Dark)),
                 };
                 let bg = if dark {
-                    tauri::window::Color(30, 30, 32, 255)
+                    tauri::window::Color(22, 22, 22, 255)
                 } else {
                     tauri::window::Color(237, 237, 240, 255)
                 };
@@ -286,7 +286,7 @@ pub fn run() {
                 #[cfg(target_os = "macos")]
                 {
                     let (r, g, b) = if dark {
-                        (30.0, 30.0, 32.0)
+                        (22.0, 22.0, 22.0)
                     } else {
                         (237.0, 237.0, 240.0)
                     };
