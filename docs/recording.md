@@ -37,7 +37,7 @@ Ask runs each AI tool in an empty folder of its own, `~/Library/Application Supp
 |---|---|
 | Every minute's readings and busiest apps | 14 days at most (Settings) |
 | Incidents, sleeps, crashes | The same |
-| Disk space hourly, and big folders from each scan | The same |
+| Disk space hourly, and big folders from each scan (the last scan of each day once it's a day old) | The same |
 | One row a day of every measure, for Trends (`perf_daily`: averages, peaks, totals, incident and crash counts, the busiest apps), rolled up from the minutes every ten minutes and before they are pruned | A year |
 | One row a day of disk space and its top folders | A year |
 

@@ -18,7 +18,7 @@ Everything Tidemark remembers stays on this Mac, in ~/Library/Application Suppor
 |---|---|
 | Every minute's CPU, GPU, memory and its split, swap, pressure, disk, network, power and battery, with the busiest apps | The history setting (14 days at most) |
 | Incidents, sleeps, crashes and hangs | The same |
-| The disk's used space hourly, and folders of 100 MB or more from each scan | The same |
+| The disk's used space hourly, and folders of 100 MB or more from each scan (the last scan of each day once it's a day old) | The same |
 | One row a day of every measure (averages, peaks, totals, incidents and crashes, the busiest apps), for Trends | A year, whatever the setting |
 | One row a day of disk space and its biggest folders | A year, whatever the setting |
 

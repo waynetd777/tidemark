@@ -1194,10 +1194,23 @@ pub fn prune(days: u32) {
         c.execute("DELETE FROM crashes WHERE ts < ?1", params![cut])?;
         c.execute("DELETE FROM disk_used WHERE ts < ?1", params![cut])?;
         c.execute("DELETE FROM disk_snap WHERE ts < ?1", params![cut])?;
+        thin_snaps(c, now() - 86_400)?;
         c.execute("DELETE FROM disk_daily WHERE day < ?1", params![year])?;
         c.execute("DELETE FROM perf_daily WHERE day < ?1", params![year])?;
         Ok(())
     })
+}
+
+/// Folder snapshots from before `before` thinned to each day's last, root by root: growth and a
+/// folder's history compare days, and hourly scans would otherwise keep 24 a day (each a few
+/// hundred KB for a whole disk). The last day's are all kept.
+fn thin_snaps(c: &Connection, before: i64) -> rusqlite::Result<usize> {
+    c.execute(
+        "DELETE FROM disk_snap WHERE ts < ?1 AND (root, ts) NOT IN (
+           SELECT root, MAX(ts) FROM disk_snap WHERE ts < ?1
+           GROUP BY root, date(ts, 'unixepoch', 'localtime'))",
+        params![before],
+    )
 }
 
 /// The history file's size on disk, WAL included.
@@ -1221,6 +1234,55 @@ mod tests {
             before: 0.0,
             delta,
         }
+    }
+
+    #[test]
+    fn old_snapshots_thin_to_each_days_last() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(SCHEMA).unwrap();
+        let at = |days_ago: i64, hour: u32| {
+            (chrono::Local::now().date_naive() - chrono::Duration::days(days_ago))
+                .and_hms_opt(hour, 0, 0)
+                .unwrap()
+                .and_local_timezone(chrono::Local)
+                .earliest()
+                .unwrap()
+                .timestamp()
+        };
+        let put = |ts: i64, root: &str| {
+            for path in [root, "/big"] {
+                c.execute(
+                    "INSERT OR REPLACE INTO disk_snap VALUES (?1, ?2, ?3, 1.0)",
+                    params![ts, root, format!("{root}{path}")],
+                )
+                .unwrap();
+            }
+        };
+        for h in [9, 13, 20] {
+            put(at(3, h), "/");
+        }
+        put(at(3, 10), "/Volumes/X");
+        let recent = [now() - 3600, now() - 7200];
+        for ts in recent {
+            put(ts, "/");
+        }
+        thin_snaps(&c, now() - 86_400).unwrap();
+        let mut kept: Vec<(String, i64)> = c
+            .prepare("SELECT DISTINCT root, ts FROM disk_snap ORDER BY root, ts")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        kept.sort();
+        let mut want = vec![
+            ("/".to_string(), at(3, 20)),
+            ("/".to_string(), recent[1]),
+            ("/".to_string(), recent[0]),
+            ("/Volumes/X".to_string(), at(3, 10)),
+        ];
+        want.sort();
+        assert_eq!(kept, want);
     }
 
     #[test]
