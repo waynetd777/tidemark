@@ -420,6 +420,26 @@ pub fn day_apps(from: i64, to: i64, by: By, n: usize) -> Vec<AppUse> {
     apps_query(from, to, order, n)
 }
 
+/// Each app's share of the energy the recorded apps used between `from` and `to`, as a fraction,
+/// largest first: watts times the minutes they were drawn, so an app that drew a little all day
+/// can outweigh one that drew a lot for a minute. The share is of every app recorded, not only
+/// the `n` returned.
+pub fn energy_shares(from: i64, to: i64, n: usize) -> Vec<(String, f64)> {
+    with(|c| {
+        let mut st = c.prepare(
+            "SELECT app, SUM(COALESCE(energy, 0)) * 1.0 / NULLIF(
+                        (SELECT SUM(COALESCE(energy, 0)) FROM procs WHERE ts >= ?1 AND ts <= ?2), 0)
+             FROM procs WHERE ts >= ?1 AND ts <= ?2
+             GROUP BY app HAVING SUM(COALESCE(energy, 0)) > 0
+             ORDER BY SUM(COALESCE(energy, 0)) DESC LIMIT ?3",
+        )?;
+        let rows = st.query_map(params![from, to, n as i64], |r| {
+            Ok((r.get(0)?, r.get::<_, Option<f64>>(1)?.unwrap_or(0.0)))
+        })?;
+        rows.collect()
+    })
+}
+
 fn apps_query(from: i64, to: i64, order: &str, n: usize) -> Vec<AppUse> {
     with(|c| {
         let mut st = c.prepare(&format!(

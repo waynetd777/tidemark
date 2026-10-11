@@ -299,6 +299,8 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
         // It holds the table now, not a button.
         blk.removeAttribute("tabindex");
         blk.removeAttribute("role");
+        blk.removeAttribute("aria-label");
+        blk.removeAttribute("aria-keyshortcuts");
         blk.appendChild(filesHost);
         const scroll = filesHost.querySelector<HTMLElement>(".file-scroll");
         if (scroll) scroll.scrollTop = scrolled;

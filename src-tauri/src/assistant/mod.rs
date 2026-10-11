@@ -30,23 +30,29 @@ Write tightly: short paragraphs or bullets, headings only when they help, paths 
 /// The in-app help's pages (src/help/), in the order the drawer shows them (src/guides.ts): the
 /// whole guide, about 20 KB, so Ask can explain the app's figures as the guide does and answer
 /// how anything in Tidemark works (Help's own button sends that question here).
-const HELP: [&str; 10] = [
-    include_str!("../../../src/help/intro.md"),
-    include_str!("../../../src/help/now.md"),
-    include_str!("../../../src/help/charts.md"),
-    include_str!("../../../src/help/performance.md"),
-    include_str!("../../../src/help/disk-map.md"),
-    include_str!("../../../src/help/trends.md"),
-    include_str!("../../../src/help/settings.md"),
-    include_str!("../../../src/help/ask.md"),
-    include_str!("../../../src/help/menu-bar.md"),
-    include_str!("../../../src/help/keyboard.md"),
+/// Each page's name (its file in src/help/ without `.md`) and its text.
+macro_rules! help_pages {
+    ($($name:literal),* $(,)?) => {
+        [$(($name, include_str!(concat!("../../../src/help/", $name, ".md")))),*]
+    };
+}
+const HELP: [(&str, &str); 10] = help_pages![
+    "intro",
+    "now",
+    "charts",
+    "performance",
+    "disk-map",
+    "trends",
+    "settings",
+    "ask",
+    "menu-bar",
+    "keyboard",
 ];
 
 /// The system prompt: SYSTEM, then the whole guide, built once.
 fn system() -> &'static str {
     static PROMPT: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-        let guide: Vec<&str> = HELP.iter().map(|p| p.trim()).collect();
+        let guide: Vec<&str> = HELP.iter().map(|(_, p)| p.trim()).collect();
         format!(
             "{SYSTEM}\n\nThe app's user guide:\n\n{}",
             guide.join("\n\n")
@@ -273,12 +279,30 @@ mod tests {
     fn prompt_carries_the_whole_guide() {
         let p = system();
         assert!(p.starts_with(SYSTEM));
-        for page in HELP {
+        for (_, page) in HELP {
             assert!(p.contains(page.trim()));
         }
         // Help's sections on the app's own figures among them.
         for title in ["Free space", "Full Disk Access", "Trends"] {
             assert!(p.contains(&format!("## {title}\n")), "missing {title}");
         }
+    }
+
+    /// Every page in src/help/ is in HELP, and nothing else: a page added to the drawer is
+    /// added here too, or Ask wouldn't know it.
+    #[test]
+    fn help_lists_every_page() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/help");
+        let mut files: Vec<String> = std::fs::read_dir(&dir)
+            .expect("src/help is readable")
+            .filter_map(|e| {
+                let p = e.ok()?.path();
+                (p.extension()? == "md").then(|| p.file_stem()?.to_str().map(String::from))?
+            })
+            .collect();
+        files.sort();
+        let mut listed: Vec<String> = HELP.iter().map(|(n, _)| n.to_string()).collect();
+        listed.sort();
+        assert_eq!(listed, files);
     }
 }

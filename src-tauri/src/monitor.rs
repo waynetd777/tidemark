@@ -795,7 +795,9 @@ fn run() {
         if saved_minute != Some(minute) {
             saved_minute = None;
             with_acc(|acc| {
-                if minute != acc.minute {
+                // Only ever forward: should the clock step back, the readings go on into the
+                // minute in hand rather than reopen a saved minute, whose row they would replace.
+                if minute > acc.minute {
                     acc.flush();
                     acc.minute = minute;
                 }
@@ -866,11 +868,30 @@ fn with_acc<T>(f: impl FnOnce(&mut Acc) -> T) -> T {
 /// The app is quitting, or the helper was told to stop: saves the minute in hand and ends the
 /// incidents going on now, rather than leaving the next recorder to guess where they ended.
 /// Nothing when this process isn't the recorder.
+///
+/// Waits at most two seconds for the pass under way (a roll-up, or the database busy with the
+/// other process, can hold it much longer: the app would hang on quitting). Past that, it only
+/// stops further passes and saves nothing: the pass's writes are each a transaction, so one cut
+/// short by the exit is undone whole, and the next recorder ends the incidents left open
+/// (`close_dangling`). What is lost is the part of a minute in hand.
 pub fn stop() {
     if !recording() {
         return;
     }
-    let _step = STEP.lock().unwrap_or_else(|e| e.into_inner());
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let _step = loop {
+        match STEP.try_lock() {
+            Ok(g) => break g,
+            Err(std::sync::TryLockError::Poisoned(e)) => break e.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Err(std::sync::TryLockError::WouldBlock) => {
+                STOPPING.store(true, Ordering::SeqCst);
+                return;
+            }
+        }
+    };
     if STOPPING.swap(true, Ordering::SeqCst) {
         return;
     }
@@ -1372,18 +1393,15 @@ pub async fn perf_brief() -> String {
             }
         ));
     }
-    let energy = history::top_apps(day, now, By::Energy, 6);
-    if energy.iter().any(|a| a.energy > 0.0) {
+    let energy = history::energy_shares(day, now, 6);
+    if !energy.is_empty() {
         out.push(format!(
             "Apps' shares of the energy apps used over the last 24 h (the display and macOS use more): {}.",
-            {
-                let total: f64 = energy.iter().map(|a| a.energy).sum::<f64>().max(1e-9);
-                energy
-                    .iter()
-                    .map(|a| format!("{} {:.0}%", a.app, 100.0 * a.energy / total))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            }
+            energy
+                .iter()
+                .map(|(app, share)| format!("{app} {:.0}%", 100.0 * share))
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
     for sl in history::sleeps(week).iter().take(3) {

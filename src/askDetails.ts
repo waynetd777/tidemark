@@ -69,10 +69,13 @@ export async function crashDetail(
   all: Crash[],
 ): Promise<AskDetail> {
   const mine = all.filter((c) => c.app === g.app && c.kind === g.kind).sort((a, b) => b.ts - a.ts);
-  const reports = await Promise.all(
-    mine
-      .slice(0, 3)
-      .map((c) => api.crashReport(c.file).catch((e) => `Report: ${c.file}\n(${String(e)})`)),
+  // A report that can't be read is noted in its place; if none can be, Ask has nothing to go on,
+  // so the button says why instead.
+  const got = await Promise.allSettled(mine.slice(0, 3).map((c) => api.crashReport(c.file)));
+  const failed = got.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  if (failed && got.every((r) => r.status === "rejected")) throw failed.reason;
+  const reports = got.map((r, i) =>
+    r.status === "fulfilled" ? r.value : `Report: ${mine[i].file}\n(${String(r.reason)})`,
   );
   return {
     label: `${g.app} ${g.kind === "hang" ? "hang" : "crash"} report${g.n > 1 ? "s" : ""}, ${fmtAt(g.last)}`,

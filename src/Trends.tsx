@@ -820,7 +820,9 @@ export default function Trends({
           ) : (
             <>
               {TAB_CHARTS[shown]
-                .filter((n) => has(n) || n === "CPU")
+                // Before the first days come, every chart stays (empty) rather than the panel
+                // emptying and filling again; only the tabs wait to know.
+                .filter((n) => !known || has(n) || n === "CPU")
                 .map((n, i) => chart(M[n], shown !== "all" && i === 0 ? 220 : 170))}
               {shown === "all" ? (
                 diskCard(170)

@@ -430,7 +430,7 @@ export default function Tray() {
           <button
             key={a.app}
             className="menu-item"
-            title="Open Recent to see every app"
+            title="Open Recent to see the busiest apps"
             onClick={() => {
               void api.showMain("performance");
               hide();

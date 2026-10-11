@@ -31,6 +31,9 @@ pub fn run() -> ! {
     // Before any other thread starts, so every one inherits the blocked signals.
     on_stop_signal();
     trim_log();
+    // The build it runs, so the app's next launch doesn't restart it for nothing when something
+    // other than the app started it on a new build (`make install-app` does).
+    remember_build();
     // No window of its own: slow sampling, unless the app says one is on screen.
     crate::monitor::FAST.store(false, std::sync::atomic::Ordering::Relaxed);
     crate::monitor::HEADLESS.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -257,7 +260,8 @@ fn build_id() -> Option<String> {
     Some(format!("{} {} {t}", env!("CARGO_PKG_VERSION"), m.len()))
 }
 
-/// Where the build the helper last started on is kept.
+/// Where the build the helper last started on is kept: written by the helper as it starts, and
+/// by the app once it has restarted the helper.
 fn build_file() -> std::path::PathBuf {
     crate::cache::dir().join("recorder.build")
 }

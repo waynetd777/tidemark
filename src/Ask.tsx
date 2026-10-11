@@ -117,7 +117,12 @@ export default function AskPanel({
         const last = m[m.length - 1];
         if (!last || last.role !== "assistant") return m;
         const fin: Message = d.error
-          ? { role: "assistant", text: last.text || d.error, error: true }
+          ? // An error after part of the answer came keeps that part, with the error under it.
+            {
+              role: "assistant",
+              text: last.text ? `${last.text}\n\n${d.error}` : d.error,
+              error: true,
+            }
           : { ...last, text: last.text || d.text };
         return [...m.slice(0, -1), fin];
       });
@@ -370,8 +375,9 @@ export default function AskPanel({
               e.preventDefault();
               void send(q);
             } else if (e.key === "Escape") {
+              // While composing, Escape cancels the composition, not Ask.
               e.stopPropagation();
-              onClose();
+              if (!composing) onClose();
             }
           }}
         />

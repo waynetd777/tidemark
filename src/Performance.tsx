@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
 // Recent (the "performance" screen): CPU and memory over a range with the week's tidemark and the range's peak,
-// smaller tiles for swap, disk, network and heat, and what every app was doing at a chosen
+// smaller tiles for swap, disk, network and heat, and what the busiest apps were doing at a chosen
 // moment (the peak, or wherever the chart is clicked).
 
 import { useAssistant } from "./assistant";
@@ -16,7 +16,7 @@ import { flagFor } from "./status";
 import { api } from "./api";
 import { Area, Legend, type Pt } from "./charts";
 import { crashGroups, crashTitle, incidentTitle } from "./incidents";
-import { gapsOf, now, upToNow, usePoll } from "./perf";
+import { gapsOf, now, upToNow, usePoll, usePolled } from "./perf";
 import { isTab, TABS, tabFor, type Tab } from "./perfTabs";
 import { index, useRemembered } from "./remember";
 import type {
@@ -362,14 +362,22 @@ export default function Performance({
   // The moment's span: the minutes its chart point stands for.
   const span0 = Math.floor(atPoint?.ts ?? at?.t ?? 0);
   const span1 = span0 + bucket - 1;
-  const apps = usePoll(
-    () =>
-      at && atPoint && at.mode !== "incident" && tab !== "disk"
-        ? api.appsBetween(span0, span1)
-        : Promise.resolve(null),
+  // The apps keep the old answer while a new one is asked for, so the list doesn't blank each
+  // minute on a long range (the span's edges move with every refresh). The answer carries the
+  // moment it was asked for, and is dimmed while that isn't the moment shown.
+  const momentKey = `${tab}|${pickedIn ? `${pickedIn.mode}|${pickedIn.t}` : `peak|${tabWhy}|${secs}`}`;
+  const appsP = usePolled(
+    async () => ({
+      key: momentKey,
+      v:
+        at && atPoint && at.mode !== "incident" && tab !== "disk"
+          ? await api.appsBetween(span0, span1)
+          : null,
+    }),
     60_000,
     [span0, span1, at?.mode, !!atPoint, tab],
   );
+  const apps = appsP?.v.v ?? null;
   const measure = MEASURES[at?.why ?? "CPU"] ?? MEASURES.CPU;
   const mode = at?.mode ?? "peak";
   const appV = (a: AppUse) => {
@@ -380,7 +388,8 @@ export default function Performance({
     mode === "incident"
       ? [...(picked?.inc?.snapshot ?? [])].sort((a, b) => appV(b) - appV(a))
       : ((mode === "peak" ? apps?.[`peak_${measure.by}`] : apps?.[`by_${measure.by}`]) ?? []);
-  const top = blame[0];
+  const appsStale = mode !== "incident" && appsP?.v.key !== momentKey;
+  const top = appsStale ? undefined : blame[0];
   const hhmm = (t: number) => new Date(t * 1000).toTimeString().slice(0, 5);
   const spanText = bucket > 60 ? `${hhmm(span0)}–${hhmm(span1 + 1)}` : hhmm(span0);
   // What the list is, so it can't be read as something else.
@@ -913,7 +922,7 @@ export default function Performance({
               className="incident"
               key={m.ts}
               onClick={() => pick(name, m.ts, true)}
-              title="Show what every app was doing then"
+              title="Show what the busiest apps were doing then"
             >
               <b>{f(by(m))}</b>
               <span className="muted">{fmtAt(m.ts)}</span>
@@ -1567,8 +1576,12 @@ export default function Performance({
             </div>
             {measure.note && <div className="muted small">{measure.note}</div>}
             {at && (atPoint || mode === "incident") && <span className="eyebrow">{listLabel}</span>}
-            <div className="blame">
-              {blame.length === 0 && (
+            <div
+              className="blame"
+              aria-busy={appsStale}
+              style={appsStale ? { opacity: 0.4 } : undefined}
+            >
+              {blame.length === 0 && !appsStale && (
                 <div className="muted small">Nothing recorded at that moment.</div>
               )}
               {blame.slice(0, 6).map((p) => (

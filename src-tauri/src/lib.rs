@@ -64,12 +64,17 @@ pub fn stamp(what: &str) {
 /// The app's website: the Help menu, the About panel and Settings' Website button open it.
 const WEBSITE: &str = "https://tidemark.davies.co.za/";
 
-/// Opens the website in the browser.
-#[tauri::command]
+/// Opens the website in the browser, without waiting for `open` (the menu calls it on the main
+/// thread; the command runs off it).
+#[tauri::command(async)]
 fn open_website() {
-    let _ = std::process::Command::new("/usr/bin/open")
+    if let Ok(mut child) = std::process::Command::new("/usr/bin/open")
         .arg(WEBSITE)
-        .status();
+        .spawn()
+    {
+        // Reaped off the main thread, so no zombie is left behind.
+        std::thread::spawn(move || child.wait());
+    }
 }
 
 /// macOS's About panel, with the website under the copyright, clickable.

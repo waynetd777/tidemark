@@ -5,7 +5,7 @@
 // It opens Ask with a question and the thing's details; disabled, with the reason, when no AI
 // tool is installed.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAssistant } from "./assistant";
 
 export function AskIcon() {
@@ -27,8 +27,13 @@ export function AskButton({ onAsk, title }: { onAsk: () => void | Promise<void>;
   const assistant = useAssistant();
   // A crash's reports are read first, which takes a moment.
   const [busy, setBusy] = useState(false);
-  // Why Ask couldn't open (a crash's reports unreadable, say), until the next press.
+  // Why Ask couldn't open (a crash's reports unreadable, say), for a few seconds.
   const [failed, setFailed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!failed) return;
+    const id = window.setTimeout(() => setFailed(null), 6000);
+    return () => window.clearTimeout(id);
+  }, [failed]);
   return (
     <span
       className="tipwrap"

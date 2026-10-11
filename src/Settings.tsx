@@ -40,6 +40,8 @@ export default function Settings({
       .then(setHelper)
       .catch(() => {});
   }, []);
+  // Why System Settings couldn't be opened, under the link.
+  const [fdaErr, setFdaErr] = useState<string | null>(null);
   const [version, setVersion] = useState("");
   useEffect(() => {
     getVersion()
@@ -135,7 +137,7 @@ export default function Settings({
                 <span>Scan the disk</span>
                 <span className="muted">
                   {settings.scan === "daily"
-                    ? "Once a day, when the Mac is idle and on power, and at launch if the last scan is over an hour old."
+                    ? "Once a day, when the Mac is idle and on power (on battery too once the last scan is two days old), and at launch if the last scan is over an hour old."
                     : settings.scan === "hourly"
                       ? "Every hour. A full scan takes about a minute of hard work, so this costs some battery."
                       : "Only when you press Reload. Growth is shown between the scans you run."}
@@ -150,7 +152,7 @@ export default function Settings({
                     onClick={() => void save({ ...settings, scan: v })}
                     title={
                       v === "daily"
-                        ? "One full scan a day, when idle and on power"
+                        ? "One full scan a day when idle and on power (on battery after two days), and at launch if the last is over an hour old"
                         : v === "hourly"
                           ? "A full scan every hour"
                           : "Scan only when you press Reload"
@@ -224,11 +226,23 @@ export default function Settings({
               ) : (
                 <button
                   className="link"
-                  onClick={() => void api.openPrivacySettings()}
+                  onClick={() => {
+                    setFdaErr(null);
+                    api
+                      .openPrivacySettings()
+                      .catch((e: unknown) =>
+                        setFdaErr(`Couldn't open System Settings: ${String(e)}`),
+                      );
+                  }}
                   title="Open System Settings › Privacy & Security › Full Disk Access"
                 >
                   Give Full Disk Access…
                 </button>
+              )}
+              {fdaErr && (
+                <span role="alert" style={{ color: "var(--bad)", marginLeft: 6 }}>
+                  {fdaErr}
+                </span>
               )}
             </span>
           )}

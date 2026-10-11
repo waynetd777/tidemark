@@ -507,7 +507,7 @@ export function Area({
                 className="dot peakdot pick"
                 style={{ left: x(peak.t), top: y(peak.v), "--c": color } as CSSProperties}
                 aria-label={`Show the peak: ${peak.label}`}
-                title="Show what every app was doing at the peak"
+                title="Show what the busiest apps were doing at the peak"
                 onClick={(e) => {
                   e.stopPropagation();
                   onPick({ t: peak.t, v: peak.v }, true);
@@ -586,31 +586,51 @@ export function Heatmap({ grid, fmt }: { grid: (number | null)[][]; fmt: (v: num
   const hi = Math.max(1, ...vals);
   const [tip, setTip] = useState<{ d: number; h: number } | null>(null);
   const v = tip ? grid[tip.d]?.[tip.h] : null;
+  // To a screen reader the cells are one picture, read as its busiest hour and weekday.
+  let peak: { d: number; h: number; v: number } | null = null;
+  for (const [d, row] of grid.entries())
+    for (const [h, c] of row.entries())
+      if (c != null && (!peak || c > peak.v)) peak = { d, h, v: c };
+  const dayAvg = grid.map((row) => {
+    const xs = row.filter((c): c is number => c != null);
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  });
+  const busyDay = dayAvg.reduce<number | null>(
+    (b, a, d) => (a != null && (b == null || a > (dayAvg[b] ?? 0)) ? d : b),
+    null,
+  );
+  const summary = peak
+    ? `Busiest hour ${days[peak.d]} ${String(peak.h).padStart(2, "0")}:00, ${fmt(peak.v)}${busyDay != null ? `; busiest day on average ${days[busyDay]}` : ""}`
+    : "Nothing recorded";
   return (
     <div className="heat" onPointerLeave={() => setTip(null)}>
-      {grid.map((row, d) => (
-        <div className="hrow" key={d}>
-          <span className="hd">{days[d]}</span>
-          <div className="cells">
-            {row.map((c, h) => (
-              <span
-                key={h}
-                className={`cell${c == null ? " none" : ""}${tip?.d === d && tip?.h === h ? " on" : ""}`}
-                style={
-                  c == null
-                    ? undefined
-                    : {
-                        background: `color-mix(in srgb, var(--tide) ${Math.round(8 + (c / hi) * 92)}%, var(--panel))`,
-                      }
-                }
-                onPointerEnter={() => setTip({ d, h })}
-                tabIndex={c == null ? undefined : -1}
-                aria-label={c == null ? undefined : `${days[d]} ${h}:00, ${fmt(c)}`}
-              />
-            ))}
+      <div
+        role="img"
+        aria-label={`By weekday and hour: ${summary}`}
+        style={{ display: "flex", flexDirection: "column", gap: 3 }}
+      >
+        {grid.map((row, d) => (
+          <div className="hrow" key={d}>
+            <span className="hd">{days[d]}</span>
+            <div className="cells">
+              {row.map((c, h) => (
+                <span
+                  key={h}
+                  className={`cell${c == null ? " none" : ""}${tip?.d === d && tip?.h === h ? " on" : ""}`}
+                  style={
+                    c == null
+                      ? undefined
+                      : {
+                          background: `color-mix(in srgb, var(--tide) ${Math.round(8 + (c / hi) * 92)}%, var(--panel))`,
+                        }
+                  }
+                  onPointerEnter={() => setTip({ d, h })}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
       <div className="hx">
         <span>00</span>
         <span>06</span>
