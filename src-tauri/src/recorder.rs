@@ -28,12 +28,56 @@ pub const ARG: &str = "--record";
 
 /// Runs the helper until it is stopped. Never returns.
 pub fn run() -> ! {
+    // Before any other thread starts, so every one inherits the blocked signals.
+    on_stop_signal();
+    trim_log();
     // No window of its own: slow sampling, unless the app says one is on screen.
     crate::monitor::FAST.store(false, std::sync::atomic::Ordering::Relaxed);
+    crate::monitor::HEADLESS.store(true, std::sync::atomic::Ordering::Relaxed);
     crate::monitor::start();
     crate::schedule::start_headless();
     loop {
         std::thread::sleep(std::time::Duration::from_secs(3600));
+    }
+}
+
+/// SIGTERM (launchd stopping the agent, `make install-app`, logout) and SIGINT end the helper
+/// cleanly: the minute in hand is saved and open incidents end now. The signals are blocked
+/// and taken by a thread of their own with sigwait, where the work is safe to do.
+fn on_stop_signal() {
+    unsafe {
+        let mut set: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&mut set);
+        libc::sigaddset(&mut set, libc::SIGTERM);
+        libc::sigaddset(&mut set, libc::SIGINT);
+        if libc::pthread_sigmask(libc::SIG_BLOCK, &set, std::ptr::null_mut()) != 0 {
+            return;
+        }
+        let _ = std::thread::Builder::new()
+            .name("signals".into())
+            .spawn(move || {
+                let mut sig: libc::c_int = 0;
+                if libc::sigwait(&set, &mut sig) == 0 {
+                    crate::monitor::stop();
+                    std::process::exit(0);
+                }
+            });
+    }
+}
+
+/// The helper's standard error, where launchd puts what it reports (see `install`).
+fn log_path() -> std::path::PathBuf {
+    crate::cache::dir().join("helper.log")
+}
+
+/// Keeps the log small: emptied at start once it passes 1 MB. launchd opens it to append, so
+/// the helper's writes go on at the new end.
+fn trim_log() {
+    let path = log_path();
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() > 1_000_000) {
+        if let Ok(f) = std::fs::OpenOptions::new().write(true).open(&path) {
+            let _ = f.set_len(0);
+        }
     }
 }
 
@@ -134,6 +178,12 @@ fn install() -> bool {
     d.insert("KeepAlive".into(), keep.into());
     d.insert("ThrottleInterval".into(), 300.into());
     d.insert("ProcessType".into(), "Background".into());
+    // What the helper reports (eprintln) lands in the data folder, not nowhere.
+    let _ = std::fs::create_dir_all(crate::cache::dir());
+    d.insert(
+        "StandardErrorPath".into(),
+        log_path().to_string_lossy().into_owned().into(),
+    );
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
@@ -142,8 +192,11 @@ fn install() -> bool {
     }
     // A loaded copy of an older plist goes first, or bootstrap refuses ("already loaded"); while
     // a running helper is still going, launchd refuses again for a moment, so it is retried.
+    // Not when switched off in Login Items: launchd refuses every time, and waiting out the
+    // retries would only hold up Settings.
     let _ = launchctl(&["bootout", &format!("{}/{LABEL}", domain())]);
-    for _ in 0..10 {
+    let tries = if disabled() { 1 } else { 10 };
+    for _ in 0..tries {
         if launchctl(&["bootstrap", &domain(), &path.to_string_lossy()]) || loaded() {
             return true;
         }
@@ -227,14 +280,16 @@ pub fn refresh() {
     }
 }
 
-#[tauri::command]
+/// Off the main thread (async): it runs launchctl, which can take a moment.
+#[tauri::command(async)]
 pub fn background_helper() -> Helper {
     helper()
 }
 
 /// Turns the helper on or off. Switched off in System Settings, turning it on opens Login Items,
-/// where only the user can allow it.
-#[tauri::command]
+/// where only the user can allow it. Off the main thread (async): loading the agent can take
+/// seconds.
+#[tauri::command(async)]
 pub fn set_background_helper(on: bool) -> Helper {
     if !available() {
         return helper();

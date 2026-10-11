@@ -106,7 +106,7 @@ pub fn start(app: AppHandle) {
                         &mut last_try,
                         st.scanning.load(Ordering::SeqCst),
                         &|| {
-                            let _ = disk::start_scan_thread(&app, "/".into(), false);
+                            let _ = disk::start_scan_thread(&app, "/".into(), false, true);
                         },
                     );
                 } else {
@@ -160,8 +160,13 @@ pub fn start_headless() {
                         &mut last_try,
                         HEADLESS_SCANNING.load(Ordering::SeqCst),
                         &|| {
+                            // Not beside a scan the app is running.
+                            let Some(lock) = disk::scan_lock() else {
+                                return;
+                            };
                             HEADLESS_SCANNING.store(true, Ordering::SeqCst);
-                            std::thread::spawn(|| {
+                            std::thread::spawn(move || {
+                                let _lock = lock;
                                 let progress = crate::scan::Progress::default();
                                 if let Some(s) = disk::walk_root("/", &progress) {
                                     disk::keep(&s);

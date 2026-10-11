@@ -93,7 +93,9 @@ fn open() -> Connection {
     if let Err(e) = c.execute_batch(SCHEMA) {
         eprintln!("history schema: {e}");
     }
-    // Columns added after the first release of the schema; an error means it is there already.
+    // Columns added after the first release of the schema. "duplicate column" means it is there
+    // already; anything else (the other process holding the database past the timeout, say) is
+    // worth knowing about.
     for sql in [
         "ALTER TABLE perf ADD COLUMN power REAL",
         "ALTER TABLE perf ADD COLUMN power_max REAL",
@@ -115,7 +117,11 @@ fn open() -> Connection {
         "ALTER TABLE procs ADD COLUMN disk REAL",
         "ALTER TABLE procs ADD COLUMN disk_max REAL",
     ] {
-        let _ = c.execute(sql, []);
+        if let Err(e) = c.execute(sql, []) {
+            if !e.to_string().contains("duplicate column") {
+                eprintln!("history: {sql}: {e}");
+            }
+        }
     }
     c
 }
@@ -249,6 +255,9 @@ fn add_minute_rows(m: &Minute, apps: &[AppUse]) {
                 m.mem_app, m.mem_wired, m.mem_comp, m.net_in_max, m.net_out_max, m.cpu_p, m.cpu_e
             ],
         )?;
+        // A minute saved again (the recorder changed hands within it) is replaced whole, apps
+        // too: no app of the earlier save is left beside the later one's.
+        c.execute("DELETE FROM procs WHERE ts = ?1", params![m.ts])?;
         let mut st = c.prepare_cached(
             "INSERT OR REPLACE INTO procs (ts, app, cpu, mem, energy, disk, cpu_max, mem_max,
                energy_max, disk_max) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",

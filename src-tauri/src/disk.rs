@@ -242,13 +242,43 @@ pub fn keep(s: &cache::Scan) {
     }
 }
 
+/// Held by whichever process is scanning (the app or the background helper) while it scans, so
+/// an automatic scan never starts beside another: a whole-disk walk takes every core for a
+/// minute. A flock on a file beside the cache, released when dropped or when the process ends.
+pub struct ScanLock(#[allow(dead_code)] std::fs::File);
+
+/// The scan lock, if no other scan holds it.
+pub fn scan_lock() -> Option<ScanLock> {
+    let dir = cache::dir();
+    let _ = std::fs::create_dir_all(&dir);
+    let f = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(dir.join("scan.lock"))
+        .ok()?;
+    use std::os::fd::AsRawFd;
+    (unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0)
+        .then_some(ScanLock(f))
+}
+
 /// Starts a scan of `root`. With `show` the app switches to that root (the user asked); without
 /// it, the scan runs behind whatever is on screen (the schedule), and only replaces the scan on
-/// screen if it is of the same root.
-pub fn start_scan_thread(app: &AppHandle, root: String, show: bool) -> Result<(), String> {
+/// screen if it is of the same root. An `auto` scan (the schedule, a launch) doesn't start while
+/// another process is scanning; one the user asked for does.
+pub fn start_scan_thread(
+    app: &AppHandle,
+    root: String,
+    show: bool,
+    auto: bool,
+) -> Result<(), String> {
     let state: State<AppState> = app.state();
     if !Path::new(&root).is_dir() {
         return Err(format!("{root} is not a folder"));
+    }
+    let lock = scan_lock();
+    if auto && lock.is_none() {
+        return Err("another process is scanning".into());
     }
     if state.scanning.swap(true, Ordering::SeqCst) {
         return Err("a scan is already running".into());
@@ -276,6 +306,7 @@ pub fn start_scan_thread(app: &AppHandle, root: String, show: bool) -> Result<()
     let scanning = state.scanning.clone();
     let handle = app.clone();
     std::thread::spawn(move || {
+        let _lock = lock;
         if let Some(s) = walk_root(&root, &progress) {
             let st: State<AppState> = handle.state();
             // Only publish if the root is still the one this scan was for.
@@ -305,7 +336,7 @@ pub fn start_scan(app: AppHandle, root: Option<String>) -> Result<(), String> {
         Some(r) if !r.is_empty() => r,
         _ => state.root(),
     };
-    start_scan_thread(&app, root, true)
+    start_scan_thread(&app, root, true, false)
 }
 
 /// Ends the scan in flight. The scan on screen stays what it was.

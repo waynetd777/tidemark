@@ -11,7 +11,7 @@ Every chart reads the same way, and its legend names each mark.
 | **Breathing dot** | **Now**: the latest reading, at the end of a line that runs up to the present. |
 | **Thin vertical line** | The moment (or the day) the card on the right is about, on every chart of the tab. |
 | **Soft band** | **Asleep**: nothing runs while the Mac sleeps, so sleep is a gap, not a dip to zero. |
-| **Hatched band** | **Not recording**: Tidemark was quit, paused or not yet started. |
+| **Hatched band** | **Not recording**: Tidemark was quit or not yet started. |
 
 - Point at a chart to read any moment, or at a gap for whether the Mac was asleep or not recording, and for how long. Click it to pick that moment.
 - **Meters**: the lit segments on Now's cards and in the menu show how full each measure is now: CPU, GPU, memory and disk space against their total, rates against the hour's busiest moment, energy against the week's tidemark.

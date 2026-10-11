@@ -9,9 +9,11 @@ import type { Pt } from "./charts";
 import type { Live, Sleep } from "./types";
 
 /// Calls `load` now and every `ms`, keeping the last answer. A failed call keeps what was there.
-/// `deps` restart it (a new range, a new root).
+/// `deps` restart it (a new range, a new root), and drop the answer for the old ones: null until
+/// the new answer comes, rather than the old range drawn on the new one's axis.
 export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []): T | null {
-  const [v, setV] = useState<T | null>(null);
+  const key = JSON.stringify(deps);
+  const [v, setV] = useState<{ key: string; v: T } | null>(null);
   const fn = useRef(load);
   useEffect(() => {
     fn.current = load;
@@ -30,7 +32,7 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
         .then((r) => {
           if (alive && n > shown) {
             shown = n;
-            setV(r);
+            setV({ key, v: r });
           }
         })
         .catch(() => {});
@@ -50,7 +52,7 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ms, ...deps]);
-  return v;
+  return v && v.key === key ? v.v : null;
 }
 
 /// The live readings, every 2 s.

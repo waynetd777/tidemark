@@ -2,5 +2,6 @@
 # login keychain that `make app` should sign the bundle with. Creating one: Keychain Access →
 # Certificate Assistant → Create a Certificate, type "Code Signing", self-signed.
 #
-# Without this, the build is unsigned and macOS drops Full Disk Access on every rebuild.
+# Without this, `make app` stops with an error. A stable signature matters because macOS ties
+# Full Disk Access to it: an unsigned or ad-hoc build loses the grant on every rebuild.
 APPLE_SIGNING_IDENTITY = Tidemark Dev

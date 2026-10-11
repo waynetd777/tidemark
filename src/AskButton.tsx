@@ -38,7 +38,11 @@ export function AskButton({ onAsk, title }: { onAsk: () => void | Promise<void>;
         title={title}
         onClick={() => {
           setBusy(true);
-          void Promise.resolve(onAsk()).finally(() => setBusy(false));
+          // Through then(), so a throw as well as a rejection clears busy.
+          void Promise.resolve()
+            .then(onAsk)
+            .catch(() => {})
+            .finally(() => setBusy(false));
         }}
       >
         <AskIcon />

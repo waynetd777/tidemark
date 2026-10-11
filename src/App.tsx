@@ -29,6 +29,7 @@ import {
   fmtCount,
   fmtDelta,
   fmtDuration,
+  fmtMem,
   fmtN,
   fmtUptime,
   fmtWhen,
@@ -324,7 +325,6 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [askOpen]);
 
-  const [treeTick, setTreeTick] = useState(0);
   // The parts of `info` the effects below follow; `info` itself changes on every poll.
   const ready = info !== null && !info.loading;
   const infoRoot = info?.root;
@@ -346,9 +346,8 @@ export default function App() {
           } else {
             if (wasScanning.current) {
               wasScanning.current = false;
+              // The new scan's time reloads the tree below; the old one stays until it comes.
               void refreshInfo();
-              setTree(null); // forces a reload for the same path below
-              setTreeTick((t) => t + 1);
             }
             timer = window.setTimeout(tick, 1500);
           }
@@ -364,7 +363,8 @@ export default function App() {
     };
   }, [ready, infoRoot, refreshInfo]);
 
-  // The tree for the folder on screen. Reloaded when the path changes or a scan finishes.
+  // The tree for the folder on screen. Reloaded when the path changes or a scan finishes (its
+  // time changes): that one trigger, so a finished scan loads the tree once.
   useEffect(() => {
     if (!viewPath || !ready || infoRoot === undefined) return;
     let alive = true;
@@ -389,7 +389,7 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, [viewPath, infoRoot, ready, scanFinished, treeTick]);
+  }, [viewPath, infoRoot, ready, scanFinished]);
 
   const scanning = progress?.scanning ?? info?.scanning ?? false;
 
@@ -400,7 +400,10 @@ export default function App() {
     const load = () =>
       api
         .growth(infoRoot, 7)
-        .then((g) => alive && setGrowth(g))
+        // The same answer keeps the same object, so the map isn't redrawn for nothing.
+        .then(
+          (g) => alive && setGrowth((old) => (JSON.stringify(old) === JSON.stringify(g) ? old : g)),
+        )
         .catch(() => {});
     void load();
     const id = window.setInterval(load, 10 * 60_000);
@@ -524,7 +527,6 @@ export default function App() {
     const u3 = on("scan-finished", () => {
       setGrowthTick((t) => t + 1);
       void refreshInfo();
-      setTreeTick((t) => t + 1);
     });
     return () => {
       u1();
@@ -841,7 +843,7 @@ export default function App() {
             <div className="macinfo">
               <span>{mac.chip || "This Mac"}</span>
               <span className="muted">
-                {mac.cores} cores · {fmt(mac.memory)} memory
+                {mac.cores} cores · {fmtMem(mac.memory)} memory
               </span>
               <span className="muted">Up {fmtUptime(mac.uptime_secs)}</span>
             </div>

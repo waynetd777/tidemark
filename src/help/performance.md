@@ -14,7 +14,7 @@ Every live measure in detail, over 1 hour, 24 hours, 7 or 14 days.
   - **Disk space**: the disk's used space, recorded hourly, over the range (the last 24 hours on the 1-hour range), its free space, the change and the week's tidemark, and what grew this week.
 - Power and battery come from the battery's controller, so a Mac without a battery shows only the apps.
 - Each app's energy is a share of what the busiest apps used. macOS's per-app count leaves out the display and the system, so watts would look too small. Only your own apps can be measured.
-- **Crashes and hangs**: apps that crashed or stopped responding in the last 14 days, how often and when last, from the reports macOS writes (Console's Crash Reports). Faults an app survived are left out.
+- **Crashes and hangs**: apps that crashed or stopped responding within the history setting (14 days at most), how often and when last, from the reports macOS writes (Console's Crash Reports). Faults an app survived are left out.
 
 The card on the right:
 
@@ -23,7 +23,7 @@ The card on the right:
 - Apps are sorted by the chart's measure: CPU, memory, energy or disk. macOS doesn't split the GPU or the network by app, so those list the busiest apps by CPU, and say so. Helpers count as their app, so Chrome's are Google Chrome. CPU is a share of the whole Mac.
 - On the **Disk space** tab the card shows what's using the space instead: the scanned folder's largest folders (click one to open it in Disk Map), the space the scan can't see, and the last scan. Click the disk chart there for that hour's used and free space.
 - **Ask why this happened** puts the moment to Ask; **Activity Monitor** opens macOS's own.
-- **Incidents** are recorded when CPU stays above 90% for 30 seconds, memory pressure turns red, or swap grows by 1 GB in 10 minutes. Each keeps a snapshot of every app at its peak; click one to see it.
+- **Incidents** are recorded when CPU stays above 90% for 30 seconds, memory pressure turns red, or swap grows by 1 GB in 10 minutes. Each keeps a snapshot of the 12 busiest apps at its peak; click one to see it.
 - While the record is shorter than the history setting, the sidebar's **Record** says how far back it goes.
 
 How often Tidemark reads:

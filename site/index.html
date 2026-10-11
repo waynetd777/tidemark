@@ -101,6 +101,7 @@
 
         <div
           class="live rise"
+          role="img"
           aria-label="An example chart: CPU over the last few minutes, with its tidemark"
         >
           <div class="live-head">
@@ -142,7 +143,7 @@
             <img
               src="img/now-light.webp"
               fetchpriority="high"
-              alt="Tidemark's Now screen: eight cards for CPU, GPU, memory, disk I/O, network download and upload, energy and disk space, each with its week's tidemark"
+              alt="Tidemark's Now screen: eight cards for CPU, GPU, memory, disk I/O, network download and upload, energy and disk space, each with a live chart, most with the week's tidemark"
               width="1400"
               height="1129"
             />
@@ -166,8 +167,9 @@
             Everything your Mac<br />is doing. <span class="grad">At a glance.</span>
           </h2>
           <p class="lede reveal">
-            Eight measures, each with a meter of how full it is now, its last hour, its high for the
-            day and the week's tidemark. One sentence says how the Mac is doing.
+            Eight measures, each with a meter of how full it is now and a chart of its last hour
+            (the disk's last day). CPU, GPU, memory, energy and disk space carry the week's
+            tidemark. One sentence says how the Mac is doing.
           </p>
         </div>
         <div class="gauges" data-gauges>
@@ -206,14 +208,14 @@
         </div>
       </section>
 
-      <!-- Recent: scrub a chart to see what every app was doing -->
+      <!-- Recent: scrub a chart to see which apps were busiest -->
       <section id="performance" class="feature tint">
         <div class="center">
           <p class="eyebrow reveal">Recent</p>
           <h2 class="reveal">Slow on Wednesday?<br /><span class="grad">Find out why.</span></h2>
           <p class="lede reveal">
             Every measure over an hour to 14 days, a tab each, every part on its own chart. Point at
-            any moment and see what every app was doing.
+            any moment and see which apps were busiest.
           </p>
         </div>
         <div class="scrub reveal" data-scrub>
@@ -294,7 +296,7 @@
           <h2 class="reveal">Every folder,<br /><span class="grad">to scale.</span></h2>
           <p class="lede reveal">
             Each folder is a block inside its parent, sized by the space it really takes, with this
-            week's growth outlined. The whole disk scans in about half a minute, on every core.
+            week's growth outlined. The whole disk scans in about a minute, on every core.
           </p>
           <ul class="chips center-chips reveal">
             <li>Click to zoom in</li>
@@ -324,7 +326,8 @@
           <h2 class="reveal">Know when the disk<br /><span class="grad">will be full.</span></h2>
           <p class="lede reveal">
             Every measure a day at a time, over a month to a year: the busiest days and what ran on
-            them, when in the week your Mac works hardest, and how fast the disk is filling.
+            them, when in the week your Mac works hardest over the last 14 days, and how fast the
+            disk is filling.
           </p>
         </div>
         <div class="trend-pair">
@@ -344,7 +347,7 @@
             </p>
           </div>
           <div class="panel reveal">
-            <p class="panel-title">CPU by weekday and hour</p>
+            <p class="panel-title">CPU by weekday and hour, last 14 days</p>
             <div class="heat" data-heat></div>
             <p class="panel-foot">
               <span>Busiest: <b>weekdays, 14:00 to 16:00</b></span>
@@ -370,10 +373,11 @@
         <article class="card card-tray reveal">
           <div class="card-copy">
             <p class="eyebrow">Menu bar</p>
-            <h3>Always recording.<br />Even when it's quit.</h3>
+            <h3>Always recording.<br />Even when it's quit, if you like.</h3>
             <p>
               Close the window and Tidemark carries on in the menu bar. Its icon gets a mark when
-              something needs you. A small helper keeps recording while the app is quit.
+              something needs you. Turn on Keep recording when quit in Settings and a small helper
+              records while the app is quit.
             </p>
           </div>
           <div class="menubar" aria-hidden="true">
@@ -427,7 +431,10 @@
               <path d="M8 20h8M12 16v4" />
             </svg>
             <h3>Nothing leaves.</h3>
-            <p>The history is one file on your Mac. No account, no server, no tracking.</p>
+            <p>
+              Your history stays in Tidemark's folder on your Mac, and nothing leaves it unless you
+              use Ask. No Tidemark account or server, no tracking.
+            </p>
           </div>
           <div class="tile reveal">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -488,8 +495,10 @@
             <summary>Does it slow my Mac down?</summary>
             <p>
               It reads every 2 seconds while you're watching and every 5 when you're not, and
-              redraws at most once a minute when its window is behind others. Disk scans run when
-              the Mac is idle and on power, or when you ask.
+              redraws at most once a minute when its window is behind others. Disk scans run once a
+              day by default, when the Mac has been idle for 5 minutes and is on power (or after two
+              days, if it never is). You can choose hourly, which costs some battery, or off, which
+              scans only when you press Reload.
             </p>
           </details>
           <details class="reveal">
@@ -503,16 +512,18 @@
           <details class="reveal">
             <summary>Where is my history kept?</summary>
             <p>
-              In one SQLite file in your Library folder, on this Mac only. Choose 3, 7 or 14 days of
-              every minute in Settings; a row a day of every measure, and of disk space, is kept for
-              a year.
+              In Tidemark's folder in your Library, on this Mac only: an SQLite file for the
+              history, beside the saved scans and your settings. Choose 3, 7 or 14 days of every
+              minute in Settings; a row a day of every measure, and of disk space, is kept for a
+              year.
             </p>
           </details>
           <details class="reveal">
             <summary>Does Ask send my data anywhere?</summary>
             <p>
-              Only when you ask, and only to the AI tool you chose, signed in with your own account.
-              It sees names, sizes and figures, not the contents of your files. Tidemark works fully
+              Only when you ask, and only to the AI tool you chose, signed in with your own account:
+              Claude Code sends it to Anthropic, Codex to OpenAI, Antigravity to Google and Copilot
+              to GitHub. It is given names, sizes and figures, not your files. Tidemark works fully
               without it.
             </p>
           </details>
@@ -557,8 +568,8 @@
             Click Done.
           </li>
           <li>
-            In System Settings › Privacy &amp; Security, click Open Anyway. It opens normally after
-            that.
+            In System Settings › Privacy &amp; Security, click Open Anyway, then Open Anyway again
+            when macOS asks. It opens normally after that.
           </li>
           <li>
             For the whole Disk Map, turn Tidemark on under Privacy &amp; Security › Full Disk

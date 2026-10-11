@@ -18,16 +18,18 @@ How Tidemark reads your Mac, and what it keeps.
 | Measure | From |
 |---|---|
 | CPU, memory, swap, network, per-app use | The kernel, via `sysinfo` |
+| Disk I/O | Every process's reads and writes, summed, from the per-app pass (every 15 seconds when no window is in front) |
+| Disk space | `statfs` on the boot volume, hourly |
 | Memory split (apps, wired, compressed) | The kernel's VM statistics |
 | Memory pressure | `kern.memorystatus_vm_pressure_level` |
-| GPU | The GPU driver's own statistics (`ioreg`) |
-| Power, battery, health | The battery's controller (`ioreg`), every 10 seconds |
+| GPU | The GPU driver's own statistics (`ioreg`), with the apps (every 15 seconds when no window is in front) |
+| Power, battery, health | The battery's controller (`ioreg`), every 10 seconds; a Mac without a battery has none of these |
 | Per-app energy | The kernel's energy count per process, shown as shares |
 | Crashes and hangs | macOS's reports in DiagnosticReports, every 5 minutes; survived faults left out |
 
 ## The history
 
-One SQLite file: `~/Library/Application Support/Tidemark/history.sqlite`, on this Mac only.
+One SQLite file: `~/Library/Application Support/Tidemark/history.sqlite`, on this Mac only. Beside it in the same folder: the saved scans (`scans/`), `settings.json` and `live.json`.
 
 | What | Kept for |
 |---|---|
@@ -41,7 +43,7 @@ One SQLite file: `~/Library/Application Support/Tidemark/history.sqlite`, on thi
 
 - Nothing runs while the Mac sleeps, so sleep is a gap, never a dip to zero.
 - Tidemark notes the battery either side of a sleep, so it knows what the sleep cost.
-- Charts shade gaps **Asleep** or **Not recording** (Tidemark quit, paused or not yet started).
+- Charts shade gaps **Asleep** or **Not recording** (Tidemark quit or not yet started).
 
 ## The background helper
 
@@ -49,4 +51,4 @@ One SQLite file: `~/Library/Application Support/Tidemark/history.sqlite`, on thi
 - launchd restarts it only after a failure, at most every 5 minutes. Each launch of the installed app points the agent at its binary again if the app has moved, and restarts the helper after an update.
 - It used to be registered with `SMAppService`, but macOS would not start a helper registered that way for an app with a self-signed certificate. The plain agent has a label of its own, because launchd refuses to start one that shares the old registration's label (macOS keeps a record under it).
 - The app and the helper share a lock: whichever holds it records, and the other follows its live readings in `live.json`, taking over if it stops.
-- The helper also runs the scheduled disk scans.
+- Whichever process is recording also does the upkeep: the hourly disk space, crash reports, pruning and the scheduled disk scans. The other picks up the scan it saves.

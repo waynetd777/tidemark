@@ -37,6 +37,7 @@ import {
   fmtAt,
   fmtDelta,
   fmtDuration,
+  fmtMem,
   fmtMins,
   fmtN,
   fmtRate,
@@ -121,11 +122,17 @@ const MEASURES: Record<string, Measure> = {
     by: "cpu",
     note: BY_CPU("GPU"),
   },
-  Memory: { what: "memory in use", avg: (m) => m.mem, peak: (m) => m.mem_max, fmt, by: "mem" },
-  "App memory": { what: "app memory", avg: (m) => m.mem_app, fmt, by: "mem" },
-  Wired: { what: "wired memory", avg: (m) => m.mem_wired, fmt, by: "mem" },
-  Compressed: { what: "compressed memory", avg: (m) => m.mem_comp, fmt, by: "mem" },
-  Swap: { what: "swap", avg: (m) => m.swap, peak: (m) => m.swap_max, fmt, by: "mem" },
+  Memory: {
+    what: "memory in use",
+    avg: (m) => m.mem,
+    peak: (m) => m.mem_max,
+    fmt: fmtMem,
+    by: "mem",
+  },
+  "App memory": { what: "app memory", avg: (m) => m.mem_app, fmt: fmtMem, by: "mem" },
+  Wired: { what: "wired memory", avg: (m) => m.mem_wired, fmt: fmtMem, by: "mem" },
+  Compressed: { what: "compressed memory", avg: (m) => m.mem_comp, fmt: fmtMem, by: "mem" },
+  Swap: { what: "swap", avg: (m) => m.swap, peak: (m) => m.swap_max, fmt: fmtMem, by: "mem" },
   Pressure: {
     what: "memory pressure",
     avg: (m) => m.pressure,
@@ -277,8 +284,17 @@ export default function Performance({
     );
     return m ? { t: m.ts, why: tabWhy, mode: "peak" as const } : null;
   })();
-  // A moment picked earlier that the range no longer reaches (the hour moved on) is let go.
-  const pickedIn = picked && picked.t >= now() - secs ? picked : null;
+  // Disk space is recorded hourly, so a range under a day shows the last day.
+  const diskSecs = Math.max(secs, 86400);
+  // A moment picked earlier that the range no longer reaches (the hour moved on) is let go; the
+  // Disk space chart reaches back its own span. An incident is kept however old: it carries its
+  // own snapshot, and may be older than any range offered.
+  const pickedIn =
+    picked &&
+    (picked.mode === "incident" ||
+      picked.t >= now() - (picked.why === "Disk space" ? diskSecs : secs))
+      ? picked
+      : null;
   const at =
     pickedIn ?? tabPeak ?? (cpuPeak ? { t: cpuPeak.t, why: "CPU", mode: "peak" as const } : null);
   // The range's energy: what used the most, and the times the Mac slept.
@@ -290,8 +306,6 @@ export default function Performance({
     [secs, wantsRange],
   );
   const crashList = usePoll(() => api.crashes(14), 300_000);
-  // Disk space is recorded hourly, so a range under a day shows the last day.
-  const diskSecs = Math.max(secs, 86400);
   const diskDays = Math.ceil(diskSecs / 86400);
   const diskRange = usePoll(() => api.diskTrend(diskDays), 300_000, [diskDays]);
   const diskWeek = usePoll(() => api.diskTrend(7), 300_000);
@@ -463,33 +477,33 @@ export default function Performance({
       : []),
     {
       name: "Memory",
-      now: latest ? fmt(latest.mem) : "–",
+      now: latest ? fmtMem(latest.mem) : "–",
       sub:
-        `${total > 1 ? `of ${fmt(total)} · ` : ""}pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}` +
+        `${total > 1 ? `of ${fmtMem(total)} · ` : ""}pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}` +
         (latest?.mem_parts
-          ? ` · apps ${fmt(latest.mem_parts.app)}, wired ${fmt(latest.mem_parts.wired)}, compressed ${fmt(latest.mem_parts.compressed)}`
+          ? ` · apps ${fmtMem(latest.mem_parts.app)}, wired ${fmtMem(latest.mem_parts.wired)}, compressed ${fmtMem(latest.mem_parts.compressed)}`
           : ""),
-      brief: `${total > 1 ? `of ${fmt(total)} · ` : ""}pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}`,
+      brief: `${total > 1 ? `of ${fmtMem(total)} · ` : ""}pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}`,
       pts: ser("mem"),
       band: ser("mem_max"),
       max: total,
-      fmt,
+      fmt: fmtMem,
       mark: tm.mem
-        ? { v: tm.mem.value, label: `Tidemark ${fmt(tm.mem.value)} · ${fmtAt(tm.mem.at)}` }
+        ? { v: tm.mem.value, label: `Tidemark ${fmtMem(tm.mem.value)} · ${fmtAt(tm.mem.at)}` }
         : null,
-      peak: memPeak ? { ...memPeak, label: `${fmt(memPeak.v)} · ${fmtAt(memPeak.t)}` } : null,
+      peak: memPeak ? { ...memPeak, label: `${fmtMem(memPeak.v)} · ${fmtAt(memPeak.t)}` } : null,
       extra: (i: number) => {
         const m = points[i];
         if (!m) return <span>Now</span>;
         return (
           <>
             <span>
-              Peak {fmt(m.mem_max)} · swap {fmt(m.swap_max)}
+              Peak {fmtMem(m.mem_max)} · swap {fmtMem(m.swap_max)}
             </span>
             {m.mem_app != null && (
               <span>
-                Apps {fmt(m.mem_app)} · wired {fmt(m.mem_wired ?? 0)} · compressed{" "}
-                {fmt(m.mem_comp ?? 0)}
+                Apps {fmtMem(m.mem_app)} · wired {fmtMem(m.mem_wired ?? 0)} · compressed{" "}
+                {fmtMem(m.mem_comp ?? 0)}
               </span>
             )}
           </>
@@ -850,7 +864,7 @@ export default function Performance({
               className="incident"
               key={i.id}
               onClick={() => pickIncident(i)}
-              title="Show what every app was doing at its peak"
+              title="Show what the 12 busiest apps were doing at its peak"
             >
               <span>
                 <b>{incidentTitle(i)}</b>{" "}
@@ -1057,13 +1071,13 @@ export default function Performance({
     "Swap",
     ser("swap"),
     Math.max(1e9, ...points.map((m) => m.swap_max)),
-    fmt,
+    fmtMem,
     {
       sub: "memory paged out to the disk",
       band: ser("swap_max"),
-      peak: peakIn((m) => m.swap_max, fmt),
+      peak: peakIn((m) => m.swap_max, fmtMem),
       mark: tm.swap
-        ? { v: tm.swap.value, label: `Tidemark ${fmt(tm.swap.value)} · ${fmtAt(tm.swap.at)}` }
+        ? { v: tm.swap.value, label: `Tidemark ${fmtMem(tm.swap.value)} · ${fmtAt(tm.swap.at)}` }
         : null,
     },
   );
@@ -1088,7 +1102,7 @@ export default function Performance({
           rangeApps?.by_cpu ?? [],
           (a) => a.cpu,
           pct,
-          (a) => `${fmt(a.mem)} memory`,
+          (a) => `${fmtMem(a.mem)} memory`,
         )}
         {incidentsCard(
           "CPU incidents",
@@ -1105,13 +1119,14 @@ export default function Performance({
       {column(
         [memChart],
         [
-          ...(points.some((m) => m.mem_app != null)
+          // The live reading counts too, so the charts stay while a new range loads.
+          ...(points.some((m) => m.mem_app != null) || latest?.mem_parts != null
             ? [
                 partSpec(
                   "App memory",
                   series((m) => m.mem_app, latest?.mem_parts?.app),
                   partsTop,
-                  fmt,
+                  fmtMem,
                   {
                     sub: "what apps use",
                   },
@@ -1120,7 +1135,7 @@ export default function Performance({
                   "Wired",
                   series((m) => m.mem_wired, latest?.mem_parts?.wired),
                   partsTop,
-                  fmt,
+                  fmtMem,
                   {
                     sub: "the system's own, never moved to disk",
                   },
@@ -1129,7 +1144,7 @@ export default function Performance({
                   "Compressed",
                   series((m) => m.mem_comp, latest?.mem_parts?.compressed),
                   partsTop,
-                  fmt,
+                  fmtMem,
                   { sub: "squeezed to make room" },
                 ),
               ]
@@ -1152,7 +1167,7 @@ export default function Performance({
           "Using the most memory",
           rangeApps?.by_mem ?? [],
           (a) => a.mem,
-          fmt,
+          fmtMem,
           (a) => `${pct(a.cpu)} CPU`,
         )}
         {incidentsCard(
@@ -1201,7 +1216,7 @@ export default function Performance({
       {column(
         [more("Energy")],
         [
-          points.some((m) => m.battery != null)
+          points.some((m) => m.battery != null) || live?.battery != null
             ? partSpec(
                 "Battery",
                 series((m) => m.battery, live?.battery?.percent),
@@ -1527,7 +1542,7 @@ export default function Performance({
                     const when = fmtAt(at.t);
                     return when.charAt(0).toUpperCase() + when.slice(1);
                   })()}
-                  {!picked ? " · the range's peak" : ""}
+                  {!pickedIn ? " · the range's peak" : ""}
                 </span>
               )}
               {atAvg != null && (
@@ -1563,7 +1578,7 @@ export default function Performance({
                     />
                   </span>
                   <span className="muted small">
-                    {measure.by === "mem" ? `${pct(p.cpu)} CPU` : `${fmt(p.mem)} memory`}
+                    {measure.by === "mem" ? `${pct(p.cpu)} CPU` : `${fmtMem(p.mem)} memory`}
                   </span>
                 </div>
               ))}
@@ -1585,7 +1600,7 @@ export default function Performance({
                   className="incident"
                   key={i.id}
                   onClick={() => pickIncident(i)}
-                  title="Show what every app was doing at its peak"
+                  title="Show what the 12 busiest apps were doing at its peak"
                 >
                   <span>
                     <b>{incidentTitle(i)}</b>{" "}
@@ -1599,7 +1614,7 @@ export default function Performance({
                 </button>
               ))}
               <span className="muted small">
-                Each one keeps a snapshot of what every app was doing.
+                Each one keeps a snapshot of what the 12 busiest apps were doing.
               </span>
             </div>
             <div className="row wrap gap8">

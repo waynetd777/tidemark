@@ -17,6 +17,13 @@ const DELAY = 450;
 function tipText(t: HTMLElement): string | null {
   if (t.title) {
     t.dataset.tip = t.title;
+    // The title was an icon-only control's only name; keep it for VoiceOver.
+    if (
+      !t.textContent?.trim() &&
+      !t.hasAttribute("aria-label") &&
+      !t.hasAttribute("aria-labelledby")
+    )
+      t.setAttribute("aria-label", t.title);
     t.removeAttribute("title");
   }
   if (t.dataset.tip) return t.dataset.tip;

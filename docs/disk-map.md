@@ -9,7 +9,7 @@ What is using the disk, and what grew.
 - Every folder is a block inside its parent, sized by **allocated bytes on disk** (not file lengths).
 - A folder's loose files are one grey dashed block; folders too small to draw fold into **more folders**.
 - Colour is nesting level, in shades of the tide colour.
-- Click to zoom; **‹ ›** go back and forward; right-click for Reveal in Finder, Copy path and Get Info.
+- Click to zoom; **‹ ›** go back and forward; ⌘-click reveals a block in Finder; right-click for Reveal in Finder, Zoom in, Copy path and Get Info.
 - A folder's own files are listed in a Finder-style table you can sort and filter.
 
 ## Growth
@@ -29,10 +29,10 @@ What is using the disk, and what grew.
 
 ## Scanning
 
-- A parallel walk in Rust across every core: about half a minute for a million items on an SSD.
-- It doesn't follow symlinks, counts hard links once, and skips /System/Volumes, /Volumes and /dev.
-- Each scan is cached and drawn at once on launch; a fresh scan runs only if the cached one is over an hour old.
-- Scheduled scans run daily (idle and on power), hourly or not at all, as Settings says.
+- A parallel walk in Rust across every core: about a minute for a million items on an SSD.
+- It doesn't follow symlinks, counts hard links once, and skips /System/Volumes, /Volumes, /dev, /Network, /.vol, /cores and /private/var/vm.
+- Each scan is cached and drawn at once on launch; a fresh scan runs only if the cached one is over an hour old, and never when Scan the disk is Off.
+- Scheduled scans follow Settings. **Daily** waits until the last scan is 20 hours old and the Mac has been idle for 5 minutes on power; once the last scan is two days old it runs when idle on battery too. **Hourly** scans every hour, idle or not, on battery or not. **Off** scans only when you press Reload.
 
 ## Full Disk Access
 

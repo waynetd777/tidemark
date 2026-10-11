@@ -137,7 +137,7 @@ export default function Settings({
                   {settings.scan === "daily"
                     ? "Once a day, when the Mac is idle and on power."
                     : settings.scan === "hourly"
-                      ? "Every hour. A full scan takes a minute of hard work, so this costs some battery."
+                      ? "Every hour. A full scan takes about a minute of hard work, so this costs some battery."
                       : "Only when you press Reload. Growth is shown between the scans you run."}
                 </span>
               </span>

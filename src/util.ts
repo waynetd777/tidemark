@@ -1,13 +1,36 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-/// Decimal units, as macOS reports them. Three significant figures at most.
+/// Decimal units, as macOS reports them. Three significant figures at most. For disk sizes.
 export function fmt(b: number): string {
-  if (b >= 1e12) return (b / 1e12).toFixed(2).replace(/\.?0+$/, "") + " TB";
-  if (b >= 1e9) return (b / 1e9 >= 100 ? Math.round(b / 1e9) : (b / 1e9).toFixed(1)) + " GB";
-  if (b >= 1e6) return Math.round(b / 1e6) + " MB";
-  if (b >= 1e3) return Math.round(b / 1e3) + " KB";
-  return b + " B";
+  return sized(b, 1e3);
+}
+
+/// Binary units (a GB is 2^30 bytes), as Activity Monitor shows memory. For memory and swap only.
+export function fmtMem(b: number): string {
+  return sized(b, 1024);
+}
+
+/// Bytes in units of `k`: TB to two places trimmed, GB to one place below 100, the rest whole.
+/// Rounded before the unit is settled, so 99.96 GB reads "100 GB" and 999.6 GB "1 TB".
+function sized(b: number, k: number): string {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  while (i < 4 && b >= k ** (i + 1)) i++;
+  for (;;) {
+    const x = b / k ** i;
+    const s =
+      i === 4
+        ? x.toFixed(2).replace(/\.?0+$/, "")
+        : i === 3 && x < 99.95
+          ? x.toFixed(1)
+          : String(Math.round(x));
+    if (i < 4 && Number(s) >= k) {
+      i++;
+      continue;
+    }
+    return `${s} ${units[i]}`;
+  }
 }
 
 export function fmtN(n: number): string {
@@ -53,11 +76,12 @@ export function pct(n: number): string {
   return `${Math.round(n)}%`;
 }
 
-/// Bytes a second, compactly.
+/// Bytes a second, compactly. Thresholds sit where the smaller unit would round up to 1000.
 export function fmtRate(b: number): string {
-  if (b >= 1e9) return `${(b / 1e9).toFixed(1)} GB/s`;
-  if (b >= 1e6) return `${(b / 1e6).toFixed(b >= 1e8 ? 0 : 1)} MB/s`;
-  if (b >= 1e3) return `${Math.round(b / 1e3)} KB/s`;
+  if (b >= 999.5e6) return `${(b / 1e9).toFixed(1)} GB/s`;
+  if (b >= 99.95e6) return `${Math.round(b / 1e6)} MB/s`;
+  if (b >= 999.5e3) return `${(b / 1e6).toFixed(1)} MB/s`;
+  if (b >= 999.5) return `${Math.round(b / 1e3)} KB/s`;
   return `${Math.round(b)} B/s`;
 }
 

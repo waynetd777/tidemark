@@ -17,7 +17,7 @@ import { now, usePoll } from "./perf";
 import { isTab, TABS, tabFor, type Tab } from "./perfTabs";
 import { useRemembered } from "./remember";
 import type { AppUse, DiskPoint, Growth, PerfDay, Screen } from "./types";
-import { abbrev, fmt, fmtDelta, fmtRate, fmtW, pct } from "./util";
+import { abbrev, fmt, fmtDelta, fmtMem, fmtRate, fmtW, pct } from "./util";
 
 const RANGES = [
   { label: "30 days", days: 30 },
@@ -57,8 +57,11 @@ function jumps(points: DiskPoint[]): { ts: number; delta: number }[] {
   const byDay = new Map<string, DiskPoint>();
   for (const p of points) byDay.set(new Date(p.ts * 1000).toDateString(), p);
   const days = [...byDay.values()];
+  const midnight = (ts: number) => new Date(ts * 1000).setHours(0, 0, 0, 0);
   const out: { ts: number; delta: number }[] = [];
   for (let i = 1; i < days.length; i++) {
+    // Neighbouring days only: across a gap in the record the rise took more than a day.
+    if (Math.round((midnight(days[i].ts) - midnight(days[i - 1].ts)) / 86400000) !== 1) continue;
     const d = days[i].used - days[i - 1].used;
     if (d >= 2e9) out.push({ ts: days[i].ts, delta: d });
   }
@@ -143,7 +146,7 @@ const M: Record<string, Measure> = {
     what: "memory in use",
     avg: (d) => d.mem,
     peak: (d) => d.mem_max,
-    fmt,
+    fmt: fmtMem,
     by: "mem",
     avgLabel: "the day's average",
     hour: "mem",
@@ -152,7 +155,7 @@ const M: Record<string, Measure> = {
     name: "Swap",
     what: "swap",
     avg: (d) => d.swap_max,
-    fmt,
+    fmt: fmtMem,
     by: "mem",
     avgLabel: "the day's high",
   },
@@ -274,11 +277,13 @@ export default function Trends({
     0,
     RANGES.findIndex((r) => r.days === days),
   );
-  const perfDays = usePoll(() => api.perfDays(days), 300_000, [days]) ?? [];
+  const perfPoll = usePoll(() => api.perfDays(days), 300_000, [days]);
+  const perfDays = perfPoll ?? [];
   const trend = usePoll(() => api.diskTrend(days), 300_000, [days]);
   const growth = usePoll(() => api.growth("/", days), 300_000, [days]);
   // A measure the Mac never reported (no GPU, no battery controller's power) has no chart.
-  const has = (n: string) => perfDays.some((d) => M[n].avg(d) != null);
+  // Until a new range's days come, every measure counts as had, so a tab doesn't blink away.
+  const has = (n: string) => perfPoll == null || perfDays.some((d) => M[n].avg(d) != null);
   const hasGpu = has("GPU");
   const hasPower = has("Energy");
   const shown: Tab = (tab === "gpu" && !hasGpu) || (tab === "energy" && !hasPower) ? "all" : tab;
@@ -483,7 +488,7 @@ export default function Trends({
   })();
   const heatFmt =
     heatOf === "mem"
-      ? (v: number) => `${fmt(v)} in use on average`
+      ? (v: number) => `${fmtMem(v)} in use on average`
       : heatOf === "disk" || heatOf === "down" || heatOf === "up"
         ? (v: number) => `${fmtRate(v)} on average`
         : heatOf === "power"
@@ -709,7 +714,7 @@ export default function Trends({
                       />
                     </span>
                     <span className="muted small">
-                      {measure.by === "mem" ? `${pct(a.cpu)} CPU` : `${fmt(a.mem)} memory`}
+                      {measure.by === "mem" ? `${pct(a.cpu)} CPU` : `${fmtMem(a.mem)} memory`}
                     </span>
                   </div>
                 ))}

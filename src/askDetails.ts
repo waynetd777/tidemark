@@ -9,7 +9,7 @@ import { api } from "./api";
 import { incidentTitle } from "./incidents";
 import { statusFor } from "./status";
 import type { AppUse, Crash, Incident, Live } from "./types";
-import { fmt, fmtAt, fmtW, pct } from "./util";
+import { fmtAt, fmtMem, fmtW, pct } from "./util";
 
 /// A moment in full, so the assistant can place it: "Wed 8 Oct 2026, 14:57".
 const when = (ts: number) =>
@@ -23,7 +23,7 @@ const when = (ts: number) =>
   });
 
 const appLine = (a: AppUse) =>
-  `- ${a.app}: CPU ${pct(a.cpu)}, memory ${fmt(a.mem)}${a.energy ? `, ${fmtW(a.energy)}` : ""}`;
+  `- ${a.app}: CPU ${pct(a.cpu)}, memory ${fmtMem(a.mem)}${a.energy ? `, ${fmtW(a.energy)}` : ""}`;
 
 export function incidentQuestion(i: Incident): string {
   const what =
@@ -37,7 +37,7 @@ export function incidentQuestion(i: Incident): string {
 
 export function incidentDetail(i: Incident): AskDetail {
   const mins = i.ended != null ? Math.max(1, Math.round((i.ended - i.started) / 60)) : null;
-  const peak = i.kind === "cpu" ? pct(i.peak) : i.kind === "swap" ? fmt(i.peak) : "red";
+  const peak = i.kind === "cpu" ? pct(i.peak) : i.kind === "swap" ? fmtMem(i.peak) : "red";
   const rule =
     i.kind === "cpu"
       ? "CPU above 90% for 30 seconds or more"
@@ -50,7 +50,7 @@ export function incidentDetail(i: Incident): AskDetail {
       `An incident Tidemark recorded: ${rule}.`,
       `Started ${when(i.started)}; ${mins == null ? "still going on" : `lasted ${mins} minute${mins === 1 ? "" : "s"}, ended ${when(i.ended!)}`}.`,
       `Peak ${peak} at ${when(i.peak_at)}.`,
-      "What every app was using at the peak, busiest first (CPU is a share of the whole Mac):",
+      "What the busiest apps were using at the peak, busiest first (CPU is a share of the whole Mac):",
       ...i.snapshot.slice(0, 15).map(appLine),
     ].join("\n"),
   };

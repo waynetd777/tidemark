@@ -162,6 +162,12 @@ function draw(b: Block, x: number, y: number, w: number, h: number, out: HTMLEle
       : `blk ${b.kind}`;
   el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
   el.dataset.id = id;
+  // Folders and files blocks take keyboard focus: Enter zooms in, ⌘Enter reveals in Finder.
+  if (b.kind === "dir" || b.kind === "files") {
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", `${blockTitle(b)}, ${fmt(blockSize(b))}`);
+  }
   const grew = b.kind === "dir" ? growthNow?.landed.get(v.path) : undefined;
   if (grew) {
     el.classList.add("grew");
@@ -233,7 +239,14 @@ function draw(b: Block, x: number, y: number, w: number, h: number, out: HTMLEle
 
 export default function Treemap({ tree, free, onZoom, onReveal, onContext, growth }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const [filesHost, setFilesHost] = useState<HTMLElement | null>(null);
+  // The file table's home: one element for the map's life, moved into each redraw's files block,
+  // so a redraw (a resize, new growth) keeps the table, its search and sort, and its listing.
+  const [filesHost] = useState(() => {
+    const el = document.createElement("div");
+    el.style.display = "contents";
+    return el;
+  });
+  const [hasFiles, setHasFiles] = useState(false);
   const tipRef = useRef<HTMLDivElement>(null);
   const cbs = useRef({ onZoom, onReveal, onContext });
   useLayoutEffect(() => {
@@ -245,8 +258,11 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
     if (!map) return;
     const render = () => {
       growthNow = growth ?? null;
-      setFilesHost(null);
+      const focused = filesHost.contains(document.activeElement)
+        ? (document.activeElement as HTMLElement)
+        : null;
       registry.clear();
+      filesHost.remove();
       map.innerHTML = "";
       const W = map.clientWidth,
         H = map.clientHeight;
@@ -262,6 +278,7 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
         e.textContent =
           tree.items === 0 ? "This folder is empty." : "Nothing big enough to draw here.";
         map.appendChild(e);
+        setHasFiles(false);
         return;
       }
       let i = 0;
@@ -272,17 +289,22 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
           gb = r.y + r.h < H - 0.5 ? GAP / 2 : 0;
         draw(r.item.block, r.x + gx, r.y + gy, r.w - gx - gr, r.h - gy - gb, map, `${i++}`);
       }
-      const host = map.querySelector<HTMLElement>(":scope > .files");
-      if (host) {
-        host.classList.add("file-container");
-        setFilesHost(host);
+      const blk = map.querySelector<HTMLElement>(":scope > .files");
+      if (blk) {
+        blk.classList.add("file-container");
+        // It holds the table now, not a button.
+        blk.removeAttribute("tabindex");
+        blk.removeAttribute("role");
+        blk.appendChild(filesHost);
+        focused?.focus();
       }
+      setHasFiles(!!blk);
     };
     render();
     const ro = new ResizeObserver(render);
     ro.observe(map);
     return () => ro.disconnect();
-  }, [tree, free, growth]);
+  }, [tree, free, growth, filesHost]);
 
   const blockAt = (t: EventTarget | null): { el: HTMLElement; b: Block } | null => {
     const el = (t as HTMLElement | null)?.closest?.(".blk") as HTMLElement | null;
@@ -306,6 +328,19 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
       return;
     }
     if (hit.b.kind === "files" || (hit.b.kind === "dir" && hit.el.classList.contains("zoom")))
+      cbs.current.onZoom(hit.b.view.path);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const el = e.target as HTMLElement;
+    // Only the focused block itself, not a key pressed in the file table inside one.
+    if (!el.classList.contains("blk")) return;
+    const hit = blockAt(el);
+    if (!hit || hit.b.kind === "free") return;
+    e.preventDefault();
+    if (e.metaKey) cbs.current.onReveal(hit.b.view.path);
+    else if (hit.b.kind === "files" || hit.el.classList.contains("zoom"))
       cbs.current.onZoom(hit.b.view.path);
   };
 
@@ -381,6 +416,7 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
         className="map"
         ref={ref}
         onClick={onClick}
+        onKeyDown={onKeyDown}
         onContextMenu={onContextMenu}
         onMouseMoveCapture={(e) => {
           if ((e.target as HTMLElement).closest(".file-list") && tipRef.current)
@@ -391,7 +427,7 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
           if (tipRef.current) tipRef.current.hidden = true;
         }}
       />
-      {filesHost &&
+      {hasFiles &&
         createPortal(<FileTable key={tree.path} path={tree.path} onReveal={onReveal} />, filesHost)}
       <div className="tip" ref={tipRef} hidden />
     </>

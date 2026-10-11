@@ -433,8 +433,8 @@ impl Acc {
 // ---- one recorder at a time ----
 //
 // The app and the background helper (`Tidemark --record`, a launch agent: see recorder.rs) can
-// both be running. Whichever holds recorder.lock records; the other reads what it shares in
-// live.json. The lock goes with the process, so when the recorder stops, the other takes over
+// both be running. Whichever holds recorder.lock records; the app, when it doesn't, reads what
+// the helper shares in live.json. The lock goes with the process, so when the recorder stops, the other takes over
 // within seconds.
 
 /// This process holds the lock and is recording.
@@ -483,9 +483,46 @@ fn read_pause() -> Option<i64> {
         .filter(|&t| t > history::now())
 }
 
-/// The recorder's state, for the process that isn't recording.
-fn share() {
-    let bytes = live(|l| serde_json::to_vec(l).unwrap_or_default());
+/// Touched by the app while it follows the recorder (the helper, which shows nothing, doesn't),
+/// so the recorder writes live.json only while someone reads it.
+fn following_path() -> std::path::PathBuf {
+    crate::cache::dir().join("following")
+}
+
+/// Touched within the last `secs` seconds.
+fn touched(path: &std::path::Path, secs: u64) -> bool {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .is_ok_and(|t| t.elapsed().is_ok_and(|e| e.as_secs() < secs))
+}
+
+/// This process is the background helper: no window, no menu bar, nothing to follow for.
+pub static HEADLESS: AtomicBool = AtomicBool::new(false);
+
+/// The recorder's state, for the process that isn't recording. Written only while the app
+/// follows: in full while a window is on screen (the live charts), else just the latest
+/// reading and the busiest apps, which is all the menu bar's status needs.
+fn share(watched: bool) {
+    if !touched(&following_path(), 10) {
+        return;
+    }
+    let bytes = live(|l| {
+        if watched {
+            serde_json::to_vec(l)
+        } else {
+            serde_json::to_vec(&Live {
+                samples: l.samples.back().cloned().into_iter().collect(),
+                apps: l.apps.iter().take(APPS_PER_MINUTE).cloned().collect(),
+                processes: l.processes,
+                mem_total: l.mem_total,
+                battery: l.battery.clone(),
+                paused_until: l.paused_until,
+                open: l.open.clone(),
+                cores: l.cores.clone(),
+            })
+        }
+        .unwrap_or_default()
+    });
     let tmp = live_path().with_extension("tmp");
     if std::fs::write(&tmp, bytes).is_ok() {
         let _ = std::fs::rename(&tmp, live_path());
@@ -494,18 +531,20 @@ fn share() {
 
 /// Reads what the recorder shared, if it is recent (a stopped recorder's file is stale).
 fn follow() {
-    let fresh = std::fs::metadata(live_path())
-        .and_then(|m| m.modified())
-        .is_ok_and(|t| t.elapsed().is_ok_and(|e| e.as_secs() < 30));
-    let shared: Option<Live> = fresh
+    if HEADLESS.load(Ordering::Relaxed) {
+        return;
+    }
+    let _ = std::fs::create_dir_all(crate::cache::dir());
+    let _ = std::fs::write(following_path(), b"");
+    if FAST.load(Ordering::Relaxed) {
+        let _ = std::fs::write(watching_path(), b"");
+    }
+    let shared: Option<Live> = touched(&live_path(), 30)
         .then(|| std::fs::read(live_path()).ok())
         .flatten()
         .and_then(|b| serde_json::from_slice(&b).ok());
     if let Some(l) = shared {
         *LIVE.lock().unwrap_or_else(|e| e.into_inner()) = Some(l);
-    }
-    if FAST.load(Ordering::Relaxed) {
-        let _ = std::fs::write(watching_path(), b"");
     }
 }
 
@@ -560,7 +599,11 @@ fn run() {
     // Instant stops while the Mac sleeps (CLOCK_UPTIME_RAW), so sleep shows only in wall-clock
     // time: gaps are measured with this, rates with `last`.
     let mut last_wall = history::now();
-    let mut acc = Acc::default();
+    // The end of the last sleep or pause: nothing before it is compared with what follows.
+    let mut since_gap = last_wall;
+    // A sleep or a pause left the last per-process pass's apps, disk rates and GPU behind: the
+    // first sample after it takes a fresh pass, whatever the rate.
+    let mut procs_stale = false;
     let mut meter = Meter::new();
     // The battery when the last sample was taken, for what a sleep cost.
     let mut battery_then: Option<f64> = None;
@@ -571,9 +614,7 @@ fn run() {
     ];
     loop {
         // Faster while a window is on screen here, or in the other process.
-        let watched = std::fs::metadata(watching_path())
-            .and_then(|m| m.modified())
-            .is_ok_and(|t| t.elapsed().is_ok_and(|e| e.as_secs() < 10));
+        let watched = touched(&watching_path(), 10);
         let every = if FAST.load(Ordering::Relaxed) || watched {
             2
         } else {
@@ -584,10 +625,8 @@ fn run() {
         let paused = read_pause();
         live(|l| l.paused_until = paused);
         if paused.is_some() {
-            if acc.n > 0.0 || !live(|l| l.open.is_empty()) {
-                end_all(last_wall, &mut watches);
-            }
-            share();
+            end_all(last_wall, &mut watches);
+            share(watched);
             // Keep the counters current so the first sample after the pause covers 2-5 s, not
             // the whole pause.
             refresh(&mut sys, &mut nets);
@@ -602,7 +641,11 @@ fn run() {
             last = Instant::now();
             last_procs = last;
             last_wall = now;
-            acc.flush();
+            since_gap = now;
+            procs_stale = true;
+            // The minute in hand is saved when the next one starts, not here: saved now, a
+            // pause that ends within the same minute would start that minute again, and the
+            // later part would replace the earlier.
             continue;
         }
         let dt = last.elapsed().as_secs_f64();
@@ -611,11 +654,14 @@ fn run() {
         let before_gap = last_wall;
         last_wall = now;
         refresh(&mut sys, &mut nets);
-        let procs_due = every == 2 || last_procs.elapsed() >= Duration::from_secs(15);
+        let procs_due =
+            every == 2 || procs_stale || last_procs.elapsed() >= Duration::from_secs(15);
         // Asleep in between: the counters span the sleep, so this sample says nothing about
         // any moment. The gap stays a gap.
         if wall_dt.max(dt) > every as f64 * 3.0 + 5.0 {
-            acc.flush();
+            // The minute in hand is saved when the next one starts (see the pause above).
+            since_gap = now;
+            procs_stale = true;
             // An incident ends where the record stops; nothing building up carries across.
             end_all(before_gap, &mut watches);
             // Remember the gap, with the battery either side: what the sleep cost.
@@ -640,6 +686,7 @@ fn run() {
         }
 
         if procs_due {
+            procs_stale = false;
             refresh_procs(&mut sys);
             // Rates over the time since the last per-process pass, whatever the sample rate.
             let dt = last_procs.elapsed().as_secs_f64();
@@ -708,17 +755,20 @@ fn run() {
         };
 
         let minute = now / 60;
-        if minute != acc.minute {
-            acc.flush();
-            acc.minute = minute;
-        }
-        acc.add(&s, mem_total, &apps);
+        with_acc(|acc| {
+            if minute != acc.minute {
+                acc.flush();
+                acc.minute = minute;
+            }
+            acc.add(&s, mem_total, &apps);
+        });
 
-        // Swap grown by 1 GB from its lowest in the last 10 minutes.
+        // Swap grown by 1 GB from its lowest in the last 10 minutes, since the last sleep or
+        // pause (what swap did across one is no sign of anything now).
         let swap_low = live(|l| {
             l.samples
                 .iter()
-                .filter(|x| x.t >= (now - 600) * 1000)
+                .filter(|x| x.t >= (now - 600).max(since_gap) * 1000)
                 .map(|x| x.swap)
                 .fold(f64::MAX, f64::min)
         })
@@ -728,7 +778,7 @@ fn run() {
             l.samples
                 .iter()
                 .rev()
-                .take_while(|x| x.t >= (now - 300) * 1000)
+                .take_while(|x| x.t >= (now - 300).max(since_gap) * 1000)
                 .all(|x| x.swap >= s.swap - 1e6)
         });
         watches[0].step(now, s.cpu >= 90.0, s.cpu < 80.0, s.cpu, &apps);
@@ -756,7 +806,29 @@ fn run() {
             l.battery = battery;
             l.cores = cores;
         });
-        share();
+        share(watched);
+    }
+}
+
+/// The minute being gathered, shared with `stop`.
+static ACC: Mutex<Option<Acc>> = Mutex::new(None);
+
+fn with_acc<T>(f: impl FnOnce(&mut Acc) -> T) -> T {
+    let mut g = ACC.lock().unwrap_or_else(|e| e.into_inner());
+    f(g.get_or_insert_with(Acc::default))
+}
+
+/// The app is quitting, or the helper was told to stop: saves the minute in hand and ends the
+/// incidents going on now, rather than leaving the next recorder to guess where they ended.
+/// Nothing when this process isn't the recorder.
+pub fn stop() {
+    if !recording() {
+        return;
+    }
+    with_acc(|a| a.flush());
+    let now = history::now();
+    for (id, _, _) in live(|l| l.open.drain().map(|(_, v)| v).collect::<Vec<_>>()) {
+        history::close_incident(id, now);
     }
 }
 
@@ -780,6 +852,7 @@ pub struct Status {
     pub also: Vec<Status>,
 }
 
+/// Bytes on disk or over the network, in decimal units (as Finder counts them).
 fn gb(b: f64) -> String {
     if b >= 100e9 {
         format!("{:.0} GB", b / 1e9)
@@ -787,6 +860,19 @@ fn gb(b: f64) -> String {
         format!("{:.1} GB", b / 1e9)
     } else {
         format!("{:.0} MB", b / 1e6)
+    }
+}
+
+/// Memory and swap, in binary units (as Activity Monitor counts them), so a 16 GB Mac says 16 GB.
+fn mem_gb(b: f64) -> String {
+    const GIB: f64 = (1u64 << 30) as f64;
+    const MIB: f64 = (1u64 << 20) as f64;
+    if b >= 100.0 * GIB {
+        format!("{:.0} GB", b / GIB)
+    } else if b >= GIB {
+        format!("{:.1} GB", b / GIB)
+    } else {
+        format!("{:.0} MB", b / MIB)
     }
 }
 
@@ -800,7 +886,8 @@ pub fn status() -> Status {
             l.apps.first().map(|a| a.app.clone()),
         )
     });
-    let vol = crate::volume::info("/");
+    // statfs only: the menu bar asks every few seconds, and the volume's name isn't needed.
+    let (vol_total, vol_free) = crate::volume::stats("/").unwrap_or((0, 0));
     let attention = |about, severity, label, headline: String, sub: String| Status {
         level: "attention",
         about,
@@ -822,9 +909,9 @@ pub fn status() -> Status {
                 "Memory is running high".into(),
                 format!(
                     "{} of {} in use, {} in swap.",
-                    gb(s.mem),
-                    gb(mem_total),
-                    gb(s.swap)
+                    mem_gb(s.mem),
+                    mem_gb(mem_total),
+                    mem_gb(s.swap)
                 ),
             ));
         }
@@ -845,13 +932,13 @@ pub fn status() -> Status {
             ),
         ));
     }
-    if vol.total > 0 && (vol.free as f64) < vol.total as f64 * 0.05 {
+    if vol_total > 0 && (vol_free as f64) < vol_total as f64 * 0.05 {
         found.push(attention(
             "disk",
             "critical",
             "Almost full",
             "The disk is almost full".into(),
-            format!("{} free of {}.", gb(vol.free as f64), gb(vol.total as f64)),
+            format!("{} free of {}.", gb(vol_free as f64), gb(vol_total as f64)),
         ));
     }
     // Warnings after anything critical, so a busy CPU never heads the list over a flat battery.
@@ -876,17 +963,17 @@ pub fn status() -> Status {
                 "warn",
                 "Swap growing",
                 "Swap is growing".into(),
-                format!("{} in swap: memory is short.", gb(s.swap)),
+                format!("{} in swap: memory is short.", mem_gb(s.swap)),
             ));
         }
     }
-    if vol.total > 0 && (vol.free as f64) < vol.total as f64 * 0.1 {
+    if vol_total > 0 && (vol_free as f64) < vol_total as f64 * 0.1 {
         found.push(attention(
             "disk",
             "warn",
             "Nearly full",
             "The disk is nearly full".into(),
-            format!("{} free of {}.", gb(vol.free as f64), gb(vol.total as f64)),
+            format!("{} free of {}.", gb(vol_free as f64), gb(vol_total as f64)),
         ));
     }
     if latest.as_ref().is_some_and(|s| s.pressure == 2) {
@@ -1119,7 +1206,7 @@ fn apps_line(apps: &[AppUse], by_mem: bool) -> String {
         .take(6)
         .map(|a| {
             if by_mem {
-                format!("{} {}", a.app, gb(a.mem))
+                format!("{} {}", a.app, mem_gb(a.mem))
             } else {
                 format!("{} {:.0}% CPU", a.app, a.cpu)
             }
@@ -1147,9 +1234,9 @@ pub async fn perf_brief() -> String {
                 "CPU {:.0}% of {} cores; memory {} used of {}, pressure {p}; swap {}; {} processes.",
                 s.cpu,
                 std::thread::available_parallelism().map_or(1, |n| n.get()),
-                gb(s.mem),
-                gb(l.mem_total),
-                gb(s.swap),
+                mem_gb(s.mem),
+                mem_gb(l.mem_total),
+                mem_gb(s.swap),
                 l.processes
             ));
         }
@@ -1175,7 +1262,7 @@ pub async fn perf_brief() -> String {
     ] {
         let fmt = |(v, t): (f64, i64)| {
             if is_mem {
-                format!("{} at {}", gb(v), when(t))
+                format!("{} at {}", mem_gb(v), when(t))
             } else {
                 format!("{v:.0}% at {}", when(t))
             }
@@ -1270,9 +1357,9 @@ pub async fn perf_brief() -> String {
         if let Some(m) = s.mem_parts {
             out.push(format!(
                 "Memory in use is {} of apps, {} wired (the system's own) and {} compressed.",
-                gb(m.app),
-                gb(m.wired),
-                gb(m.compressed)
+                mem_gb(m.app),
+                mem_gb(m.wired),
+                mem_gb(m.compressed)
             ));
         }
     }
@@ -1311,9 +1398,9 @@ pub async fn perf_brief() -> String {
                 "cpu" => format!("CPU above 90%, peak {:.0}%", i.peak),
                 "pressure" => format!(
                     "memory pressure critical, {} in use at the peak",
-                    gb(i.peak)
+                    mem_gb(i.peak)
                 ),
-                _ => format!("swap grew, to {}", gb(i.peak)),
+                _ => format!("swap grew, to {}", mem_gb(i.peak)),
             };
             let mins = i.ended.map(|e| ((e - i.started) / 60).max(1));
             let by_mem = i.kind != "cpu";
@@ -1374,6 +1461,12 @@ mod tests {
             "Spotlight (mds_stores)"
         );
         assert_eq!(app_of(None, "kernel_task"), "kernel_task");
+    }
+
+    #[test]
+    fn memory_is_binary_disk_is_decimal() {
+        assert_eq!(mem_gb(16.0 * (1u64 << 30) as f64), "16.0 GB");
+        assert_eq!(gb(16.0 * (1u64 << 30) as f64), "17.2 GB");
     }
 
     #[test]

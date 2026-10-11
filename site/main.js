@@ -288,7 +288,7 @@
   $(".tm", ssvg).setAttribute("y2", tmY);
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
   const when = (i) => {
-    const m = (i % 96) * 15 + (i === PEAK ? 12 : 0);
+    const m = (i % 96) * 15 - (i === PEAK ? 3 : 0);
     return `${days[Math.floor(i / 96)]} ${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   };
   const appsAt = (i, total) => {
@@ -298,7 +298,7 @@
       ? [0, 1, 6]
       : [(i * 3) % apps.length, (i * 5 + 1) % apps.length, (i * 7 + 2) % apps.length];
     const uniq = [...new Set(pick)];
-    const shares = near ? [0.74, 0.1, 0.05] : [0.42, 0.22, 0.12];
+    const shares = near ? [0.74, 0.09, 0.05] : [0.42, 0.22, 0.12];
     return uniq.map((a, k) => ({ name: apps[a], pct: Math.max(1, Math.round(total * shares[k])) }));
   };
   const scCard = {
@@ -426,11 +426,21 @@
     }
   };
 
+  // The nav turns solid past the hero, with or without motion.
+  const solidNav = () => nav.classList.toggle("solid", hero.getBoundingClientRect().bottom < 60);
+  addEventListener("scroll", solidNav, { passive: true });
+  solidNav();
+  sizeStars();
+
   if (still) {
     words.forEach((w) => (w.style.opacity = 1));
     typed.textContent = answer;
     $$(".tray-drop").forEach((t) => (t.style.cssText = "opacity:1;transform:none"));
     drawStars(0);
+    addEventListener("resize", () => {
+      sizeStars();
+      drawStars(0);
+    });
     return;
   }
   onceInView($("[data-chat]"), typeAnswer, 0.5);
@@ -476,7 +486,6 @@
     if (heroOn) drawStars(t);
     requestAnimationFrame(starLoop);
   };
-  sizeStars();
   requestAnimationFrame(starLoop);
 
   // Scroll-linked motion.
@@ -486,7 +495,6 @@
   const frame = () => {
     ticking = false;
     const vh = innerHeight;
-    nav.classList.toggle("solid", hero.getBoundingClientRect().bottom < 60);
 
     // The Now screen tilts up out of the water and grows to full size.
     const r = ebb.getBoundingClientRect();

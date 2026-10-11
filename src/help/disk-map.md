@@ -60,9 +60,9 @@ OneDrive, iCloud Drive and anything under Library/CloudStorage or Library/Mobile
 ## Scanning
 
 - **Reload** (⌘R) scans again. While it runs the button is **Stop**, which keeps the last finished scan on screen.
-- A scan walks every folder across every core: about half a minute for a million items on an SSD.
+- A scan walks every folder across every core: about a minute for a million items on an SSD.
 - It doesn't follow symlinks, counts hard-linked files once, and skips /System/Volumes, /Volumes, /dev and the virtual folders.
-- Each finished scan is cached and drawn at once on launch. A fresh scan runs only if the cached one is over an hour old.
+- Each finished scan is cached and drawn at once on launch. A fresh scan runs only if the cached one is over an hour old, and never when Scan the disk is Off.
 - The strip under the title bar shows what is being scanned and how far it has got.
 - The disk is also scanned on Settings' schedule (daily by default), by the app or the background helper. A scan the helper finishes replaces the map on screen.
 

@@ -51,6 +51,31 @@ function step(pts: Pt[]): number {
   return d[Math.floor(d.length / 2)] || 60;
 }
 
+/// The same readings, point for point.
+function samePts(a: Pt[] | undefined, b: Pt[] | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i].t !== b[i].t || a[i].v !== b[i].v) return false;
+  return true;
+}
+
+/// `v`, or the one kept from an earlier render when `same` says nothing changed. The screens build
+/// their series afresh on every render; this lets the paths drawn from them be kept until a
+/// reading really changes.
+function useSame<T>(v: T, same: (a: T, b: T) => boolean): T {
+  const [kept, setKept] = useState(v);
+  if (v === kept || same(v, kept)) return kept;
+  setKept(v);
+  return v;
+}
+
+const sameAlso = (a: AreaProps["also"], b: AreaProps["also"]) =>
+  a === b ||
+  (!!a &&
+    !!b &&
+    a.length === b.length &&
+    a.every((x, i) => x.label === b[i].label && x.dash === b[i].dash && samePts(x.pts, b[i].pts)));
+
 function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
   const ref = useRef<T>(null);
   const [w, setW] = useState(0);
@@ -212,7 +237,7 @@ export interface AreaProps {
 /// A line over its area, with a crosshair that follows the pointer, snaps to the nearest
 /// reading and shows it; the tidemark; and the peak marked with a dot and its value.
 export function Area({
-  pts,
+  pts: ptsIn,
   max,
   min = 0,
   height = 170,
@@ -227,12 +252,15 @@ export function Area({
   onPick,
   axis = true,
   domain,
-  hi: band,
+  hi: bandIn,
   sleeps,
   tone,
-  also,
+  also: alsoIn,
   marker,
 }: AreaProps) {
+  const pts = useSame(ptsIn, samePts);
+  const band = useSame(bandIn, samePts);
+  const also = useSame(alsoIn, sameAlso);
   const color = toneColor(tone);
   const hatch = useId();
   const [d0, d1] = domain ?? [null, null];
@@ -248,7 +276,9 @@ export function Area({
     [pts, sleeps, d0, d1],
   );
   const [ref, W] = useWidth<HTMLDivElement>();
-  const [hover, setHover] = useState<number | null>(null);
+  // The reading pointed at, by its time: a poll that adds a reading and drops the oldest leaves
+  // the readout on the same moment, not on whatever now sits at the same index.
+  const [hoverT, setHoverT] = useState<number | null>(null);
   // Pointing inside a gap shows the gap, not the nearest reading: the gap and where the pointer is.
   const [gapHover, setGapHover] = useState<{ g: Gap; px: number } | null>(null);
   // The readout sits above the chart, or below it where the screen's top bar would cover it.
@@ -268,7 +298,7 @@ export function Area({
     setTipBelow(plot.getBoundingClientRect().top - 6 - el.offsetHeight < roof + 4);
     // Measured again for each reading pointed at: the readout's height follows its lines.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hover, gapHover]);
+  }, [hoverT, gapHover]);
   const H = height;
   const left = axis ? 44 : 0;
   const w = Math.max(0, W - left);
@@ -293,7 +323,7 @@ export function Area({
     });
     // x and y follow W, pts, the time span and the scale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pts, W, hi, lo, H, t0, t1]);
+  }, [pts, W, hi, lo, H, t0, t1, room]);
   const bandPaths = useMemo(() => {
     if (!band?.length) return [];
     return runs(band, gapMin(step(band))).map((r) => {
@@ -302,7 +332,7 @@ export function Area({
     });
     // x and y follow W, the band, the time span and the scale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [band, W, hi, lo, H, t0, t1]);
+  }, [band, W, hi, lo, H, t0, t1, room]);
   const alsoPaths = useMemo(
     () =>
       (also ?? []).map((a) => ({
@@ -313,17 +343,17 @@ export function Area({
       })),
     // x and y follow W, the lines, the time span and the scale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [also, W, hi, lo, H, t0, t1],
+    [also, W, hi, lo, H, t0, t1, room],
   );
-  const nearest = (clientX: number, el: HTMLElement) => {
+  // The index of the reading nearest a time.
+  const nearest = (t: number) => {
     if (!pts.length) return null;
-    const r = el.getBoundingClientRect();
-    const t = t0 + ((clientX - r.left - left) / (w || 1)) * (t1 - t0);
     let best = 0;
     for (let i = 1; i < pts.length; i++)
       if (Math.abs(pts[i].t - t) < Math.abs(pts[best].t - t)) best = i;
     return best;
   };
+  const hover = hoverT != null ? nearest(hoverT) : null;
   const hp = hover != null ? pts[hover] : null;
   // Now: a dot on the latest reading, where the chart runs up to the present and its line
   // reaches it (not across a pause or a sleep).
@@ -346,14 +376,15 @@ export function Area({
           const g = (gaps ?? []).find((g) => t >= g.from && t <= g.to);
           if (g) {
             setGapHover({ g, px });
-            setHover(null);
+            setHoverT(null);
           } else {
             setGapHover(null);
-            setHover(nearest(e.clientX, e.currentTarget));
+            const i = nearest(t);
+            setHoverT(i != null ? pts[i].t : null);
           }
         }}
         onPointerLeave={() => {
-          setHover(null);
+          setHoverT(null);
           setGapHover(null);
         }}
         onClick={() => {
@@ -516,7 +547,7 @@ export function Area({
               {fmtAt(gapHover.g.from)} to {fmtAt(gapHover.g.to)} ·{" "}
               {fmtMins(Math.max(1, Math.round((gapHover.g.to - gapHover.g.from) / 60)))}
             </span>
-            {gapHover.g.kind === "off" && <span>Tidemark was quit, paused or not yet started</span>}
+            {gapHover.g.kind === "off" && <span>Tidemark was quit or not yet started</span>}
           </div>
         )}
         {hp && (
@@ -531,7 +562,7 @@ export function Area({
               <span>
                 {name} · {fmtT(hp.t)}
               </span>
-              {extra?.(hover!)}
+              {hover != null && extra?.(hover)}
             </div>
           </>
         )}

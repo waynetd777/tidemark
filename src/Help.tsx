@@ -125,11 +125,14 @@ export default function HelpDrawer({
     if (open) box.current?.focus();
   }, [open]);
 
-  // Closing clears the search, so it reopens on the guide.
-  const close = () => {
-    setQ("");
-    onClose();
-  };
+  // Closing clears the search, so it reopens on the guide: however it closes (✕, Esc here or
+  // in the window, the ? key, Ask opening), so it is done on `open` turning false.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (!open) setQ("");
+  }
+  const close = onClose;
 
   const goTo = (anchor: string) => {
     setQ("");
@@ -188,7 +191,7 @@ export default function HelpDrawer({
         <div className="grow" />
         <button
           className="btn small"
-          onClick={onClose}
+          onClick={close}
           aria-label="Close help"
           title="Close help (Esc)"
         >

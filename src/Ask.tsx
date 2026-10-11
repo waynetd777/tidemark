@@ -10,7 +10,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { writeHtml } from "@tauri-apps/plugin-clipboard-manager";
 import { api } from "./api";
-import { loadModel, modelGroups, pickModel, saveModel, useAssistant } from "./assistant";
+import {
+  loadModel,
+  modelGroups,
+  pickModel,
+  providerOf,
+  saveModel,
+  useAssistant,
+  type Provider,
+} from "./assistant";
 import type { Context } from "./context";
 import { mdToHtml } from "./md";
 
@@ -76,6 +84,8 @@ export default function AskPanel({
   // The details the next question carries, until it is sent or removed.
   const [detail, setDetail] = useState<AskDetail | null>(null);
   const lastPath = useRef<string | null>(null);
+  // The tool the session belongs to: another tool can't resume it, so a switch starts afresh.
+  const sessionTool = useRef<Provider | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chatId);
@@ -149,13 +159,22 @@ export default function AskPanel({
     const text = question.trim();
     if (!text || busy) return;
     const ctx = context();
+    const tool = providerOf(model);
+    let resume = session;
+    if (sessionTool.current !== tool) {
+      // The new tool has seen nothing of this chat, so the context goes again.
+      resume = null;
+      lastPath.current = null;
+      setSession(null);
+      sessionTool.current = tool;
+    }
     let prompt = text;
     // The details go with this question only, in a new chat or a follow-up alike.
     const about = detail ? `About this — ${detail.label}:\n${detail.text}\n\n` : "";
-    if (ctx && (!session || ctx.path !== lastPath.current)) {
+    if (ctx && (!resume || ctx.path !== lastPath.current)) {
       prompt = `${ctx.text}\n\n${about}Question: ${text}`;
       lastPath.current = ctx.path;
-    } else if (!ctx && !session) {
+    } else if (!ctx && !resume) {
       prompt = `There is no scan on screen yet.\n\n${about}Question: ${text}`;
     } else if (about) {
       prompt = `${about}Question: ${text}`;
@@ -169,7 +188,7 @@ export default function AskPanel({
       { role: "assistant", text: "" },
     ]);
     try {
-      await api.ask(chatId, prompt, model, session);
+      await api.ask(chatId, prompt, model, resume);
     } catch (e) {
       setMessages((m) => [...m.slice(0, -1), { role: "assistant", text: String(e), error: true }]);
       setBusy(false);
@@ -185,6 +204,7 @@ export default function AskPanel({
     setChatId(uid());
     setMessages([]);
     setSession(null);
+    sessionTool.current = null;
     setBusy(false);
     lastPath.current = null;
     box.current?.focus();
@@ -334,7 +354,8 @@ export default function AskPanel({
           aria-label="Your question"
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            // Not while an input method is composing: there Enter picks the text.
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               void send(q);
             } else if (e.key === "Escape") {

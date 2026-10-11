@@ -28,8 +28,14 @@ pub fn stats(path: &str) -> Option<(u64, u64)> {
 }
 
 /// The boot volume's display name. macOS lists it under /Volumes as a symlink to `/`, which is
-/// the cheapest place to read the name without loading Foundation.
+/// the cheapest place to read the name without loading Foundation. Read once: resolving every
+/// entry there waits on each mounted volume, and a network share that has gone away can hang.
 pub fn boot_volume_name() -> String {
+    static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    NAME.get_or_init(read_boot_volume_name).clone()
+}
+
+fn read_boot_volume_name() -> String {
     if let Ok(rd) = std::fs::read_dir("/Volumes") {
         for e in rd.flatten() {
             if let Ok(target) = std::fs::canonicalize(e.path()) {

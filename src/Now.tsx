@@ -24,7 +24,7 @@ import { Area, Cores, Legend, Meter, type Pt } from "./charts";
 import { crashGroups, crashTitle, incidentTitle, incidentWhy } from "./incidents";
 import { gapsOf, now, startOfToday, upToNow, usePoll } from "./perf";
 import type { Crash, GrowthInfo, Incident, Live, Screen } from "./types";
-import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
+import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtMem, fmtRate, fmtW, pct } from "./util";
 
 const DAY = 86400;
 const HOUR = 3600;
@@ -207,21 +207,21 @@ export default function Now({
       name: "Memory",
       line: "Memory used, minute average",
       range: "Last hour",
-      value: latest ? (latest.mem / 1e9).toFixed(1) : "–",
-      unit: total > 1 ? `of ${fmt(total)}` : "",
+      value: latest ? (latest.mem / 2 ** 30).toFixed(1) : "–",
+      unit: total > 1 ? `of ${fmtMem(total)}` : "",
       sub: latest
-        ? `Pressure ${latest.pressure >= 4 ? "critical" : latest.pressure >= 2 ? "raised" : "normal"} · swap ${fmt(latest.swap)}`
+        ? `Pressure ${latest.pressure >= 4 ? "critical" : latest.pressure >= 2 ? "raised" : "normal"} · swap ${fmtMem(latest.swap)}`
         : "",
       pts: series("mem"),
       level: latest && total > 1 ? latest.mem / total : null,
       max: total,
       mark: tm.mem
-        ? { v: tm.mem.value, label: `Tidemark ${fmt(tm.mem.value)} · ${fmtAt(tm.mem.at)}` }
+        ? { v: tm.mem.value, label: `Tidemark ${fmtMem(tm.mem.value)} · ${fmtAt(tm.mem.at)}` }
         : null,
       high: memHigh
-        ? `Today's high ${fmt(memHigh.v)} at ${fmtAt(memHigh.t)}`
+        ? `Today's high ${fmtMem(memHigh.v)} at ${fmtAt(memHigh.t)}`
         : "No reading today yet",
-      fmt,
+      fmt: fmtMem,
       to: "performance" as Screen,
     },
     {
@@ -388,7 +388,7 @@ export default function Now({
         <AskButton
           title={
             m.inc
-              ? "Ask why this happened, with what every app was using at its peak"
+              ? "Ask why this happened, with what the 12 busiest apps were using at its peak"
               : "Ask what went wrong, with the reports macOS wrote"
           }
           onAsk={async () => {

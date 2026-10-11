@@ -19,7 +19,7 @@ import { flagFor } from "./status";
 import Tooltips from "./Tooltips";
 import { startOfToday, upToNow } from "./perf";
 import type { DiskTrend, GrowthInfo, Live, Minute, PerfHistory, Sleep } from "./types";
-import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtRate, fmtW, pct } from "./util";
+import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtMem, fmtRate, fmtW, pct } from "./util";
 
 const WIDTH = 360;
 const hide = () => void getCurrentWindow().hide();
@@ -284,12 +284,12 @@ export default function Tray() {
       name: "Memory",
       level: latest && live.mem_total ? latest.mem / live.mem_total : null,
       note: memNewMark
-        ? `New tidemark · swap ${fmt(latest.swap)}`
+        ? `New tidemark · swap ${fmtMem(latest.swap)}`
         : memHigh
-          ? `Today's high ${fmt(memHigh.v)}`
+          ? `Today's high ${fmtMem(memHigh.v)}`
           : "Recording",
       flag: flagFor(live.status, "Memory"),
-      value: latest ? fmt(latest.mem) : "–",
+      value: latest ? fmtMem(latest.mem) : "–",
       spark: (
         <Spark
           sleeps={sleeps}
@@ -438,7 +438,7 @@ export default function Tray() {
           >
             <span className="grow ell">{a.app}</span>
             <span className="tiny muted">
-              {fmt(a.mem)} · {pct(a.cpu)} CPU
+              {fmtMem(a.mem)} · {pct(a.cpu)} CPU
             </span>
           </button>
         ))}

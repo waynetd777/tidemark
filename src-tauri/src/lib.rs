@@ -240,8 +240,11 @@ pub fn run() {
                     }
                     st.loading.store(false, std::sync::atomic::Ordering::SeqCst);
                     stamp("cache loaded");
-                    if !fresh && !scene::active() {
-                        let _ = disk::start_scan_thread(&h, root, true);
+                    // "Scan the disk: Off" means no scan the user didn't ask for, this one
+                    // included; and none beside a scan the background helper is running.
+                    let off = settings::get().scan == settings::ScanEvery::Off;
+                    if !fresh && !off && !scene::active() {
+                        let _ = disk::start_scan_thread(&h, root, true, true);
                     }
                 });
             }
@@ -360,8 +363,10 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, ev| {
             // No CLI answering a question outlives the app.
+            // The minute in hand is saved and open incidents end, if this was the recorder.
             if let tauri::RunEvent::Exit = ev {
                 app.state::<Arc<assistant::Running>>().kill_all();
+                monitor::stop();
             }
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = ev {

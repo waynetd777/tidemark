@@ -4,7 +4,7 @@ APP      := src-tauri/target/release/bundle/macos/Tidemark.app
 
 # The signing certificate is named in signing.local, which is untracked: the name of a
 # keychain identity is local to the machine that holds it. Copy signing.local.example and
-# put your own self-signed certificate's name in it. See the README.
+# put your own self-signed certificate's name in it. See docs/development.md.
 -include signing.local
 export APPLE_SIGNING_IDENTITY
 SIGN_ID  := $(APPLE_SIGNING_IDENTITY)
@@ -19,7 +19,7 @@ check: lint
 
 ## Every language in the repo, failing on any warning: rustfmt and clippy for the Rust; ESLint
 ## and Prettier for the TypeScript, CSS, JSON and HTML; ruff for the Python in tools/; shellcheck
-## for the shell scripts and git hooks; plutil for the launch agent's plist.
+## for the shell scripts and git hooks.
 lint:
 	cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings
 	npm run lint
@@ -41,7 +41,7 @@ test: check
 # and `make check` keep their incremental caches.
 RELEASE_RUSTFLAGS := --remap-path-prefix=$(HOME)=/build
 
-## Build the signed .app. The identity comes from signing.local; see the README for why a
+## Build the signed .app. The identity comes from signing.local; see docs/development.md for why a
 ## stable signature matters (Full Disk Access is tied to it).
 app:
 	@test -n "$(SIGN_ID)" || { echo "APPLE_SIGNING_IDENTITY is not set: copy signing.local.example to signing.local"; exit 1; }
@@ -51,11 +51,23 @@ app:
 	  || { echo "WARNING: app is not signed with $(SIGN_ID); privacy grants will not persist"; exit 1; }
 
 ## Build and replace /Applications/Tidemark.app (same signature, so Full Disk Access persists).
+## The background helper runs the same binary: its launch agent is unloaded first (so launchd
+## neither restarts it from a half-copied app nor throttles the restart) and loaded again after,
+## if it was loaded. Quitting the app is then left to pkill.
+HELPER_AGENT := gui/$(shell id -u)/com.wayned.tidemark.helper
+HELPER_PLIST := $(HOME)/Library/LaunchAgents/com.wayned.tidemark.helper.plist
 install-app: app
-	@pkill -x Tidemark 2>/dev/null || true
-	@rm -rf "/Applications/Tidemark.app"
-	@ditto "$(APP)" "/Applications/Tidemark.app"
-	@echo "installed /Applications/Tidemark.app"
+	@loaded=; \
+	if launchctl print "$(HELPER_AGENT)" >/dev/null 2>&1; then \
+	  loaded=1; launchctl bootout "$(HELPER_AGENT)" 2>/dev/null || true; \
+	fi; \
+	pkill -x Tidemark 2>/dev/null || true; \
+	rm -rf "/Applications/Tidemark.app" && \
+	ditto "$(APP)" "/Applications/Tidemark.app" && \
+	echo "installed /Applications/Tidemark.app" && \
+	if [ -n "$$loaded" ]; then \
+	  launchctl bootstrap "gui/$$(id -u)" "$(HELPER_PLIST)" && echo "restarted the background helper"; \
+	fi
 
 ## Build the app and pack it into dist-release/Tidemark.dmg for a GitHub release, laid out
 ## like other Mac installers (tools/dmg/). Finder lays out the window, so the first run asks to
