@@ -246,6 +246,8 @@ pub fn run() {
             }
 
             monitor::start();
+            // A helper registered by an earlier build would never start: register it afresh.
+            std::thread::spawn(recorder::renew_if_rebuilt);
             schedule::start(handle.clone());
             tray::setup(app)?;
             help_menu(app)?;
