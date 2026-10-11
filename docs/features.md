@@ -19,7 +19,7 @@ Every live measure in detail, over 1 hour to 14 days.
 
 <a href="images/index.md#recent"><picture><source media="(prefers-color-scheme: dark)" srcset="images/performance-dark.png"><img alt="The Recent screen" src="images/performance-light.png" width="900"></picture></a>
 
-- **All**: one chart a measure, each the same size. A tab for each measure (CPU, GPU, Memory, Disk I/O, Network, Energy) gives it more room, with its parts, the apps that used the most, its incidents and busiest moments.
+- **All**: one chart a measure, each the same size. A tab for each measure (CPU, GPU, Memory, Disk I/O, Network, Energy, Disk space) gives it more room, with its parts, the apps that used the most, its incidents and busiest moments.
 - CPU, GPU and memory charts, with each point's peak as a band and the week's tidemark; the CPU's performance and efficiency cores on its tab.
 - Memory split into apps, wired and compressed.
 - Disk I/O and network, each way; energy with battery health and what sleep cost; disk space, hourly.
@@ -29,12 +29,13 @@ Every live measure in detail, over 1 hour to 14 days.
 
 ## Trends (⌘3)
 
-The disk over weeks and months, and when the Mac is busiest.
+Every measure over a month to a year, a day at a time.
 
 <a href="images/index.md#trends"><picture><source media="(prefers-color-scheme: dark)" srcset="images/trends-dark.png"><img alt="The Trends screen" src="images/trends-light.png" width="900"></picture></a>
 
-- Disk space over 7 days to 12 months: how fast it grows, and when it would be full.
-- The folders that rose, CPU by weekday and hour, and the range's highs.
+- A row a day for a year: every measure's average and peak, the day's totals, its incidents and its busiest apps. Tabs as on Recent, one chart a measure.
+- Click a day to see its figures and busiest apps; each tab's records (busiest day, highest peak, busiest week) and when it's usually busy, by hour.
+- Disk space over 30 days to 12 months: how fast it grows, when it would be full, and the folders that rose.
 
 ## Disk Map (⌘4)
 

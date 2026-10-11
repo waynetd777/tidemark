@@ -109,12 +109,12 @@ pub async fn folder_history(path: String, days: i64) -> Vec<(i64, f64)> {
     history::folder_history(&path, history::now() - days * 86_400)
 }
 
-/// Average CPU by weekday and hour over the last 14 days: rows Monday..Sunday, 24 columns.
-/// None where nothing was recorded.
+/// A measure's average by weekday and hour over the minutes kept (14 days at most): rows
+/// Monday..Sunday, 24 columns, None where nothing was recorded. `metric` as `history::by_hour`.
 #[tauri::command]
-pub async fn cpu_by_hour() -> Vec<Vec<Option<f64>>> {
+pub async fn perf_by_hour(metric: String) -> Vec<Vec<Option<f64>>> {
     let mut grid = vec![vec![None; 24]; 7];
-    for (wd, h, v) in history::cpu_by_hour(history::now() - 14 * 86_400) {
+    for (wd, h, v) in history::by_hour(&metric, history::now() - 14 * 86_400) {
         // SQLite's %w is 0 = Sunday; the grid starts on Monday.
         let row = (wd as usize + 6) % 7;
         if let Some(cell) = grid.get_mut(row).and_then(|r| r.get_mut(h as usize)) {
@@ -124,16 +124,28 @@ pub async fn cpu_by_hour() -> Vec<Vec<Option<f64>>> {
     grid
 }
 
+/// Each day of the last `days`, a row of each measure (kept for a year).
+#[tauri::command]
+pub async fn perf_days(days: i64) -> Vec<history::PerfDay> {
+    history::perf_days_since(history::now() - days * 86_400)
+}
+
 #[derive(Serialize)]
 pub struct HistoryInfo {
     pub bytes: u64,
     pub since: Option<i64>,
+    /// The daily record (Trends): how many days, and the first one's local midnight.
+    pub days: i64,
+    pub days_since: Option<i64>,
 }
 
 #[tauri::command]
 pub async fn history_info() -> HistoryInfo {
+    let (days, days_since) = history::daily_extent();
     HistoryInfo {
         bytes: history::bytes(),
         since: history::first_minute(),
+        days,
+        days_since,
     }
 }

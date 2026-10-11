@@ -518,6 +518,8 @@ pub fn start() {
             if !crate::scene::active() && try_lock() {
                 RECORDING.store(true, Ordering::SeqCst);
                 history::close_dangling();
+                // Any day still in the minutes without its daily row gets one (Trends' record).
+                history::roll_up_recent();
                 // What the previous recorder had open is closed now; forget its copy.
                 live(|l| l.open.clear());
                 run();

@@ -13,6 +13,7 @@ import type {
   Incident,
   Live,
   MacInfo,
+  PerfDay,
   PerfHistory,
   Progress,
   Screen,
@@ -81,8 +82,16 @@ export const api = {
   growth: (root: string, days: number) => invoke<GrowthInfo>("disk_growth", { root, days }),
   folderHistory: (path: string, days: number) =>
     invoke<[number, number][]>("folder_history", { path, days }),
-  cpuByHour: () => invoke<(number | null)[][]>("cpu_by_hour"),
-  historyInfo: () => invoke<{ bytes: number; since: number | null }>("history_info"),
+  /// A measure's average by weekday (rows Monday..Sunday) and hour: cpu, gpu, mem, disk, down,
+  /// up or power.
+  byHour: (metric: string) => invoke<(number | null)[][]>("perf_by_hour", { metric }),
+  /// Each day of the last `days`, one row of every measure.
+  perfDays: (days: number) => invoke<PerfDay[]>("perf_days", { days }),
+  /// The history file's size, its first minute, and the daily record's day count and first day.
+  historyInfo: () =>
+    invoke<{ bytes: number; since: number | null; days: number; days_since: number | null }>(
+      "history_info",
+    ),
   settings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),
   /// Opens the main window, on a screen and scrolled to a section of it if given.

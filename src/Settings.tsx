@@ -113,14 +113,14 @@ export default function Settings({
             </div>
             <div className="set">
               <span className="t">
-                <span>Keep history for</span>
+                <span>Keep every minute for</span>
                 <span className="muted">
-                  Every app, every minute. Disk totals and top folders are kept for a year
-                  regardless.
+                  Every measure and app, minute by minute, for Recent. A row a day of each, and the
+                  disk's totals and top folders, are kept for a year regardless, for Trends.
                 </span>
               </span>
               <select
-                aria-label="Keep history for"
+                aria-label="Keep every minute for"
                 title="How many days of minute-by-minute history to keep"
                 value={settings.history_days}
                 onChange={(e) => void save({ ...settings, history_days: Number(e.target.value) })}

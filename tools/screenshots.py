@@ -255,6 +255,14 @@ CREATE TABLE crashes (ts INTEGER, app TEXT, kind TEXT, file TEXT PRIMARY KEY);
 CREATE TABLE sleeps (
   started INTEGER PRIMARY KEY, ended INTEGER, battery_before REAL, battery_after REAL);
 CREATE TABLE disk_daily (day TEXT PRIMARY KEY, used REAL, used_max REAL, total REAL, top TEXT);
+CREATE TABLE perf_daily (
+  day TEXT PRIMARY KEY, ts INTEGER, minutes INTEGER,
+  cpu REAL, cpu_max REAL, cpu_p REAL, cpu_e REAL, gpu REAL, gpu_max REAL,
+  mem REAL, mem_max REAL, mem_total REAL, swap_max REAL, pressure INTEGER, thermal INTEGER,
+  disk_r REAL, disk_w REAL, disk_max REAL, net_in REAL, net_out REAL, net_in_max REAL,
+  net_out_max REAL, power REAL, power_max REAL,
+  read REAL, written REAL, down REAL, up REAL, energy REAL,
+  incidents INTEGER, crashes INTEGER, apps TEXT);
 """
 
 
@@ -434,6 +442,7 @@ def make_demo():
             "INSERT INTO disk_daily VALUES (?,?,?,?,?)",
             (dt.strftime("%Y-%m-%d"), used, used + 0.6 * GB, total, top),
         )
+    perf_daily(db, now)
     db.commit()
     db.close()
 
@@ -501,6 +510,102 @@ def strain(data):
         )
     db.commit()
     db.close()
+
+
+def perf_daily(db, now):
+    """A year of daily rows for Trends: the days the demo has minutes for rolled up from them, as
+    the app does (history.rs roll_up), and the year before them made up in the same rhythm."""
+    rd = random.Random(17)
+    today = datetime.fromtimestamp(now).date()
+    have = set()
+    for (day,) in db.execute(
+        "SELECT DISTINCT date(ts, 'unixepoch', 'localtime') FROM perf"
+    ).fetchall():
+        d = datetime.strptime(day, "%Y-%m-%d")
+        t0 = int(d.timestamp())
+        t1 = int((d + timedelta(days=1)).timestamp())
+        apps = {}
+        for k, col in [("cpu", "cpu"), ("mem", "mem"), ("energy", "energy")]:
+            rows = db.execute(
+                f"SELECT app, AVG(cpu), AVG(mem), AVG(energy), AVG(COALESCE(disk, 0)) FROM procs"
+                f" WHERE ts >= ? AND ts < ? GROUP BY app ORDER BY AVG({col}) DESC LIMIT 8",
+                (t0, t1),
+            ).fetchall()
+            apps[k] = [
+                {"app": a, "cpu": c, "mem": m, "energy": e, "disk": dk} for a, c, m, e, dk in rows
+            ]
+        apps["disk"] = sorted(apps["cpu"], key=lambda a: -a["disk"])
+        db.execute(
+            "INSERT OR REPLACE INTO perf_daily SELECT ?3, ?1, COUNT(*), AVG(cpu), MAX(cpu_max),"
+            " AVG(cpu_p), AVG(cpu_e), AVG(gpu), MAX(gpu_max), AVG(mem), MAX(mem_max),"
+            " MAX(mem_total), MAX(swap_max), MAX(pressure), MAX(thermal), AVG(disk_r),"
+            " AVG(disk_w), MAX(disk_max), AVG(net_in), AVG(net_out), MAX(net_in_max),"
+            " MAX(net_out_max), AVG(power), MAX(power_max), SUM(disk_r) * 60, SUM(disk_w) * 60,"
+            " SUM(net_in) * 60, SUM(net_out) * 60, SUM(power) / 60.0,"
+            " (SELECT COUNT(*) FROM incidents WHERE started >= ?1 AND started < ?2),"
+            " (SELECT COUNT(*) FROM crashes WHERE ts >= ?1 AND ts < ?2), ?4"
+            " FROM perf WHERE ts >= ?1 AND ts < ?2 HAVING COUNT(*) > 0",
+            (t0, t1, day, json.dumps(apps)),
+        )
+        have.add(day)
+    # The year before: weekdays busier than weekends, a slow rise in memory, a busy spring.
+    template = db.execute("SELECT apps FROM perf_daily ORDER BY ts DESC LIMIT 1").fetchone()
+    apps = template[0] if template else json.dumps({"cpu": [], "mem": [], "energy": [], "disk": []})
+    for back in range(1, 366):
+        d = today - timedelta(days=back)
+        day = d.strftime("%Y-%m-%d")
+        if day in have:
+            continue
+        ts = int(datetime(d.year, d.month, d.day).timestamp())
+        work = d.weekday() < 5
+        season = 1 + 0.35 * math.sin(back / 58)
+        cpu = (rd.uniform(6, 10) + (rd.uniform(8, 16) if work else 0)) * season
+        p, e = split(cpu)
+        mem = (11.5 + 2.5 * (1 - back / 365) + rd.uniform(-0.6, 0.6) + (1.5 if work else 0)) * GB
+        minutes = rd.randint(560, 900) if work else rd.randint(180, 480)
+        power = 6 + cpu * 0.28 + rd.uniform(-1, 1)
+        rd_rate, wr_rate = rd.uniform(0.6, 2.2) * 1e6, rd.uniform(0.8, 3.0) * 1e6
+        nin, nout = rd.uniform(0.3, 1.6 if work else 0.7) * 1e6, rd.uniform(0.05, 0.4) * 1e6
+        gpu = rd.uniform(2, 7) + (
+            rd.uniform(15, 35) if d.weekday() >= 4 and rd.random() < 0.4 else 0
+        )
+        db.execute(
+            "INSERT INTO perf_daily VALUES (" + ",".join("?" * 32) + ")",
+            (
+                day,
+                ts,
+                minutes,
+                cpu,
+                min(100, cpu * rd.uniform(3, 5.5)),
+                p,
+                e,
+                gpu,
+                min(100, gpu * rd.uniform(2, 4)),
+                mem,
+                mem * rd.uniform(1.05, 1.25),
+                MEM_TOTAL,
+                rd.uniform(0.3, 2.4 if work else 1.0) * GB,
+                4 if rd.random() < 0.03 else 2 if rd.random() < 0.15 else 1,
+                0,
+                rd_rate,
+                wr_rate,
+                (rd_rate + wr_rate) * rd.uniform(8, 30),
+                nin,
+                nout,
+                nin * rd.uniform(6, 20),
+                nout * rd.uniform(6, 20),
+                power,
+                power * rd.uniform(2, 3.5),
+                rd_rate * minutes * 60,
+                wr_rate * minutes * 60,
+                nin * minutes * 60,
+                nout * minutes * 60,
+                power * minutes / 60,
+                1 if rd.random() < 0.08 else 0,
+                1 if rd.random() < 0.06 else 0,
+                apps,
+            ),
+        )
 
 
 def write_live(data, strained=False):

@@ -19,8 +19,31 @@ import { crashGroups, crashTitle, incidentTitle } from "./incidents";
 import { gapsOf, now, upToNow, usePoll } from "./perf";
 import { isTab, TABS, tabFor, type Tab } from "./perfTabs";
 import { index, useRemembered } from "./remember";
-import type { AppUse, Incident, Live, Minute } from "./types";
-import { batteryLine, bucketWord, fmt, fmtDelta, fmtAt, fmtMins, fmtRate, fmtW, pct } from "./util";
+import type {
+  AppInfo,
+  AppUse,
+  GrowthInfo,
+  Incident,
+  Live,
+  Minute,
+  Screen,
+  Settings,
+} from "./types";
+import {
+  abbrev,
+  batteryLine,
+  bucketWord,
+  fmt,
+  fmtAt,
+  fmtDelta,
+  fmtDuration,
+  fmtMins,
+  fmtN,
+  fmtRate,
+  fmtW,
+  fmtWhen,
+  pct,
+} from "./util";
 
 const RANGES = [
   { label: "1 hour", secs: 3600 },
@@ -155,6 +178,12 @@ const MEASURES: Record<string, Measure> = {
     by: "energy",
   },
 };
+MEASURES.Battery = {
+  what: "battery charge",
+  avg: (m) => m.battery,
+  fmt: (v) => `${Math.round(v)}%`,
+  by: "energy",
+};
 MEASURES["Disk reads"] = MEASURES.Reads;
 MEASURES["Disk writes"] = MEASURES.Writes;
 MEASURES.Power = MEASURES.Energy;
@@ -165,6 +194,12 @@ export default function Performance({
   bar,
   ask,
   focus,
+  growth,
+  home,
+  go,
+  info,
+  scanEvery,
+  openFolder,
 }: {
   live: Live | null;
   historyDays: number;
@@ -172,6 +207,15 @@ export default function Performance({
   ask: (q: string, detail?: AskDetail) => void;
   /// A Details link's target: its tab opens, so the section is there to scroll to.
   focus?: string;
+  /// The week's growth by folder, for the Disk space tab, and the home folder to shorten it by.
+  growth: GrowthInfo | null;
+  home: string;
+  go: (s: Screen) => void;
+  /// The last scan and the volume, for the Disk space tab's card, how often it scans, and a way to
+  /// open a folder in Disk Map.
+  info: AppInfo | null;
+  scanEvery?: Settings["scan"];
+  openFolder: (path: string) => void;
 }) {
   const assistant = useAssistant();
   const [tab, setTab] = useRemembered<Tab>("performance.tab", "all", isTab);
@@ -206,16 +250,30 @@ export default function Performance({
   const cpuPeak = peakOf(points, "cpu_max");
   const memPeak = peakOf(points, "mem_max");
   // On the Memory tab the snapshot starts at the memory peak; elsewhere at the CPU's.
-  const byMemTab = tab === "memory" && memPeak;
+  // Until a moment is picked, the snapshot is at the range's peak of the tab's own measure (the
+  // CPU's on All, and on Disk space, which has no moments of its own).
+  const tabWhy =
+    (
+      {
+        gpu: "GPU",
+        memory: "Memory",
+        diskio: "Disk I/O",
+        network: "Download",
+        energy: "Energy",
+      } as Partial<Record<Tab, string>>
+    )[tab] ?? "CPU";
+  const tabPeak = (() => {
+    const of = (MEASURES[tabWhy] ?? MEASURES.CPU).peak ?? MEASURES.CPU.peak!;
+    const m = points.reduce<Minute | null>(
+      (b, x) => ((of(x) ?? 0) > (b ? (of(b) ?? 0) : 0) ? x : b),
+      null,
+    );
+    return m ? { t: m.ts, why: tabWhy, mode: "peak" as const } : null;
+  })();
   // A moment picked earlier that the range no longer reaches (the hour moved on) is let go.
   const pickedIn = picked && picked.t >= now() - secs ? picked : null;
   const at =
-    pickedIn ??
-    (byMemTab
-      ? { t: memPeak.t, why: "Memory", mode: "peak" as const }
-      : cpuPeak
-        ? { t: cpuPeak.t, why: "CPU", mode: "peak" as const }
-        : null);
+    pickedIn ?? tabPeak ?? (cpuPeak ? { t: cpuPeak.t, why: "CPU", mode: "peak" as const } : null);
   // The range's energy: what used the most, and the times the Mac slept.
   // Only the tabs with a range's busiest apps ask for them: eight queries over the range.
   const wantsRange = ["cpu", "memory", "diskio", "energy"].includes(tab);
@@ -230,14 +288,14 @@ export default function Performance({
   const diskDays = Math.ceil(diskSecs / 86400);
   const diskRange = usePoll(() => api.diskTrend(diskDays), 300_000, [diskDays]);
   const diskWeek = usePoll(() => api.diskTrend(7), 300_000);
+  // The scanned folder's largest folders, for the Disk space tab's card.
+  const tree = usePoll(
+    () => (tab === "disk" && info ? api.tree(info.root, 1 / 400) : Promise.resolve(null)),
+    300_000,
+    [tab, info?.root, info?.scan?.finished],
+  );
   const sleeps = usePoll(() => api.sleeps(Math.max(1, Math.ceil(secs / 86400))), 60_000, [secs]);
   const latest = live?.samples[live.samples.length - 1];
-  // Where the record has holes in this range, and why.
-  const gaps = gapsOf(
-    points.map((m) => m.ts),
-    [now() - secs, now()],
-    sleeps ?? [],
-  );
   const total = live?.mem_total || points[0]?.mem_total || 1;
   const tm = hist?.tidemarks ?? {};
 
@@ -436,10 +494,6 @@ export default function Performance({
   type Way = "net_in" | "net_out" | "disk_r" | "disk_w";
   const moved = (k: Way) => points.reduce((s, m) => s + m[k] * (m.minutes || 1) * 60, 0);
   const netTop = Math.max(1, ...points.map((m) => Math.max(m.net_in, m.net_out)));
-  const netPeak = (k: Way) => {
-    const m = points.reduce<Minute | null>((b, x) => (!b || x[k] > b[k] ? x : b), null);
-    return m && m[k] > 0 ? { t: m.ts, v: m[k], label: `${fmtRate(m[k])} · ${fmtAt(m.ts)}` } : null;
-  };
   // Disk I/O: reads and writes, the same way as the network.
   const ioTop = Math.max(1, ...points.map((m) => Math.max(m.disk_r, m.disk_w)));
   const io = [
@@ -535,303 +589,6 @@ export default function Performance({
   );
 
   // The disk's, the network's and the energy's cards, with their charts' height.
-  const ioCard = (h = 100) => (
-    <section className="card chart" data-focus="disk i/o">
-      <div className="row base wrap">
-        <b className="cname">
-          <Labelled m="diskio">Disk I/O</Labelled>
-        </b>
-        <span className="cnow">
-          {latest ? `${fmtRate(latest.disk_r)} read · ${fmtRate(latest.disk_w)} written` : "–"}
-        </span>
-        <span className="muted small">
-          {points.length
-            ? `${fmt(io[0].total)} read, ${fmt(io[1].total)} written in the last ${RANGES[range].label}`
-            : ""}
-        </span>
-        <span className="grow" />
-        <Legend line={`Average per ${per.replace("-minute", " minutes")}, each way`} gaps={gaps} />
-      </div>
-      <div className="netpair">
-        {io.map((n) => (
-          <div className="minw0" key={n.k}>
-            <div className="row between small">
-              <span className="eyebrow">
-                <Labelled m="diskio">{n.name}</Labelled>
-              </span>
-              <span className="muted">{n.now != null ? `${fmtRate(n.now)} now` : ""}</span>
-            </div>
-            {points.length ? (
-              <Area
-                marker={at?.t}
-                onPick={(p, atPeak) => pick(n.name, p.t, atPeak)}
-                pts={ser(n.k)}
-                max={ioTop}
-                height={h}
-                peak={netPeak(n.k)}
-                domain={[now() - secs, now()]}
-                sleeps={sleeps ?? []}
-                xLabels={xLabels(secs, 3)}
-                fmt={fmtRate}
-                fmtT={(t) => fmtAt(t)}
-                name={n.name}
-                label={`Disk ${n.name.toLowerCase()} over the last ${RANGES[range].label}`}
-              />
-            ) : (
-              <div className="empty small">Recording…</div>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-  const netCard = (h = 100) => (
-    <section className="card chart" data-focus="network">
-      <div className="row base wrap">
-        <b className="cname">
-          <Labelled m="network">Network</Labelled>
-        </b>
-        <span className="cnow">
-          {latest ? `↓ ${fmtRate(latest.net_in)}  ↑ ${fmtRate(latest.net_out)}` : "–"}
-        </span>
-        <span className="muted small">
-          {points.length
-            ? `${fmt(net[0].total)} down, ${fmt(net[1].total)} up in the last ${RANGES[range].label}`
-            : ""}
-        </span>
-        <span className="grow" />
-        <Legend line={`Average per ${per.replace("-minute", " minutes")}, each way`} gaps={gaps} />
-      </div>
-      <div className="netpair">
-        {net.map((n) => (
-          <div className="minw0" key={n.k}>
-            <div className="row between small">
-              <span className="eyebrow">
-                <Labelled m={metricOf(n.name)}>{n.name}</Labelled>
-              </span>
-              <span className="muted">{n.now != null ? `${fmtRate(n.now)} now` : ""}</span>
-            </div>
-            {points.length ? (
-              <Area
-                marker={at?.t}
-                onPick={(p, atPeak) => pick(n.name, p.t, atPeak)}
-                pts={ser(n.k)}
-                max={netTop}
-                height={h}
-                peak={netPeak(n.k)}
-                domain={[now() - secs, now()]}
-                sleeps={sleeps ?? []}
-                xLabels={xLabels(secs, 3)}
-                fmt={fmtRate}
-                fmtT={(t) => fmtAt(t)}
-                name={n.name}
-                label={`${n.name} over the last ${RANGES[range].label}`}
-              />
-            ) : (
-              <div className="empty small">Recording…</div>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-  const energyCard = (h = 120) => (
-    <section className="card chart" data-focus="energy">
-      <div className="row base wrap">
-        <b className="cname">
-          <Labelled m="energy">Energy</Labelled>
-        </b>
-        <span
-          className={`cnow${flagFor(live?.status, "Energy") ? ` ${flagFor(live?.status, "Energy")?.cls}` : ""}`}
-        >
-          {latest?.power != null ? fmtW(latest.power) : "–"}
-        </span>
-        {flagFor(live?.status, "Energy") && (
-          <span className={`badge ${flagFor(live?.status, "Energy")?.tone}`}>
-            {flagFor(live?.status, "Energy")?.label}
-          </span>
-        )}
-        {flagFor(live?.status, "Energy") && (
-          <AskButton
-            title="Ask why energy is flagged (opens Ask with this chart's figures)"
-            onAsk={() => {
-              const { question, detail } = flaggedDetail(live, "Energy", [
-                `Power drawn now: ${latest?.power != null ? fmtW(latest.power) : "unknown"}.`,
-                live?.battery
-                  ? `Battery: ${batteryLine(live.battery)}.`
-                  : "No battery on this Mac.",
-              ]);
-              ask(question, detail);
-            }}
-          />
-        )}
-        <span className="muted small">
-          {live?.battery
-            ? `battery ${batteryLine(live.battery)}`
-            : live
-              ? "no battery on this Mac: apps only"
-              : ""}
-        </span>
-        <span className="grow" />
-        <Legend
-          line={`Power, ${per} average`}
-          band={per === "minute" ? "Each minute's peak" : `Each ${per} peak`}
-          mark="Week's tidemark"
-          gaps={gapsOf(
-            points.filter((m) => m.power != null).map((m) => m.ts),
-            [now() - secs, now()],
-            sleeps ?? [],
-          )}
-        />
-      </div>
-      <div className="energygrid">
-        <div className="minw0">
-          {points.some((m) => m.power != null) ? (
-            <Area
-              marker={at?.t}
-              onPick={(p, atPeak) => pick("Power", p.t, atPeak)}
-              pts={upToNow(
-                points
-                  .filter((m) => m.power != null)
-                  .map((m) => ({ t: m.ts, v: m.power as number })),
-                latest ? latest.t / 1000 : undefined,
-                latest?.power,
-              )}
-              hi={upToNow(
-                points
-                  .filter((m) => m.power_max != null)
-                  .map((m) => ({ t: m.ts, v: m.power_max as number })),
-                latest ? latest.t / 1000 : undefined,
-                latest?.power,
-              )}
-              max={Math.max(1, ...points.map((m) => m.power_max ?? 0))}
-              height={h}
-              mark={
-                tm.power
-                  ? {
-                      v: tm.power.value,
-                      label: `Tidemark ${fmtW(tm.power.value)} · ${fmtAt(tm.power.at)}`,
-                    }
-                  : null
-              }
-              peak={(() => {
-                const m = points.reduce<Minute | null>(
-                  (b, x) => ((x.power_max ?? 0) > (b?.power_max ?? 0) ? x : b),
-                  null,
-                );
-                return m?.power_max
-                  ? {
-                      t: m.ts,
-                      v: m.power_max,
-                      label: `${fmtW(m.power_max)} · ${fmtAt(m.ts)}`,
-                    }
-                  : null;
-              })()}
-              fmt={fmtW}
-              fmtT={(t) => fmtAt(t)}
-              name="Power"
-              domain={[now() - secs, now()]}
-              sleeps={sleeps ?? []}
-              xLabels={xLabels(secs, 4)}
-              label={`Power drawn over the last ${RANGES[range].label}`}
-            />
-          ) : (
-            <div className="empty small">
-              {live?.battery
-                ? "Recording… the first minute appears shortly."
-                : "This Mac reports no power draw."}
-            </div>
-          )}
-        </div>
-        <div className="estats">
-          {live?.battery && (
-            <>
-              <div>
-                <span className="eyebrow">
-                  <Labelled m="battery">Battery</Labelled>
-                </span>
-                <b className="tv">{Math.round(live.battery.percent)}%</b>
-                <Spark
-                  pts={points
-                    .filter((m) => m.battery != null)
-                    .map((m) => ({ t: m.ts, v: m.battery as number }))}
-                  min={0}
-                  max={100}
-                  width={160}
-                  height={24}
-                  sleeps={sleeps ?? []}
-                  domain={[now() - secs, now()]}
-                  label="Battery charge over the range"
-                />
-                <span className="muted small">{batteryLine(live.battery)}</span>
-              </div>
-              {live.battery.health != null && (
-                <div>
-                  <span className="eyebrow">Battery health</span>
-                  <b className="tv">{Math.round(live.battery.health)}%</b>
-                  <span className="muted small">
-                    of its design capacity
-                    {live.battery.cycles != null ? ` · ${live.battery.cycles} cycles` : ""}
-                  </span>
-                </div>
-              )}
-            </>
-          )}
-          {(() => {
-            const sl = (sleeps ?? []).find(
-              (x) => x.battery_before != null && x.battery_after != null,
-            );
-            if (!sl) return null;
-            const used = (sl.battery_before ?? 0) - (sl.battery_after ?? 0);
-            return (
-              <div>
-                <span className="eyebrow">Last sleep</span>
-                <b className="tv">{fmtMins(Math.round((sl.ended - sl.started) / 60))}</b>
-                <span className="muted small">
-                  {used > 0.5
-                    ? `used ${Math.round(used)}% of the battery`
-                    : "used next to no battery"}{" "}
-                  · {fmtAt(sl.started)}
-                </span>
-              </div>
-            );
-          })()}
-        </div>
-      </div>
-      {(rangeApps?.by_energy ?? []).some((a) => a.energy > 0) && (
-        <div className="eapps">
-          <span className="eyebrow">Using the most energy · {RANGES[range].label}</span>
-          {(rangeApps?.by_energy ?? [])
-            .filter((a) => a.energy > 0)
-            .slice(0, 5)
-            .map((a, _, all) => (
-              <div className="brow" key={a.app}>
-                <div className="row between">
-                  <span className="ell">{a.app}</span>
-                  <b>
-                    {Math.round(
-                      (100 * a.energy) /
-                        Math.max(
-                          1e-9,
-                          (rangeApps?.by_energy ?? []).reduce((t, x) => t + x.energy, 0),
-                        ),
-                    )}
-                    %
-                  </b>
-                </div>
-                <span className="bar">
-                  <i style={{ width: `${(100 * a.energy) / all[0].energy}%` }} />
-                </span>
-              </div>
-            ))}
-          <span className="muted small">
-            Each app's share of the energy the busiest eight used. The display and macOS itself use
-            more, and only your own apps can be measured.
-          </span>
-        </div>
-      )}
-    </section>
-  );
 
   // The All tab: one chart a measure, each the same size, the pairs split.
   const peakIn = (of: (m: Minute) => number, f: (v: number) => string) => {
@@ -926,47 +683,98 @@ export default function Performance({
     </section>
   );
 
+  // The disk's used space over the range (the last day on a shorter range), recorded hourly.
+  const diskCard = (h = 170, pickable = false) => (
+    <section className="card chart" data-focus="disk space">
+      <div className="row base wrap">
+        <b className="cname">
+          <Labelled m="disk">Disk space</Labelled>
+        </b>
+        {(() => {
+          const pts = diskRange?.points ?? [];
+          const last = pts[pts.length - 1];
+          const first = pts[0];
+          return (
+            <>
+              <span
+                className={`cnow${flagFor(live?.status, "Disk space") ? ` ${flagFor(live?.status, "Disk space")?.cls}` : ""}`}
+              >
+                {last ? `${fmt(last.total - last.used)} free` : "–"}
+              </span>
+              {flagFor(live?.status, "Disk space") && (
+                <span className={`badge ${flagFor(live?.status, "Disk space")?.tone}`}>
+                  {flagFor(live?.status, "Disk space")?.label}
+                </span>
+              )}
+              {flagFor(live?.status, "Disk space") && last && (
+                <AskButton
+                  title="Ask what is filling the disk (opens Ask with the disk's figures)"
+                  onAsk={() => {
+                    const { question, detail } = flaggedDetail(live, "Disk space", [
+                      `${fmt(last.total - last.used)} free: ${fmt(last.used)} of ${fmt(last.total)} used.`,
+                      first && pts.length > 1
+                        ? `${fmtDelta(last.used - first.used)} over the last ${secs < 86400 ? "24 hours" : RANGES[range].label}.`
+                        : "",
+                    ]);
+                    ask(question, detail);
+                  }}
+                />
+              )}
+              <span className="muted small">
+                {last ? `${fmt(last.used)} of ${fmt(last.total)} used` : ""}
+                {first && last && pts.length > 1
+                  ? ` · ${fmtDelta(last.used - first.used)} over the last ${secs < 86400 ? "24 hours" : RANGES[range].label}`
+                  : ""}
+              </span>
+            </>
+          );
+        })()}
+        <span className="grow" />
+        <Legend line="Disk space used, hourly" mark="Week's tidemark" />
+      </div>
+      {(diskRange?.points.length ?? 0) > 1 ? (
+        (() => {
+          const pts = (diskRange?.points ?? []).map((p) => ({ t: p.ts, v: p.used }));
+          const lo = Math.min(...pts.map((p) => p.v));
+          const hi = Math.max(...pts.map((p) => p.v), diskWeek?.high?.used ?? 0);
+          const pad = Math.max((hi - lo) * 0.15, 1e9);
+          return (
+            <Area
+              onPick={pickable ? (p) => pick("Disk space", p.t) : undefined}
+              // On its own tab, only an hour picked on it: the snapshot's moment there is the CPU's.
+              marker={pickable ? diskAt?.p.ts : at?.t}
+              pts={pts}
+              max={hi + pad}
+              min={Math.max(0, lo - pad)}
+              height={h}
+              mark={
+                diskWeek?.high
+                  ? {
+                      v: diskWeek.high.used,
+                      label: `Tidemark ${fmt(diskWeek.high.used)} · ${fmtAt(diskWeek.high.ts, false)}`,
+                    }
+                  : null
+              }
+              fmt={fmt}
+              fmtT={(t) => fmtAt(t)}
+              name="Disk space used"
+              domain={[now() - diskSecs, now()]}
+              xLabels={xLabels(diskSecs, 4)}
+              label={`Disk space used over the last ${secs < 86400 ? "24 hours" : RANGES[range].label}`}
+            />
+          );
+        })()
+      ) : (
+        <div className="empty small">The disk's used space is recorded every hour.</div>
+      )}
+    </section>
+  );
+
   // ---- the CPU and Memory tabs ----
   const cpuChart = charts.find((c) => c.name === "CPU");
   const memChart = charts.find((c) => c.name === "Memory");
   const from = now() - secs;
   const rangeIncidents = (incidents ?? []).filter((i) => (i.ended ?? now()) >= from);
-  // A smaller chart of one part of the measure, on the page's time span.
-  const part = (
-    name: string,
-    pts: Pt[],
-    max: number,
-    f: (v: number) => string,
-    opts: { hi?: Pt[]; note?: string } = {},
-  ) => (
-    <div className="minw0" key={name}>
-      <div className="row between small">
-        <span className="eyebrow">{name}</span>
-        <span className="muted">
-          {opts.note ?? (pts.length ? `${f(pts[pts.length - 1].v)} now` : "")}
-        </span>
-      </div>
-      {pts.length ? (
-        <Area
-          marker={at?.t}
-          onPick={(p, atPeak) => pick(name, p.t, atPeak)}
-          pts={pts}
-          hi={opts.hi}
-          max={max}
-          height={110}
-          domain={[from, now()]}
-          sleeps={sleeps ?? []}
-          xLabels={xLabels(secs, 3)}
-          fmt={f}
-          fmtT={(t) => fmtAt(t)}
-          name={name}
-          label={`${name} over the last ${RANGES[range].label}`}
-        />
-      ) : (
-        <div className="empty small">Recording…</div>
-      )}
-    </div>
-  );
   const series = (of: (m: Minute) => number | null, nowV?: number | null): Pt[] =>
     upToNow(
       points.map((m) => ({ t: m.ts, v: of(m) })).filter((p): p is Pt => p.v != null),
@@ -1089,113 +897,175 @@ export default function Performance({
       </span>
     </section>
   );
-  const powerTop = Math.max(1, ...points.map((m) => m.power_max ?? 0));
-  const gpuTab = () => (
-    <div className="perfmain" {...panel("gpu")}>
-      {gpuChart && chartCard(gpuChart, 280)}
-      <section className="card chart">
-        <div className="row base wrap">
-          <b className="cname">Alongside the GPU</b>
-          <span className="muted small">
-            macOS doesn't say which apps use the GPU, so these are what moves with it
-          </span>
-        </div>
-        <div className="netpair">
-          {part("CPU", ser("cpu"), 100, pct)}
-          {points.some((m) => m.power != null) &&
-            part(
-              "Power",
-              series((m) => m.power, latest?.power),
-              powerTop,
-              fmtW,
-            )}
-        </div>
-      </section>
-      <div className="cards2">
-        {momentsCard("Busiest GPU moments", "GPU", (m) => m.gpu_max ?? 0, pct)}
-        <div className="tiles">{thermalTile}</div>
-      </div>
-    </div>
-  );
-  const ioTab = () => (
-    <div className="perfmain" {...panel("diskio")}>
-      {ioCard(200)}
-      <section className="card chart">
-        <div className="row base wrap">
-          <b className="cname">Swap</b>
-          <span className="muted small">memory paged out to the disk: it writes as it grows</span>
-        </div>
-        <div className="netpair">
-          {part("Swap", ser("swap"), Math.max(1e9, ...points.map((m) => m.swap_max)), fmt, {
-            hi: ser("swap_max"),
-          })}
-        </div>
-      </section>
-      <div className="cards2">
-        {momentsCard("Busiest disk moments", "Disk I/O", (m) => m.disk_max, fmtRate)}
-        {appsCard(
-          "Using the disk the most",
-          rangeApps?.by_disk ?? [],
-          (a) => a.disk ?? 0,
-          fmtRate,
-          (a) => `${pct(a.cpu)} CPU`,
-        )}
-      </div>
-    </div>
-  );
-  const netTab = () => (
-    <div className="perfmain" {...panel("network")}>
-      {netCard(200)}
-      <div className="cards2">
-        {momentsCard("Busiest downloads", "Download", (m) => m.net_in_max || m.net_in, fmtRate)}
-        {momentsCard("Busiest uploads", "Upload", (m) => m.net_out_max || m.net_out, fmtRate)}
-      </div>
-    </div>
-  );
-  const energyTab = () => (
-    <div className="perfmain" {...panel("energy")}>
-      {energyCard(240)}
-      <section className="card chart">
-        <div className="row base wrap">
-          <b className="cname">What draws the power</b>
-          <span className="muted small">the CPU and GPU, which most of the draw follows</span>
-        </div>
-        <div className="netpair">
-          {part("CPU", ser("cpu"), 100, pct)}
-          {gpuChart &&
-            part(
-              "GPU",
-              series((m) => m.gpu, latest?.gpu),
-              100,
-              pct,
-            )}
-        </div>
-      </section>
-      <div className="cards2">
-        {momentsCard("Most power drawn", "Energy", (m) => m.power_max ?? 0, fmtW)}
-        <div className="tiles">{thermalTile}</div>
-      </div>
-    </div>
-  );
-
   const nP = [...(live?.core_kinds ?? "")].filter((k) => k === "P").length;
   const nE = [...(live?.core_kinds ?? "")].filter((k) => k === "E").length;
+
+  // One part of a measure as a chart card of its own, lined up with the rest of its tab.
+  const partSpec = (
+    name: string,
+    pts: Pt[],
+    max: number,
+    f: (v: number) => string,
+    o: Partial<ChartSpec> = {},
+  ): ChartSpec => {
+    const top = pts.reduce<Pt | null>((b, p) => (!b || p.v > b.v ? p : b), null);
+    return {
+      name,
+      now: pts.length ? f(pts[pts.length - 1].v) : "–",
+      sub: "",
+      pts,
+      max,
+      fmt: f,
+      mark: null,
+      peak:
+        top && top.v > 0 ? { t: top.t, v: top.v, label: `${f(top.v)} · ${fmtAt(top.t)}` } : null,
+      extra: () => null,
+      ...o,
+    };
+  };
+  const more = (name: string) => allMore().find((c) => c.name === name);
+  // A tab's charts: its own measure taller, each part below it the All tab's size.
+  const column = (main: (ChartSpec | undefined)[], rest: (ChartSpec | undefined)[]) => (
+    <>
+      {main.filter((c) => !!c).map((c) => chartCard(c, 220, false))}
+      {rest.filter((c) => !!c).map((c) => chartCard(c, 170, false))}
+    </>
+  );
+  // The battery: its charge, health and what the last sleep cost (the Energy tab).
+  const batteryCard = (
+    <section className="card list">
+      <div className="row between head">
+        <span className="eyebrow">Battery</span>
+      </div>
+      <div className="estats">
+        {live?.battery && (
+          <>
+            <div>
+              <span className="eyebrow">
+                <Labelled m="battery">Battery</Labelled>
+              </span>
+              <b className="tv">{Math.round(live.battery.percent)}%</b>
+              <Spark
+                pts={points
+                  .filter((m) => m.battery != null)
+                  .map((m) => ({ t: m.ts, v: m.battery as number }))}
+                min={0}
+                max={100}
+                width={160}
+                height={24}
+                sleeps={sleeps ?? []}
+                domain={[now() - secs, now()]}
+                label="Battery charge over the range"
+              />
+              <span className="muted small">{batteryLine(live.battery)}</span>
+            </div>
+            {live.battery.health != null && (
+              <div>
+                <span className="eyebrow">Battery health</span>
+                <b className="tv">{Math.round(live.battery.health)}%</b>
+                <span className="muted small">
+                  of its design capacity
+                  {live.battery.cycles != null ? ` · ${live.battery.cycles} cycles` : ""}
+                </span>
+              </div>
+            )}
+          </>
+        )}
+        {(() => {
+          const sl = (sleeps ?? []).find(
+            (x) => x.battery_before != null && x.battery_after != null,
+          );
+          if (!sl) return null;
+          const used = (sl.battery_before ?? 0) - (sl.battery_after ?? 0);
+          return (
+            <div>
+              <span className="eyebrow">Last sleep</span>
+              <b className="tv">{fmtMins(Math.round((sl.ended - sl.started) / 60))}</b>
+              <span className="muted small">
+                {used > 0.5
+                  ? `used ${Math.round(used)}% of the battery`
+                  : "used next to no battery"}{" "}
+                · {fmtAt(sl.started)}
+              </span>
+            </div>
+          );
+        })()}
+      </div>
+    </section>
+  );
+  // The apps that used the most energy over the range (the Energy tab).
+  const energyAppsCard = (
+    <section className="card list">
+      {(rangeApps?.by_energy ?? []).some((a) => a.energy > 0) ? (
+        <div className="eapps">
+          <span className="eyebrow">Using the most energy · {RANGES[range].label}</span>
+          {(rangeApps?.by_energy ?? [])
+            .filter((a) => a.energy > 0)
+            .slice(0, 5)
+            .map((a, _, all) => (
+              <div className="brow" key={a.app}>
+                <div className="row between">
+                  <span className="ell">{a.app}</span>
+                  <b>
+                    {Math.round(
+                      (100 * a.energy) /
+                        Math.max(
+                          1e-9,
+                          (rangeApps?.by_energy ?? []).reduce((t, x) => t + x.energy, 0),
+                        ),
+                    )}
+                    %
+                  </b>
+                </div>
+                <span className="bar">
+                  <i style={{ width: `${(100 * a.energy) / all[0].energy}%` }} />
+                </span>
+              </div>
+            ))}
+          <span className="muted small">
+            Each app's share of the energy the busiest eight used. The display and macOS itself use
+            more, and only your own apps can be measured.
+          </span>
+        </div>
+      ) : (
+        <div className="muted rowline">No energy recorded for apps in this range.</div>
+      )}
+    </section>
+  );
+  const partsTop = Math.max(
+    1,
+    ...points.map((m) => Math.max(m.mem_app ?? 0, m.mem_wired ?? 0, m.mem_comp ?? 0)),
+    latest?.mem_parts?.app ?? 0,
+    latest?.mem_parts?.wired ?? 0,
+    latest?.mem_parts?.compressed ?? 0,
+  );
+  const swapSpec = partSpec(
+    "Swap",
+    ser("swap"),
+    Math.max(1e9, ...points.map((m) => m.swap_max)),
+    fmt,
+    {
+      sub: "memory paged out to the disk",
+      band: ser("swap_max"),
+      mark: tm.swap
+        ? { v: tm.swap.value, label: `Tidemark ${fmt(tm.swap.value)} · ${fmtAt(tm.swap.at)}` }
+        : null,
+    },
+  );
   const cpuTab = () => (
     <div className="perfmain" {...panel("cpu")}>
-      {cpuChart && chartCard(cpuChart, 280)}
-      {cpuKinds && (
-        <section className="card chart" data-focus="cores">
-          <div className="row base wrap">
-            <b className="cname">Performance and efficiency cores</b>
-            <span className="muted small">
-              {nP && nE ? `${nP} performance, ${nE} efficiency · ` : ""}each kind's average use
-            </span>
-          </div>
-          <div className="netpair">
-            {part("Performance cores", cpuKinds[0].pts, 100, pct)}
-            {part("Efficiency cores", cpuKinds[1].pts, 100, pct)}
-          </div>
-        </section>
+      {column(
+        [cpuChart],
+        cpuKinds
+          ? [
+              partSpec("Performance cores", cpuKinds[0].pts, 100, pct, {
+                sub: `${nP ? `${nP} cores · ` : ""}their average use`,
+              }),
+              partSpec("Efficiency cores", cpuKinds[1].pts, 100, pct, {
+                sub: `${nE ? `${nE} cores · ` : ""}their average use`,
+              }),
+            ]
+          : [],
       )}
       <div className="cards2">
         {appsCard(
@@ -1215,66 +1085,53 @@ export default function Performance({
       {crashesCard}
     </div>
   );
-  const partsTop = Math.max(
-    1,
-    ...points.map((m) => Math.max(m.mem_app ?? 0, m.mem_wired ?? 0, m.mem_comp ?? 0)),
-    latest?.mem_parts?.app ?? 0,
-    latest?.mem_parts?.wired ?? 0,
-    latest?.mem_parts?.compressed ?? 0,
-  );
   const memTab = () => (
     <div className="perfmain" {...panel("memory")}>
-      {memChart && chartCard(memChart, 280)}
-      {points.some((m) => m.mem_app != null) && (
-        <section className="card chart" data-focus="memory parts">
-          <div className="row base wrap">
-            <b className="cname">What the memory in use is made of</b>
-            <span className="muted small">as Activity Monitor splits it, on one scale</span>
-          </div>
-          <div className="netpair">
-            {part(
-              "App memory",
-              series((m) => m.mem_app, latest?.mem_parts?.app),
-              partsTop,
-              fmt,
-            )}
-            {part(
-              "Wired",
-              series((m) => m.mem_wired, latest?.mem_parts?.wired),
-              partsTop,
-              fmt,
-            )}
-            {part(
-              "Compressed",
-              series((m) => m.mem_comp, latest?.mem_parts?.compressed),
-              partsTop,
-              fmt,
-            )}
-          </div>
-        </section>
-      )}
-      <section className="card chart" data-focus="swap">
-        <div className="row base wrap">
-          <b className="cname">Swap and pressure</b>
-          <span className="muted small">
-            swap grows when memory runs short; pressure is how macOS rates it
-          </span>
-        </div>
-        <div className="netpair">
-          {part("Swap", ser("swap"), Math.max(1e9, ...points.map((m) => m.swap_max)), fmt, {
-            hi: ser("swap_max"),
-          })}
-          {part(
+      {column(
+        [memChart],
+        [
+          ...(points.some((m) => m.mem_app != null)
+            ? [
+                partSpec(
+                  "App memory",
+                  series((m) => m.mem_app, latest?.mem_parts?.app),
+                  partsTop,
+                  fmt,
+                  {
+                    sub: "what apps use",
+                  },
+                ),
+                partSpec(
+                  "Wired",
+                  series((m) => m.mem_wired, latest?.mem_parts?.wired),
+                  partsTop,
+                  fmt,
+                  {
+                    sub: "the system's own, never moved to disk",
+                  },
+                ),
+                partSpec(
+                  "Compressed",
+                  series((m) => m.mem_comp, latest?.mem_parts?.compressed),
+                  partsTop,
+                  fmt,
+                  { sub: "squeezed to make room" },
+                ),
+              ]
+            : []),
+          swapSpec,
+          partSpec(
             "Pressure",
             series((m) => m.pressure, latest?.pressure),
             4,
             PRESSURE,
             {
-              note: latest ? `${PRESSURE(latest.pressure)} now` : "",
+              sub: "how macOS rates the memory",
+              peak: null,
             },
-          )}
-        </div>
-      </section>
+          ),
+        ],
+      )}
       <div className="cards2">
         {appsCard(
           "Using the most memory",
@@ -1290,6 +1147,237 @@ export default function Performance({
         )}
       </div>
     </div>
+  );
+  const gpuTab = () => (
+    <div className="perfmain" {...panel("gpu")}>
+      {column([gpuChart], [cpuChart, more("Energy")])}
+      <div className="cards2">
+        {momentsCard("Busiest GPU moments", "GPU", (m) => m.gpu_max ?? 0, pct)}
+        <div className="tiles">{thermalTile}</div>
+      </div>
+    </div>
+  );
+  const ioTab = () => (
+    <div className="perfmain" {...panel("diskio")}>
+      {column([more("Disk reads"), more("Disk writes")], [swapSpec])}
+      <div className="cards2">
+        {momentsCard("Busiest disk moments", "Disk I/O", (m) => m.disk_max, fmtRate)}
+        {appsCard(
+          "Using the disk the most",
+          rangeApps?.by_disk ?? [],
+          (a) => a.disk ?? 0,
+          fmtRate,
+          (a) => `${pct(a.cpu)} CPU`,
+        )}
+      </div>
+    </div>
+  );
+  const netTab = () => (
+    <div className="perfmain" {...panel("network")}>
+      {column([more("Download"), more("Upload")], [])}
+      <div className="cards2">
+        {momentsCard("Busiest downloads", "Download", (m) => m.net_in_max || m.net_in, fmtRate)}
+        {momentsCard("Busiest uploads", "Upload", (m) => m.net_out_max || m.net_out, fmtRate)}
+      </div>
+    </div>
+  );
+  const energyTab = () => (
+    <div className="perfmain" {...panel("energy")}>
+      {column(
+        [more("Energy")],
+        [
+          points.some((m) => m.battery != null)
+            ? partSpec(
+                "Battery",
+                series((m) => m.battery, live?.battery?.percent),
+                100,
+                (v) => `${Math.round(v)}%`,
+                { sub: live?.battery ? batteryLine(live.battery) : "", peak: null },
+              )
+            : undefined,
+          cpuChart,
+          gpuChart,
+        ],
+      )}
+      <div className="cards2">
+        {energyAppsCard}
+        {batteryCard}
+      </div>
+      <div className="cards2">
+        {momentsCard("Most power drawn", "Energy", (m) => m.power_max ?? 0, fmtW)}
+        <div className="tiles">{thermalTile}</div>
+      </div>
+    </div>
+  );
+
+  // ---- the Disk space tab ----
+  const diskPts = diskRange?.points ?? [];
+  const diskLast = diskPts[diskPts.length - 1];
+  const diskFirst = diskPts[0];
+  const diskSpan = secs < 86400 ? "24 hours" : RANGES[range].label;
+  const grew = (growth?.landed ?? []).filter((g) => g.delta > 0);
+  const diskTab = () => (
+    <div className="perfmain" {...panel("disk")}>
+      {diskCard(260, true)}
+      <div className="cards2">
+        <section className="card list">
+          <div className="row between head">
+            <span className="eyebrow">Space · last {diskSpan}</span>
+          </div>
+          {diskLast ? (
+            <div className="snapstats">
+              <div>
+                <b>{fmt(diskLast.total - diskLast.used)}</b>
+                <span className="muted small">free of {fmt(diskLast.total)}</span>
+              </div>
+              <div>
+                <b>
+                  {diskFirst && diskPts.length > 1 ? fmtDelta(diskLast.used - diskFirst.used) : "–"}
+                </b>
+                <span className="muted small">used, over the {diskSpan}</span>
+              </div>
+              {diskWeek?.high && (
+                <div>
+                  <b>{fmt(diskWeek.high.used)}</b>
+                  <span className="muted small">
+                    the week's tidemark, {fmtAt(diskWeek.high.ts, false)}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="muted rowline">The disk's used space is recorded every hour.</div>
+          )}
+        </section>
+        <section className="card list">
+          <div className="row between head">
+            <span className="eyebrow">What grew this week</span>
+            {(growth?.total ?? 0) > 0 && (
+              <span className="muted small">{fmtDelta(growth?.total ?? 0)} in all</span>
+            )}
+          </div>
+          {grew.length === 0 && (
+            <div className="muted rowline">
+              {growth?.from
+                ? "Nothing grew by more than 100 MB."
+                : "Growth shows once two scans are 20 hours or more apart."}
+            </div>
+          )}
+          {grew.slice(0, 6).map((g) => (
+            <div className="grewrow" key={g.path}>
+              <span className="mono ell" title={g.path}>
+                {abbrev(g.path, home)}
+              </span>
+              <span className="bar">
+                <i style={{ width: `${(100 * g.delta) / grew[0].delta}%` }} />
+              </span>
+              <b className="r">{fmtDelta(g.delta)}</b>
+            </div>
+          ))}
+          <div className="grow" />
+          <button
+            className="link small left"
+            onClick={() => go("disk")}
+            title="Open the map with this week's growth marked (⌘4)"
+          >
+            Show the growth on the map →
+          </button>
+        </section>
+      </div>
+    </div>
+  );
+
+  // The Disk space tab's card: an hour picked on its chart, what is using the space, and the
+  // last scan. (The snapshot's apps say nothing about disk space.)
+  const diskAt = (() => {
+    if (picked?.why !== "Disk space" || !diskPts.length) return null;
+    let i = 0;
+    for (let k = 1; k < diskPts.length; k++)
+      if (Math.abs(diskPts[k].ts - picked.t) < Math.abs(diskPts[i].ts - picked.t)) i = k;
+    return { p: diskPts[i], before: i > 0 ? diskPts[i - 1] : null };
+  })();
+  const biggest = [...(tree?.kids ?? [])].sort((a, b) => b.size - a.size).slice(0, 8);
+  // On a whole-disk scan: what the disk counts as used that no folder walk reaches.
+  const unseen =
+    info && info.root === "/" && info.scan ? Math.max(0, info.volume.used - info.scan.size) : 0;
+  const diskAside = (
+    <aside className="card snap">
+      {diskAt && (
+        <div>
+          <span className="eyebrow">Disk space</span>
+          <span className="muted small">
+            {" "}
+            {(() => {
+              const w = fmtAt(diskAt.p.ts);
+              return w.charAt(0).toUpperCase() + w.slice(1);
+            })()}
+          </span>
+          <div className="snapstats">
+            <div>
+              <b>{fmt(diskAt.p.used)}</b>
+              <span className="muted small">used</span>
+            </div>
+            <div>
+              <b>{fmt(diskAt.p.total - diskAt.p.used)}</b>
+              <span className="muted small">free</span>
+            </div>
+          </div>
+          {diskAt.before && (
+            <span className="muted small">
+              {fmtDelta(diskAt.p.used - diskAt.before.used)} since the hour before
+            </span>
+          )}
+        </div>
+      )}
+      <div className="row between">
+        <span className="eyebrow">What's using the space</span>
+        <span className="muted small ell">{info ? info.root_name : ""}</span>
+      </div>
+      <div className="blame">
+        {biggest.length === 0 && (
+          <div className="muted small">
+            {info?.scan ? "Reading the scan…" : "The folders appear after the first scan."}
+          </div>
+        )}
+        {biggest.map((k) => (
+          <button
+            className="brow pickrow"
+            key={k.path}
+            onClick={() => openFolder(k.path)}
+            title={`Open ${abbrev(k.path, home)} in Disk Map`}
+          >
+            <div className="row between">
+              <span className="ell">{k.name}</span>
+              <b>{fmt(k.size)}</b>
+            </div>
+            <span className="bar">
+              <i style={{ width: `${biggest[0].size ? (100 * k.size) / biggest[0].size : 0}%` }} />
+            </span>
+          </button>
+        ))}
+      </div>
+      {unseen > 1e9 && (
+        <span className="muted small">
+          And {fmt(unseen)} the scan can't see: local Time Machine snapshots, purgeable caches, swap
+          and folders macOS didn't let it read.
+        </span>
+      )}
+      {info?.scan && (
+        <span className="muted small scanfoot">
+          Last scan {fmtWhen(info.scan.finished)}: {fmtN(info.scan.items)} items in{" "}
+          {fmtDuration(info.scan.duration_ms)}
+          {info.scan.denied > 0
+            ? `, ${fmtN(info.scan.denied)} folder${info.scan.denied === 1 ? "" : "s"} not readable`
+            : ""}
+          .{" "}
+          {scanEvery === "off"
+            ? "Scheduled scans are off."
+            : scanEvery
+              ? `Scans ${scanEvery === "hourly" ? "every hour" : "every day"}.`
+              : ""}
+        </span>
+      )}
+    </aside>
   );
 
   // A remembered GPU tab on a Mac that reports no GPU shows everything.
@@ -1358,6 +1446,7 @@ export default function Performance({
               aria-controls={`ptab-${t.id}-panel`}
               tabIndex={shown === t.id ? 0 : -1}
               className={shown === t.id ? "on" : ""}
+              title={t.tip}
               onClick={() => chooseTab(t.id)}
               onKeyDown={(e) => {
                 // Arrows, Home and End move between the tabs, as in any tab strip.
@@ -1397,210 +1486,136 @@ export default function Performance({
           netTab()
         ) : shown === "energy" ? (
           energyTab()
+        ) : shown === "disk" ? (
+          diskTab()
         ) : (
           <div className="perfmain" {...panel("all")}>
             {charts.map((c) => chartCard(c, 170, false))}
             {allMore().map((c) => chartCard(c, 170, false))}
-            <section className="card chart" data-focus="disk space">
-              <div className="row base wrap">
-                <b className="cname">
-                  <Labelled m="disk">Disk space</Labelled>
-                </b>
-                {(() => {
-                  const pts = diskRange?.points ?? [];
-                  const last = pts[pts.length - 1];
-                  const first = pts[0];
-                  return (
-                    <>
-                      <span
-                        className={`cnow${flagFor(live?.status, "Disk space") ? ` ${flagFor(live?.status, "Disk space")?.cls}` : ""}`}
-                      >
-                        {last ? `${fmt(last.total - last.used)} free` : "–"}
-                      </span>
-                      {flagFor(live?.status, "Disk space") && (
-                        <span className={`badge ${flagFor(live?.status, "Disk space")?.tone}`}>
-                          {flagFor(live?.status, "Disk space")?.label}
-                        </span>
-                      )}
-                      {flagFor(live?.status, "Disk space") && last && (
-                        <AskButton
-                          title="Ask what is filling the disk (opens Ask with the disk's figures)"
-                          onAsk={() => {
-                            const { question, detail } = flaggedDetail(live, "Disk space", [
-                              `${fmt(last.total - last.used)} free: ${fmt(last.used)} of ${fmt(last.total)} used.`,
-                              first && pts.length > 1
-                                ? `${fmtDelta(last.used - first.used)} over the last ${secs < 86400 ? "24 hours" : RANGES[range].label}.`
-                                : "",
-                            ]);
-                            ask(question, detail);
-                          }}
-                        />
-                      )}
-                      <span className="muted small">
-                        {last ? `${fmt(last.used)} of ${fmt(last.total)} used` : ""}
-                        {first && last && pts.length > 1
-                          ? ` · ${fmtDelta(last.used - first.used)} over the last ${secs < 86400 ? "24 hours" : RANGES[range].label}`
-                          : ""}
-                      </span>
-                    </>
-                  );
-                })()}
-                <span className="grow" />
-                <Legend line="Disk space used, hourly" mark="Week's tidemark" />
-              </div>
-              {(diskRange?.points.length ?? 0) > 1 ? (
-                (() => {
-                  const pts = (diskRange?.points ?? []).map((p) => ({ t: p.ts, v: p.used }));
-                  const lo = Math.min(...pts.map((p) => p.v));
-                  const hi = Math.max(...pts.map((p) => p.v), diskWeek?.high?.used ?? 0);
-                  const pad = Math.max((hi - lo) * 0.15, 1e9);
-                  return (
-                    <Area
-                      marker={at?.t}
-                      pts={pts}
-                      max={hi + pad}
-                      min={Math.max(0, lo - pad)}
-                      height={170}
-                      mark={
-                        diskWeek?.high
-                          ? {
-                              v: diskWeek.high.used,
-                              label: `Tidemark ${fmt(diskWeek.high.used)} · ${fmtAt(diskWeek.high.ts, false)}`,
-                            }
-                          : null
-                      }
-                      fmt={fmt}
-                      fmtT={(t) => fmtAt(t)}
-                      name="Disk space used"
-                      domain={[now() - diskSecs, now()]}
-                      xLabels={xLabels(diskSecs, 4)}
-                      label={`Disk space used over the last ${secs < 86400 ? "24 hours" : RANGES[range].label}`}
-                    />
-                  );
-                })()
-              ) : (
-                <div className="empty small">The disk's used space is recorded every hour.</div>
-              )}
-            </section>
+            {diskCard()}
           </div>
         )}
 
-        <aside className="card snap">
-          <div>
-            <div className="row between">
-              <span className="eyebrow">
-                {at ? measure.what.charAt(0).toUpperCase() + measure.what.slice(1) : "Snapshot"}
-              </span>
-            </div>
-            {at && (
-              <span className="muted small">
-                {(() => {
-                  const when = fmtAt(at.t);
-                  return when.charAt(0).toUpperCase() + when.slice(1);
-                })()}
-                {!picked ? " · the range's peak" : ""}
-              </span>
-            )}
-            {atAvg != null && (
-              <div className="snapstats">
-                <div>
-                  <b>{measure.fmt(atAvg)}</b>
-                  <span className="muted small">{measure.avgLabel ?? `${per} average`}</span>
-                </div>
-                {atPeak != null && (
-                  <div>
-                    <b>{measure.fmt(atPeak)}</b>
-                    <span className="muted small">peak</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          {measure.note && <div className="muted small">{measure.note}</div>}
-          {at && (atPoint || mode === "incident") && <span className="eyebrow">{listLabel}</span>}
-          <div className="blame">
-            {blame.length === 0 && (
-              <div className="muted small">Nothing recorded at that moment.</div>
-            )}
-            {blame.slice(0, 6).map((p) => (
-              <div className="brow" key={p.app}>
-                <div className="row between">
-                  <span className="ell">{p.app}</span>
-                  <b>{appF(appV(p))}</b>
-                </div>
-                <span className="bar">
-                  <i
-                    style={{ width: `${appV(blame[0]) ? (100 * appV(p)) / appV(blame[0]) : 0}%` }}
-                  />
+        {shown === "disk" ? (
+          diskAside
+        ) : (
+          <aside className="card snap">
+            <div>
+              <div className="row between">
+                <span className="eyebrow">
+                  {at ? measure.what.charAt(0).toUpperCase() + measure.what.slice(1) : "Snapshot"}
                 </span>
+              </div>
+              {at && (
                 <span className="muted small">
-                  {measure.by === "mem" ? `${pct(p.cpu)} CPU` : `${fmt(p.mem)} memory`}
+                  {(() => {
+                    const when = fmtAt(at.t);
+                    return when.charAt(0).toUpperCase() + when.slice(1);
+                  })()}
+                  {!picked ? " · the range's peak" : ""}
                 </span>
-              </div>
-            ))}
-          </div>
-          {measure === MEASURES.CPU && atPeak != null && (
-            <div className="note">
-              {atPeak >= 90
-                ? "It went above 90%, so if it lasted 30 seconds it was recorded as an incident."
-                : "It stayed under 90%, so it isn't an incident."}
+              )}
+              {atAvg != null && (
+                <div className="snapstats">
+                  <div>
+                    <b>{measure.fmt(atAvg)}</b>
+                    <span className="muted small">{measure.avgLabel ?? `${per} average`}</span>
+                  </div>
+                  {atPeak != null && (
+                    <div>
+                      <b>{measure.fmt(atPeak)}</b>
+                      <span className="muted small">peak</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-          <div className="col gap6">
-            <span className="eyebrow">Incidents · last 14 days</span>
-            {(incidents ?? []).length === 0 && (
-              <span className="muted small">None. Calm fortnight.</span>
-            )}
-            {(incidents ?? []).slice(0, 6).map((i) => (
-              <button
-                className="incident"
-                key={i.id}
-                onClick={() => pickIncident(i)}
-                title="Show what every app was doing at its peak"
-              >
-                <span>
-                  <b>{incidentTitle(i)}</b>{" "}
-                  <span className="muted">
-                    {i.ended != null
-                      ? `${Math.max(1, Math.round((i.ended - i.started) / 60))} min`
-                      : "now"}
+            {measure.note && <div className="muted small">{measure.note}</div>}
+            {at && (atPoint || mode === "incident") && <span className="eyebrow">{listLabel}</span>}
+            <div className="blame">
+              {blame.length === 0 && (
+                <div className="muted small">Nothing recorded at that moment.</div>
+              )}
+              {blame.slice(0, 6).map((p) => (
+                <div className="brow" key={p.app}>
+                  <div className="row between">
+                    <span className="ell">{p.app}</span>
+                    <b>{appF(appV(p))}</b>
+                  </div>
+                  <span className="bar">
+                    <i
+                      style={{ width: `${appV(blame[0]) ? (100 * appV(p)) / appV(blame[0]) : 0}%` }}
+                    />
                   </span>
-                </span>
-                <span className="muted">{fmtAt(i.started)}</span>
+                  <span className="muted small">
+                    {measure.by === "mem" ? `${pct(p.cpu)} CPU` : `${fmt(p.mem)} memory`}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {measure === MEASURES.CPU && atPeak != null && (
+              <div className="note">
+                {atPeak >= 90
+                  ? "It went above 90%, so if it lasted 30 seconds it was recorded as an incident."
+                  : "It stayed under 90%, so it isn't an incident."}
+              </div>
+            )}
+            <div className="col gap6">
+              <span className="eyebrow">Incidents · last 14 days</span>
+              {(incidents ?? []).length === 0 && (
+                <span className="muted small">None. Calm fortnight.</span>
+              )}
+              {(incidents ?? []).slice(0, 6).map((i) => (
+                <button
+                  className="incident"
+                  key={i.id}
+                  onClick={() => pickIncident(i)}
+                  title="Show what every app was doing at its peak"
+                >
+                  <span>
+                    <b>{incidentTitle(i)}</b>{" "}
+                    <span className="muted">
+                      {i.ended != null
+                        ? `${Math.max(1, Math.round((i.ended - i.started) / 60))} min`
+                        : "now"}
+                    </span>
+                  </span>
+                  <span className="muted">{fmtAt(i.started)}</span>
+                </button>
+              ))}
+              <span className="muted small">
+                Each one keeps a snapshot of what every app was doing.
+              </span>
+            </div>
+            <div className="row wrap gap8">
+              <button
+                className="btn primary"
+                disabled={!assistant.available}
+                title={
+                  assistant.available
+                    ? "Put this moment to Ask (⌘K)"
+                    : (assistant.reason ?? undefined)
+                }
+                onClick={() =>
+                  ask(
+                    at
+                      ? `Why was the ${measure.what} ${atAvg != null ? `at ${measure.fmt(atAvg)}` : "high"} at ${fmtAt(at.t)}${top ? `, with ${top.app} on top` : ""}?`
+                      : "Is anything slowing my Mac down?",
+                  )
+                }
+              >
+                Ask why this happened
               </button>
-            ))}
-            <span className="muted small">
-              Each one keeps a snapshot of what every app was doing.
-            </span>
-          </div>
-          <div className="row wrap gap8">
-            <button
-              className="btn primary"
-              disabled={!assistant.available}
-              title={
-                assistant.available
-                  ? "Put this moment to Ask (⌘K)"
-                  : (assistant.reason ?? undefined)
-              }
-              onClick={() =>
-                ask(
-                  at
-                    ? `Why was the ${measure.what} ${atAvg != null ? `at ${measure.fmt(atAvg)}` : "high"} at ${fmtAt(at.t)}${top ? `, with ${top.app} on top` : ""}?`
-                    : "Is anything slowing my Mac down?",
-                )
-              }
-            >
-              Ask why this happened
-            </button>
-            <button
-              className="btn"
-              onClick={() => void api.activityMonitor()}
-              title="Open macOS's Activity Monitor for every process, live"
-            >
-              Activity Monitor
-            </button>
-          </div>
-        </aside>
+              <button
+                className="btn"
+                onClick={() => void api.activityMonitor()}
+                title="Open macOS's Activity Monitor for every process, live"
+              >
+                Activity Monitor
+              </button>
+            </div>
+          </aside>
+        )}
       </div>
     </>
   );

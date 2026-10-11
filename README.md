@@ -11,7 +11,7 @@ See it at [tidemark.davies.co.za](https://tidemark.davies.co.za).
 - **Now**: CPU, GPU, memory, disk I/O, network, energy and disk space at a glance, with the week's highs.
 - **Recent**: every measure over 1 hour to 14 days, what each app was doing at any moment, incidents and crashes.
 - **Disk Map**: every folder as a block sized by what it takes up, with this week's growth.
-- **Trends**: disk space over 7 days to a year, when it would fill, and when the Mac is busiest.
+- **Trends**: every measure a day at a time over a month to a year, each day's busiest apps, the records, when the Mac is busiest, and when the disk would fill.
 - **Menu bar** and a background helper keep it recording; **Ask** puts it all to an AI already signed in on your Mac.
 
 ## Install

@@ -3,7 +3,7 @@
 Every live measure in detail, over 1 hour, 24 hours, 7 or 14 days.
 
 - The range you pick is remembered. Click a chart to see what every app was doing at that moment.
-- **All** shows one chart a measure, each the same size. The other tabs (**CPU**, **GPU**, **Memory**, **Disk I/O**, **Network**, **Energy**) give one measure more room, with what goes with it: its parts, the apps that used the most, its incidents and its busiest moments. The tab you pick is remembered, and a card's **Details** opens its tab.
+- **All** shows one chart a measure, each the same size. The other tabs (**CPU**, **GPU**, **Memory**, **Disk I/O**, **Network**, **Energy**, **Disk space**) give one measure more room, with what goes with it: its parts, the apps that used the most, its incidents and its busiest moments. The tab you pick is remembered, and a card's **Details** opens its tab.
 - **CPU**, **GPU** (where the Mac reports it) and **Memory** charts, each with the week's tidemark and the range's peak.
 - Memory splits as Activity Monitor does: what apps use, **wired** (the system's own, never moved to disk) and **compressed**. Compressed and swap growing while pressure turns red means the Mac is short of memory.
 - The GPU line is how busy the graphics processor is (video, games, 3D, machine learning). macOS doesn't report apps' shares of it.

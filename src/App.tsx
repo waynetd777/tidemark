@@ -13,7 +13,7 @@ import Performance from "./Performance";
 import { tabFor } from "./perfTabs";
 import SettingsPage from "./Settings";
 import Trends from "./Trends";
-import { useLive, usePoll } from "./perf";
+import { now, useLive, usePoll } from "./perf";
 import { sceneMode, useRemembered } from "./remember";
 import HelpDrawer from "./Help";
 import Tooltips from "./Tooltips";
@@ -25,6 +25,7 @@ import type { AppInfo, GrowthInfo, Progress, Screen, Settings, View } from "./ty
 import {
   abbrev,
   fmt,
+  fmtAt,
   fmtCount,
   fmtDelta,
   fmtDuration,
@@ -212,6 +213,21 @@ export default function App() {
   // Back and forward start from the screen the app opened on.
   const [screenAtStart] = useState(screen);
   const mac = usePoll(api.macInfo, 60_000);
+  // How far the record goes back, for the sidebar's Record while it is still filling in: the
+  // minutes Recent draws on, the days Trends does.
+  const record = usePoll(
+    () =>
+      screen === "trends" || screen === "performance" ? api.historyInfo() : Promise.resolve(null),
+    300_000,
+    [screen],
+  );
+  const trendsFilling = !!record && record.days < 365;
+  const dateOf = (t: number) =>
+    new Date(t * 1000).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   // The performance record as text, for Ask; read when Ask opens and every half minute after.
   const [brief, setBrief] = useState("");
   const [askOpen, setAskOpen] = useState(false);
@@ -437,7 +453,7 @@ export default function App() {
     },
     [push, setScreen],
   );
-  // Scrolls the target section into view once the screen has drawn it, and marks it briefly.
+  // Scrolls the target section into view once the screen has drawn it.
   useEffect(() => {
     if (!focus) return;
     let tries = 0;
@@ -452,10 +468,6 @@ export default function App() {
       );
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" });
-        el.classList.remove("flash");
-        void el.offsetWidth; // restart the animation
-        el.classList.add("flash");
-        window.setTimeout(() => el.classList.remove("flash"), 1600);
         setFocus(null); // once: a later visit to the screen doesn't scroll again
       } else if (tries++ < 20) timer = window.setTimeout(find, 50);
       else setFocus(null);
@@ -821,7 +833,7 @@ export default function App() {
             </button>
           ))}
         </nav>
-        {screen === "performance" && mac && (
+        {screen !== "settings" && mac && (
           <>
             <div className="sec">This Mac</div>
             <div className="macinfo">
@@ -830,6 +842,39 @@ export default function App() {
                 {mac.cores} cores · {fmt(mac.memory)} memory
               </span>
               <span className="muted">Up {fmtUptime(mac.uptime_secs)}</span>
+            </div>
+          </>
+        )}
+        {screen === "performance" &&
+          record?.since != null &&
+          now() - record.since < (historyDays - 0.5) * 86400 && (
+            <>
+              <div className="sec">Record</div>
+              <div className="macinfo">
+                <span>Recording since {fmtAt(record.since)}</span>
+                <span className="muted">
+                  {Math.max(0, Math.floor((now() - record.since) / 86400))} of {historyDays} days so
+                  far
+                </span>
+                <span className="muted">Every minute, kept for {historyDays} days</span>
+              </div>
+            </>
+          )}
+        {screen === "trends" && trendsFilling && record && (
+          <>
+            <div className="sec">Record</div>
+            <div className="macinfo">
+              <span>
+                {record.days
+                  ? `${record.days} day${record.days === 1 ? "" : "s"} recorded`
+                  : "No days recorded yet"}
+              </span>
+              <span className="muted">
+                {record.days_since
+                  ? `Since ${dateOf(record.days_since)}`
+                  : "The first appears once a day has been recorded"}
+              </span>
+              <span className="muted">Fills in a day at a time, for a year</span>
             </div>
           </>
         )}
@@ -940,7 +985,9 @@ export default function App() {
           </button>
         </nav>
         <div className="foot">
-          <span>Keeping {historyDays} days of history</span>
+          <span title="Recent's detail goes back as far as the history setting keeps minutes; Trends' days go back a year">
+            Every minute for {historyDays} day{historyDays === 1 ? "" : "s"}, every day for a year
+          </span>
         </div>
       </aside>
 
@@ -955,10 +1002,16 @@ export default function App() {
             bar={bar}
             ask={askAbout}
             focus={focus?.id}
+            growth={growth}
+            home={home}
+            go={show}
+            info={info}
+            scanEvery={settings?.scan}
+            openFolder={go}
           />
         )}
         {screen === "trends" && (
-          <Trends home={home} historyDays={historyDays} bar={bar} go={show} ask={askAbout} />
+          <Trends home={home} bar={bar} go={show} ask={askAbout} focus={focus?.id} />
         )}
         {screen === "settings" && (
           <SettingsPage info={info} settings={settings} onChange={setSettings} bar={bar} />

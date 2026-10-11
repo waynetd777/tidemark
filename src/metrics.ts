@@ -20,16 +20,18 @@ export type Metric =
 /// The icon for a measure's label ("CPU", "Disk I/O", "Memory high", "Disk used", ...).
 export function metricOf(label: string): Metric {
   const l = label.toLowerCase();
-  if (l.startsWith("cpu")) return "cpu";
+  if (l.startsWith("cpu") || l.endsWith(" cores")) return "cpu";
   if (l.startsWith("gpu")) return "gpu";
-  if (l.startsWith("memory")) return "memory";
+  if (l.startsWith("memory") || ["app memory", "wired", "compressed", "pressure"].includes(l))
+    return "memory";
   if (l.startsWith("network download")) return "download";
   if (l.startsWith("network upload")) return "upload";
   if (l.startsWith("network")) return "network";
   if (l.startsWith("download")) return "download";
   if (l.startsWith("upload")) return "upload";
   if (l.startsWith("swap")) return "swap";
-  if (l.startsWith("disk i/o")) return "diskio";
+  if (l.startsWith("disk i/o") || l.startsWith("disk reads") || l.startsWith("disk writes"))
+    return "diskio";
   if (l.startsWith("thermal")) return "thermal";
   if (l.startsWith("energy") || l.startsWith("power")) return "energy";
   if (l.startsWith("battery")) return "battery";

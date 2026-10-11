@@ -4,7 +4,8 @@
 //! Everything Tidemark remembers over time, in one SQLite file beside the cache
 //! (history.sqlite). Per-minute performance, the busiest apps of each minute, incidents, the
 //! disk's used space hourly and the folders of each scan are kept for the history setting's days
-//! (14 at most); one row a day of disk totals and top folders is kept for a year.
+//! (14 at most); one row a day of disk totals and top folders, and one of each performance
+//! measure (perf_daily, rolled up from the minutes), is kept for a year.
 //!
 //! Times are unix seconds. Sizes are bytes, CPU is a percentage of the whole machine.
 
@@ -54,6 +55,15 @@ CREATE TABLE IF NOT EXISTS sleeps (
 );
 CREATE TABLE IF NOT EXISTS disk_daily (
   day TEXT PRIMARY KEY, used REAL, used_max REAL, total REAL, top TEXT
+);
+CREATE TABLE IF NOT EXISTS perf_daily (
+  day TEXT PRIMARY KEY, ts INTEGER, minutes INTEGER,
+  cpu REAL, cpu_max REAL, cpu_p REAL, cpu_e REAL, gpu REAL, gpu_max REAL,
+  mem REAL, mem_max REAL, mem_total REAL, swap_max REAL, pressure INTEGER, thermal INTEGER,
+  disk_r REAL, disk_w REAL, disk_max REAL, net_in REAL, net_out REAL, net_in_max REAL,
+  net_out_max REAL, power REAL, power_max REAL,
+  read REAL, written REAL, down REAL, up REAL, energy REAL,
+  incidents INTEGER, crashes INTEGER, apps TEXT
 );
 ";
 
@@ -216,6 +226,14 @@ pub struct AppUse {
 }
 
 pub fn add_minute(m: &Minute, apps: &[AppUse]) {
+    add_minute_rows(m, apps);
+    // Today's row, every ten minutes (and the day before, at the turn of the day).
+    if m.ts % 600 == 0 {
+        roll_up_recent();
+    }
+}
+
+fn add_minute_rows(m: &Minute, apps: &[AppUse]) {
     with(|c| {
         c.execute(
             "INSERT OR REPLACE INTO perf (ts, cpu, cpu_max, mem, mem_max, mem_total, swap, swap_max,
@@ -390,19 +408,6 @@ fn apps_query(from: i64, to: i64, order: &str, n: usize) -> Vec<AppUse> {
                 disk_max: r.get(8)?,
             })
         })?;
-        rows.collect()
-    })
-}
-
-/// Average CPU by weekday (0 = Sunday) and hour, local time, since `from`.
-pub fn cpu_by_hour(from: i64) -> Vec<(u32, u32, f64)> {
-    with(|c| {
-        let mut st = c.prepare(
-            "SELECT CAST(strftime('%w', ts, 'unixepoch', 'localtime') AS INTEGER),
-                    CAST(strftime('%H', ts, 'unixepoch', 'localtime') AS INTEGER), AVG(cpu)
-             FROM perf WHERE ts >= ?1 GROUP BY 1, 2",
-        )?;
-        let rows = st.query_map(params![from], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
         rows.collect()
     })
 }
@@ -880,10 +885,222 @@ pub fn folder_history(path: &str, from: i64) -> Vec<(i64, f64)> {
     })
 }
 
+// ---- a day at a time, kept for a year ----
+
+/// One local day of performance, rolled up from its minutes: averages and peaks as the minutes
+/// have them, the day's totals (bytes moved, watt-hours drawn), its incidents and crashes, and
+/// its busiest apps (averaged over the minutes they ran).
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct PerfDay {
+    pub day: String,
+    /// Local midnight, unix seconds.
+    pub ts: i64,
+    /// Minutes recorded that day.
+    pub minutes: i64,
+    pub cpu: f64,
+    pub cpu_max: f64,
+    pub cpu_p: Option<f64>,
+    pub cpu_e: Option<f64>,
+    pub gpu: Option<f64>,
+    pub gpu_max: Option<f64>,
+    pub mem: f64,
+    pub mem_max: f64,
+    pub mem_total: f64,
+    pub swap_max: f64,
+    pub pressure: i64,
+    pub thermal: i64,
+    pub disk_r: f64,
+    pub disk_w: f64,
+    pub disk_max: f64,
+    pub net_in: f64,
+    pub net_out: f64,
+    pub net_in_max: f64,
+    pub net_out_max: f64,
+    pub power: Option<f64>,
+    pub power_max: Option<f64>,
+    /// Bytes read, written, downloaded and uploaded that day; watt-hours drawn.
+    pub read: f64,
+    pub written: f64,
+    pub down: f64,
+    pub up: f64,
+    pub energy: Option<f64>,
+    pub incidents: i64,
+    pub crashes: i64,
+    pub apps: DayApps,
+}
+
+/// A day's busiest apps by each measure.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct DayApps {
+    pub cpu: Vec<AppUse>,
+    pub mem: Vec<AppUse>,
+    pub energy: Vec<AppUse>,
+    pub disk: Vec<AppUse>,
+}
+
+/// A local day's first and last second, and its name (YYYY-MM-DD).
+fn day_span(d: chrono::NaiveDate) -> Option<(i64, i64, String)> {
+    let start = d
+        .and_hms_opt(0, 0, 0)?
+        .and_local_timezone(chrono::Local)
+        .earliest()?
+        .timestamp();
+    let end = d
+        .succ_opt()?
+        .and_hms_opt(0, 0, 0)?
+        .and_local_timezone(chrono::Local)
+        .earliest()?
+        .timestamp();
+    Some((start, end, d.format("%Y-%m-%d").to_string()))
+}
+
+/// Rolls one day up from its minutes into perf_daily; a day with none is left alone.
+fn roll_up(d: chrono::NaiveDate) {
+    let Some((from, to, day)) = day_span(d) else {
+        return;
+    };
+    let apps = DayApps {
+        cpu: top_apps(from, to - 1, By::Cpu, 8),
+        mem: top_apps(from, to - 1, By::Mem, 8),
+        energy: top_apps(from, to - 1, By::Energy, 8),
+        disk: top_apps(from, to - 1, By::Disk, 8),
+    };
+    let apps = serde_json::to_string(&apps).unwrap_or_default();
+    with(|c| {
+        c.execute(
+            "INSERT OR REPLACE INTO perf_daily
+             SELECT ?3, ?1, COUNT(*), AVG(cpu), MAX(cpu_max), AVG(cpu_p), AVG(cpu_e), AVG(gpu),
+                    MAX(gpu_max), AVG(mem), MAX(mem_max), MAX(mem_total), MAX(swap_max),
+                    MAX(pressure), MAX(thermal), AVG(disk_r), AVG(disk_w), MAX(disk_max),
+                    AVG(net_in), AVG(net_out), MAX(COALESCE(net_in_max, net_in)),
+                    MAX(COALESCE(net_out_max, net_out)), AVG(power), MAX(power_max),
+                    SUM(disk_r) * 60, SUM(disk_w) * 60, SUM(net_in) * 60, SUM(net_out) * 60,
+                    SUM(power) / 60.0,
+                    (SELECT COUNT(*) FROM incidents WHERE started >= ?1 AND started < ?2),
+                    (SELECT COUNT(*) FROM crashes WHERE ts >= ?1 AND ts < ?2), ?4
+             FROM perf WHERE ts >= ?1 AND ts < ?2 HAVING COUNT(*) > 0",
+            params![from, to, day, apps],
+        )?;
+        Ok(())
+    })
+}
+
+/// Rolls up today and yesterday, and any day still in the minutes that has no row yet. Run as
+/// the minutes come in (every ten), at the recorder's start and before minutes are pruned.
+pub fn roll_up_recent() {
+    let have: std::collections::HashSet<String> = with(|c| {
+        let mut st = c.prepare("SELECT day FROM perf_daily")?;
+        let rows = st.query_map([], |r| r.get::<_, String>(0))?;
+        rows.collect()
+    });
+    let days: Vec<String> = with(|c| {
+        let mut st =
+            c.prepare("SELECT DISTINCT date(ts, 'unixepoch', 'localtime') FROM perf ORDER BY 1")?;
+        let rows = st.query_map([], |r| r.get::<_, String>(0))?;
+        rows.collect()
+    });
+    let today = chrono::Local::now().date_naive();
+    for day in days {
+        let Ok(d) = chrono::NaiveDate::parse_from_str(&day, "%Y-%m-%d") else {
+            continue;
+        };
+        if !have.contains(&day) || d >= today - chrono::Duration::days(1) {
+            roll_up(d);
+        }
+    }
+}
+
+/// How many days perf_daily holds, and the first one's local midnight.
+pub fn daily_extent() -> (i64, Option<i64>) {
+    with(|c| {
+        c.query_row("SELECT COUNT(*), MIN(ts) FROM perf_daily", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+    })
+}
+
+/// The days since `from` (unix seconds), oldest first.
+pub fn perf_days_since(from: i64) -> Vec<PerfDay> {
+    with(|c| {
+        let mut st = c.prepare(
+            "SELECT day, ts, minutes, cpu, cpu_max, cpu_p, cpu_e, gpu, gpu_max, mem, mem_max,
+                    mem_total, swap_max, pressure, thermal, disk_r, disk_w, disk_max, net_in,
+                    net_out, net_in_max, net_out_max, power, power_max, read, written, down, up,
+                    energy, incidents, crashes, apps
+             FROM perf_daily WHERE ts >= ?1 ORDER BY ts",
+        )?;
+        let rows = st.query_map(params![from], |r| {
+            let apps: Option<String> = r.get(31)?;
+            Ok(PerfDay {
+                day: r.get(0)?,
+                ts: r.get(1)?,
+                minutes: r.get(2)?,
+                cpu: r.get::<_, Option<f64>>(3)?.unwrap_or(0.0),
+                cpu_max: r.get::<_, Option<f64>>(4)?.unwrap_or(0.0),
+                cpu_p: r.get(5)?,
+                cpu_e: r.get(6)?,
+                gpu: r.get(7)?,
+                gpu_max: r.get(8)?,
+                mem: r.get::<_, Option<f64>>(9)?.unwrap_or(0.0),
+                mem_max: r.get::<_, Option<f64>>(10)?.unwrap_or(0.0),
+                mem_total: r.get::<_, Option<f64>>(11)?.unwrap_or(0.0),
+                swap_max: r.get::<_, Option<f64>>(12)?.unwrap_or(0.0),
+                pressure: r.get::<_, Option<i64>>(13)?.unwrap_or(0),
+                thermal: r.get::<_, Option<i64>>(14)?.unwrap_or(0),
+                disk_r: r.get::<_, Option<f64>>(15)?.unwrap_or(0.0),
+                disk_w: r.get::<_, Option<f64>>(16)?.unwrap_or(0.0),
+                disk_max: r.get::<_, Option<f64>>(17)?.unwrap_or(0.0),
+                net_in: r.get::<_, Option<f64>>(18)?.unwrap_or(0.0),
+                net_out: r.get::<_, Option<f64>>(19)?.unwrap_or(0.0),
+                net_in_max: r.get::<_, Option<f64>>(20)?.unwrap_or(0.0),
+                net_out_max: r.get::<_, Option<f64>>(21)?.unwrap_or(0.0),
+                power: r.get(22)?,
+                power_max: r.get(23)?,
+                read: r.get::<_, Option<f64>>(24)?.unwrap_or(0.0),
+                written: r.get::<_, Option<f64>>(25)?.unwrap_or(0.0),
+                down: r.get::<_, Option<f64>>(26)?.unwrap_or(0.0),
+                up: r.get::<_, Option<f64>>(27)?.unwrap_or(0.0),
+                energy: r.get(28)?,
+                incidents: r.get::<_, Option<i64>>(29)?.unwrap_or(0),
+                crashes: r.get::<_, Option<i64>>(30)?.unwrap_or(0),
+                apps: apps
+                    .and_then(|a| serde_json::from_str(&a).ok())
+                    .unwrap_or_default(),
+            })
+        })?;
+        rows.collect()
+    })
+}
+
+/// A measure's average by weekday (0 = Sunday) and hour, local time, since `from`. `metric` is
+/// one of cpu, gpu, mem, disk, down, up, power.
+pub fn by_hour(metric: &str, from: i64) -> Vec<(u32, u32, f64)> {
+    let expr = match metric {
+        "gpu" => "AVG(gpu)",
+        "mem" => "AVG(mem)",
+        "disk" => "AVG(disk_r + disk_w)",
+        "down" => "AVG(net_in)",
+        "up" => "AVG(net_out)",
+        "power" => "AVG(power)",
+        _ => "AVG(cpu)",
+    };
+    with(|c| {
+        let mut st = c.prepare(&format!(
+            "SELECT CAST(strftime('%w', ts, 'unixepoch', 'localtime') AS INTEGER),
+                    CAST(strftime('%H', ts, 'unixepoch', 'localtime') AS INTEGER), {expr}
+             FROM perf WHERE ts >= ?1 GROUP BY 1, 2 HAVING {expr} IS NOT NULL"
+        ))?;
+        let rows = st.query_map(params![from], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        rows.collect()
+    })
+}
+
 // ---- upkeep ----
 
-/// Forgets what is older than the history setting allows; daily totals after a year.
+/// Forgets what is older than the history setting allows; daily totals after a year. Days are
+/// rolled up first, so a day's row outlives its minutes.
 pub fn prune(days: u32) {
+    roll_up_recent();
     let cut = now() - days as i64 * 86_400;
     let year = (chrono::Local::now() - chrono::Duration::days(366))
         .format("%Y-%m-%d")
@@ -897,6 +1114,7 @@ pub fn prune(days: u32) {
         c.execute("DELETE FROM disk_used WHERE ts < ?1", params![cut])?;
         c.execute("DELETE FROM disk_snap WHERE ts < ?1", params![cut])?;
         c.execute("DELETE FROM disk_daily WHERE day < ?1", params![year])?;
+        c.execute("DELETE FROM perf_daily WHERE day < ?1", params![year])?;
         Ok(())
     })
 }
@@ -984,5 +1202,16 @@ mod tests {
                 ("/x/big".to_string(), 400_000_000)
             ]
         );
+    }
+
+    #[test]
+    fn a_day_spans_its_local_day() {
+        let d = chrono::NaiveDate::from_ymd_opt(2026, 3, 29).unwrap();
+        let (from, to, name) = day_span(d).unwrap();
+        assert_eq!(name, "2026-03-29");
+        // 23 to 25 hours: a day the clocks change on is still one day.
+        assert!((23 * 3600..=25 * 3600).contains(&(to - from)));
+        let next = day_span(d.succ_opt().unwrap()).unwrap();
+        assert_eq!(next.0, to);
     }
 }

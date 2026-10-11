@@ -2092,6 +2092,25 @@ pre,
   stroke: var(--text);
   opacity: 0.25;
 }
+/* A row of the Disk space card that opens its folder in Disk Map. */
+.brow.pickrow {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.brow.pickrow:hover .ell {
+  color: var(--tide-ink);
+}
+.scanfoot {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
 /* The snapshot's figures: the moment's average, as the line shows it, and the peak in it. */
 .snapstats {
   display: grid;
@@ -2375,6 +2394,9 @@ pre,
   flex-direction: row;
   flex-wrap: wrap;
   align-items: flex-start;
+  /* The rows (tabs, then the charts beside the snapshot) packed at the top: by default a tab
+     shorter than the window has its spare height spread between them, a gap under the tabs. */
+  align-content: flex-start;
   /* The tab strip carries the room above it, so nothing shows through as the page scrolls. */
   padding-top: 0;
 }
@@ -2401,15 +2423,6 @@ pre,
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
 }
-/* Trends' highs: four to a row, like Now's cards. */
-.tiles.four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-@media (max-width: 1150px) {
-  .tiles.four {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 .tile {
   display: flex;
   flex-direction: column;
@@ -2418,10 +2431,6 @@ pre,
 }
 .tile .tv {
   font-size: 17px;
-}
-.tile .tv.big2 {
-  font-family: var(--display);
-  font-size: 24px;
 }
 .snap {
   flex: 1 1 290px;
@@ -2490,8 +2499,13 @@ pre,
 .ptabs {
   flex-basis: 100%;
   display: flex;
+  align-items: flex-end;
   gap: 4px;
   border-bottom: 1px solid var(--border);
+  /* A fixed height, so the snapshot card pins exactly where it starts (its top: this and the
+     page's 18px gap) and doesn't slide up as the page scrolls. */
+  height: 44px;
+  box-sizing: border-box;
   /* Pinned at the top, over the charts as they scroll under it. */
   position: sticky;
   top: 0;
@@ -2517,19 +2531,7 @@ pre,
   color: var(--text);
   border-bottom-color: var(--tide);
 }
-.netpair {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
-  margin-top: 10px;
-}
 
-.energygrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
-  gap: 20px;
-  margin-top: 10px;
-}
 .estats {
   display: flex;
   flex-direction: column;
@@ -2548,22 +2550,6 @@ pre,
 }
 
 /* ---- Trends ---- */
-.trendwrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  margin-top: 8px;
-}
-.pins {
-  flex: 1 1 220px;
-  max-width: 300px;
-  margin: 0;
-  padding-left: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-size: 12.5px;
-}
 
 /* ---- Settings ---- */
 .group {
@@ -2768,24 +2754,4 @@ html.tray #root {
   border-top: 1px solid var(--border);
   font-size: 11px;
   color: var(--muted);
-}
-
-/* A section a Details link brought into view: a brief tide-coloured ring. */
-.flash {
-  animation: flash 1.6s ease-out;
-}
-@keyframes flash {
-  0%,
-  35% {
-    box-shadow: 0 0 0 3px var(--tide);
-  }
-  100% {
-    box-shadow: 0 0 0 3px transparent;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .flash {
-    animation: none;
-    outline: 3px solid var(--tide);
-  }
 }

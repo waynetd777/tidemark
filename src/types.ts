@@ -292,6 +292,44 @@ export interface GrowthInfo {
   to: number | null;
 }
 
+/// One local day of performance (perf_daily), kept for a year: averages and peaks as the day's
+/// minutes had them, its totals (bytes, watt-hours), its incidents and crashes, its busiest apps.
+export interface PerfDay {
+  day: string;
+  /// Local midnight, unix seconds.
+  ts: number;
+  minutes: number;
+  cpu: number;
+  cpu_max: number;
+  cpu_p: number | null;
+  cpu_e: number | null;
+  gpu: number | null;
+  gpu_max: number | null;
+  mem: number;
+  mem_max: number;
+  mem_total: number;
+  swap_max: number;
+  pressure: number;
+  thermal: number;
+  disk_r: number;
+  disk_w: number;
+  disk_max: number;
+  net_in: number;
+  net_out: number;
+  net_in_max: number;
+  net_out_max: number;
+  power: number | null;
+  power_max: number | null;
+  read: number;
+  written: number;
+  down: number;
+  up: number;
+  energy: number | null;
+  incidents: number;
+  crashes: number;
+  apps: { cpu: AppUse[]; mem: AppUse[]; energy: AppUse[]; disk: AppUse[] };
+}
+
 export interface Settings {
   history_days: number;
   scan: "daily" | "hourly" | "off";
