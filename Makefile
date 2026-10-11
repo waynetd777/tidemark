@@ -10,7 +10,7 @@ export APPLE_SIGNING_IDENTITY
 SIGN_ID  := $(APPLE_SIGNING_IDENTITY)
 
 
-.PHONY: check test lint fmt app install-app dmg dev icons screenshots sign-check
+.PHONY: check test lint fmt app install-app dmg release dev icons screenshots sign-check
 
 ## cargo test + TypeScript type-check + lint.
 check: lint
@@ -82,9 +82,17 @@ install-app: app
 ## like other Mac installers (tools/dmg/). Finder lays out the window, so the first run asks to
 ## let the terminal control Finder. Beside it go the in-app updater's files (Tidemark.app.tar.gz,
 ## its .sig and latest.json; tools/update_files.py), signed with ~/.tauri/waynetd777-updater.key.
+## NOTES="…" is what's new, shown in the update offer.
 dmg: app
 	@python3 tools/dmg/make_dmg.py
-	@python3 tools/update_files.py
+	@python3 tools/update_files.py --notes "$$NOTES"
+
+## Publish a release: make release NOTES="What's new" bumps the version (tools/bump_version.py,
+## once the current one has a release), runs make dmg, commits the bump, pushes, creates the
+## GitHub release and installs the app (not with INSTALL=0). DRY_RUN=1 prints the steps
+## (tools/release.py).
+release:
+	@python3 tools/release.py
 
 ## Redraw design/icon.png and the tray template, then regenerate the Tauri icon set.
 icons:

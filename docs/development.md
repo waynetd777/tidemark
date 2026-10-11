@@ -23,6 +23,7 @@ make install-app      # signed build, copied to /Applications
 | `make dev` | Run with hot reload (Open at Login and the helper need the installed app) |
 | `make install-app` | Build the signed app and replace the copy in /Applications. It quits a running Tidemark without reopening it, and stops and restarts the background helper if it is loaded |
 | `make dmg` | Build the installer, `dist-release/Tidemark.dmg`, and the updater's files beside it (`Tidemark.app.tar.gz`, its `.sig`, `latest.json`). The first run asks to let the terminal control Finder, which lays out the window |
+| `make release NOTES="…"` | Publish a release: bump, `make dmg`, commit, push, GitHub release, install (`tools/release.py`) |
 | `make check` | Lint, Rust tests and TypeScript type-check |
 | `make lint` | rustfmt, clippy, ESLint, Prettier, ruff and shellcheck; fails on any warning |
 | `make fmt` | Reformat everything in place |
@@ -36,7 +37,7 @@ make install-app      # signed build, copied to /Applications
 ## Signing and releasing
 
 - macOS ties privacy grants to the signature, so builds use a self-signed certificate named in `signing.local` (copy `signing.local.example`).
-- To release: bump the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `package.json` and `package-lock.json`, run `make dmg`, push, then `gh release create v<version> dist-release/Tidemark.dmg dist-release/Tidemark.app.tar.gz dist-release/latest.json`.
+- To release: `make release NOTES="What's new"` (`tools/release.py`). It refuses to start without notes or with uncommitted changes, then moves to the next patch version once the current one has been released, that is, once `v<version>` is tagged on GitHub (`tools/bump_version.py`, which keeps `tauri.conf.json`, `package.json`, `Cargo.toml` and the lock files in step; `VERSION=2.2.0` sets it), runs `make dmg` (the notes go in the update offer), commits the bump as `Tidemark <version>`, pushes, creates the GitHub release with `Tidemark.dmg`, `Tidemark.app.tar.gz` and `latest.json`, and installs the app, opening it again if it was running. `INSTALL=0` skips the install, `DRY_RUN=1` prints the steps. After a failure, run it again: the unreleased version is kept.
 - Updates: the installed app checks the latest release's `latest.json` 20 seconds after launch and then daily (`src-tauri/src/updates.rs`, endpoint and public key in `tauri.conf.json` under `plugins.updater`), and installs only a package signed with the matching private key, `~/.tauri/waynetd777-updater.key`, which `tools/update_files.py` signs with. The key is not in the repo: keep a copy somewhere safe, because without it no installed copy will accept another update. Installing stops the background helper while the app is replaced and starts it again on the new build, as `make install-app` does. `python3 tools/update_files.py --notes "…"` adds notes to the update prompt.
 - `TIDEMARK_TIMING=1 "/Applications/Tidemark.app/Contents/MacOS/Tidemark"` prints startup timings.
 

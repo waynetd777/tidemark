@@ -30,3 +30,6 @@ _sift/local/
 
 # The screenshot tool's demo data (tools/screenshots.py).
 .demo/
+
+# Python bytecode (tools/)
+__pycache__/
