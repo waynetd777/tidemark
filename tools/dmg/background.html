@@ -4,9 +4,11 @@
 
 <!-- The DMG window's background, 660×400, dressed as the product page (site/): its hero's night
      sea with stars, the mark and name, and the waves breaking onto the light page. make_dmg.py puts
-     the icons on the light part, where Finder's labels can be read: the app centred at (165, 230),
-     Applications at (495, 230), with the dashed tidemark behind them. It renders this beside a copy
-     of site/fonts, so fonts/geist.woff2 is the site's Geist. -->
+     the icons on it, the app centred at (165, 230) and Applications at (495, 230), with the dashed
+     tidemark behind them and the tide coming back in below. Finder writes the icons' names under
+     them (y 290–310), dark or white with the system's appearance, so they sit on the water's
+     mid-tone teal, which both read on. It renders this beside a copy of site/fonts, so
+     fonts/geist.woff2 is the site's Geist. -->
 <meta charset="utf-8" />
 <style>
   @font-face {
@@ -95,17 +97,25 @@
     width: 160px;
     height: 48px;
   }
+  /* The tide coming in under the icons, in the hero's waves. */
+  .tide {
+    position: absolute;
+    left: 0;
+    top: 252px;
+    width: 660px;
+    height: 148px;
+  }
   .hint {
     position: absolute;
-    top: 340px;
+    top: 346px;
     width: 100%;
     text-align: center;
     font-size: 14px;
-    color: #4a555c;
+    color: #e1eff3;
   }
   .hint b {
     font-weight: 600;
-    color: #12181c;
+    color: #fff;
   }
 </style>
 <body>
@@ -174,6 +184,28 @@
   >
     <path d="M8 24 H146" />
     <path d="M126 8 L148 24 L126 40" />
+  </svg>
+  <svg class="tide" viewBox="0 0 660 148" aria-hidden="true">
+    <defs>
+      <linearGradient id="deep" x1="0" x2="0" y1="0" y2="1">
+        <stop offset=".2" stop-color="#17809a" />
+        <stop offset="1" stop-color="#0d5a6d" />
+      </linearGradient>
+    </defs>
+    <path
+      d="M0 12c55-12 110-12 165 0s110 12 165 0 110-12 165 0 110 12 165 0V148H0z"
+      fill="#22a1bb"
+      fill-opacity=".35"
+    />
+    <path
+      d="M-60 20c55-12 110-12 165 0s110 12 165 0 110-12 165 0 110 12 165 0 110-12 165 0V148H-60z"
+      fill="#22a1bb"
+      fill-opacity=".6"
+    />
+    <path
+      d="M-30 28c55-10 110-10 165 0s110 10 165 0 110-10 165 0 110 10 165 0 110-10 165 0V148H-30z"
+      fill="url(#deep)"
+    />
   </svg>
   <div class="hint">Drag <b>Tidemark</b> onto <b>Applications</b> to install it</div>
   <script>
