@@ -24,15 +24,18 @@ export function usePolled<T>(
   });
   useEffect(() => {
     let alive = true;
-    let last = 0;
+    let timer: number | undefined;
     // A slow answer must not overwrite a newer one.
     let asked = 0;
     let shown = 0;
     const tick = () => {
-      last = Date.now();
+      window.clearTimeout(timer);
+      // Behind other windows (or hidden), at most once a minute: nothing on screen to redraw,
+      // and redrawing charts, or even waking to check, every few seconds costs energy. Back in
+      // front, at once.
+      timer = window.setTimeout(tick, document.hasFocus() ? ms : Math.max(ms, 60_000));
       const n = ++asked;
-      return fn
-        .current()
+      fn.current()
         .then((r) => {
           if (alive && n > shown) {
             shown = n;
@@ -41,18 +44,12 @@ export function usePolled<T>(
         })
         .catch(() => {});
     };
-    void tick();
-    // Behind other windows (or hidden), at most once a minute: nothing on screen to redraw,
-    // and redrawing charts every few seconds costs energy. Back in front, at once.
-    const id = window.setInterval(() => {
-      if (document.hasFocus() || Date.now() - last >= Math.max(ms, 60_000)) void tick();
-    }, ms);
-    const onFocus = () => void tick();
-    window.addEventListener("focus", onFocus);
+    tick();
+    window.addEventListener("focus", tick);
     return () => {
       alive = false;
-      window.clearInterval(id);
-      window.removeEventListener("focus", onFocus);
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", tick);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ms, ...deps]);

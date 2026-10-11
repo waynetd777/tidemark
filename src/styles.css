@@ -2229,6 +2229,11 @@ pre,
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 28%, transparent);
   animation: nowring 2.4s ease-out infinite;
 }
+/* Paused behind other windows, and everything while hidden (main.tsx). */
+:root[data-idle] .area .nowdot,
+:root[data-hidden] * {
+  animation-play-state: paused !important;
+}
 @keyframes nowring {
   0% {
     box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent);

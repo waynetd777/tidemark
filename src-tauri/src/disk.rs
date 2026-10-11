@@ -291,6 +291,8 @@ pub fn start_scan_thread(
     if state.scanning.swap(true, Ordering::SeqCst) {
         return Err("a scan is already running".into());
     }
+    // The window follows a scan's progress only once told one has started.
+    let _ = app.emit("scan-started", &root);
     // Switching root: show that root's cached scan (if any) straight away, and remember it.
     let switched = show && state.root() != root;
     if switched {

@@ -329,12 +329,14 @@ export default function App() {
   const ready = info !== null && !info.loading;
   const infoRoot = info?.root;
   const scanFinished = info?.scan?.finished;
-  // While a scan runs, follow its progress; when it ends, reload the state and the tree.
+  // While a scan runs, follow its progress; when it ends, reload the state and the tree. Idle,
+  // nothing is asked: a scan starting says so ("scan-started"), with a slow check behind it.
   useEffect(() => {
     if (!ready) return;
     let alive = true;
     let timer: number | undefined;
     const tick = () => {
+      window.clearTimeout(timer);
       api
         .progress()
         .then((p) => {
@@ -349,7 +351,7 @@ export default function App() {
               // The new scan's time reloads the tree below; the old one stays until it comes.
               void refreshInfo();
             }
-            timer = window.setTimeout(tick, 1500);
+            timer = window.setTimeout(tick, 60_000);
           }
         })
         .catch(() => {
@@ -357,9 +359,11 @@ export default function App() {
         });
     };
     tick();
+    const off = on("scan-started", tick);
     return () => {
       alive = false;
       window.clearTimeout(timer);
+      off();
     };
   }, [ready, infoRoot, refreshInfo]);
 

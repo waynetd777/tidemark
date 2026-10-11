@@ -13,6 +13,18 @@ import "./splash";
 
 followTheme();
 
+// Endless animations cost a wakeup and a repaint each frame: the Now dots' breathing ring stops
+// while the window is behind others, and everything stops while it's hidden.
+const idle = () => {
+  const root = document.documentElement;
+  root.toggleAttribute("data-hidden", document.hidden);
+  root.toggleAttribute("data-idle", document.hidden || !document.hasFocus());
+};
+window.addEventListener("focus", idle);
+window.addEventListener("blur", idle);
+document.addEventListener("visibilitychange", idle);
+idle();
+
 /// The menu-bar window loads the same page with ?view=tray (tauri.conf.json).
 const tray = new URLSearchParams(location.search).get("view") === "tray";
 
