@@ -83,16 +83,32 @@
     N = 90;
   const lval = $("[data-live-val]");
   const ltm = $("[data-live-tm]");
-  let cpu = 14;
-  const nextCpu = () => {
-    // Mostly calm, with the occasional burst: a build, an export.
-    const burst = rand() < 0.035 ? 35 + rand() * 50 : 0;
-    cpu = clamp(cpu * 0.82 + (8 + rand() * 12) * 0.18 + burst * 0.6, 2, 99);
-    return cpu;
+  // Its own repeatable random, so the week further down keeps its shape.
+  let lseed = 11;
+  const lrand = () => ((lseed = (lseed * 16807) % 2147483647) - 1) / 2147483646;
+  const gauss = () => (lrand() + lrand() + lrand() + lrand() - 2) * 1.73;
+  // Like a real Mac: idling at a few percent with jitter and the odd one-reading flicker, until
+  // a job (a build, an export) holds it high for a while, wobbling, ramping in and out.
+  let base = 9,
+    job = 0,
+    jobLevel = 0,
+    level = 0;
+  const nextCpu = (start) => {
+    base = clamp(base + gauss() * 0.7 + (9 - base) * 0.08, 4, 16);
+    if (start) [job, jobLevel] = start;
+    else if (job > 0) job--;
+    else if (lrand() < 0.02) [job, jobLevel] = [8 + Math.floor(lrand() * 22), 35 + lrand() * 50];
+    if (job > 0 && lrand() < 0.15) jobLevel = clamp(jobLevel + gauss() * 12, 25, 92);
+    const target = job > 0 ? jobLevel : 0;
+    level += (target - level) * (target > level ? 0.55 : 0.3);
+    let v = base + level + gauss() * (1.5 + level * 0.1);
+    if (lrand() < 0.07) v += 6 + lrand() * 20;
+    return clamp(v, 1, 99);
   };
-  const series = Array.from({ length: N }, nextCpu);
-  series[60] = 64;
-  const peaks = series.map((v) => Math.min(99, v + 3 + rand() * 8));
+  // The first screenful has had one job in it, so there is a tidemark to show.
+  const series = Array.from({ length: N }, (_, i) => nextCpu(i === 48 ? [16, 60] : null));
+  const livePeak = (v) => Math.min(99, v + 1 + Math.abs(gauss()) * (1.5 + v * 0.08));
+  const peaks = series.map(livePeak);
   const yOf = (v) => H - (v / 100) * (H - 8);
   const pathOf = (vals) =>
     vals
@@ -429,10 +445,10 @@
   new IntersectionObserver(([e]) => (scrubOn = e.isIntersecting)).observe(scrub);
   setInterval(() => {
     if (!heroOn) return;
-    series.push(nextCpu());
+    series.push(nextCpu(null));
     series.shift();
     const v = series[N - 1];
-    peaks.push(Math.min(99, v + 2 + rand() * 9));
+    peaks.push(livePeak(v));
     peaks.shift();
     drawLive();
   }, 700);
