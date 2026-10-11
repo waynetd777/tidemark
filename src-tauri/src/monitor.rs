@@ -54,6 +54,12 @@ pub struct Sample {
     /// On a power adapter.
     #[serde(default)]
     pub on_ac: bool,
+    /// The performance cores' and the efficiency cores' average use, 0-100; None on a Mac that
+    /// doesn't say which is which.
+    #[serde(default)]
+    pub cpu_p: Option<f64>,
+    #[serde(default)]
+    pub cpu_e: Option<f64>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -70,6 +76,30 @@ struct Live {
     paused_until: Option<i64>,
     /// Incidents going on now: kind -> (id, started, peak).
     open: HashMap<String, (i64, i64, f64)>,
+    /// Each core's use at the latest sample, 0-100, in the order of `core_kinds`.
+    #[serde(default)]
+    cores: Vec<f64>,
+}
+
+/// Each core's kind, 'P' or 'E', read once; empty where the Mac doesn't say.
+fn core_kinds() -> &'static [char] {
+    static KINDS: std::sync::OnceLock<Vec<char>> = std::sync::OnceLock::new();
+    KINDS.get_or_init(crate::system::core_kinds)
+}
+
+/// The average use of the cores of one kind; None if the kinds don't match the cores.
+fn kind_avg(cores: &[f64], kind: char) -> Option<f64> {
+    let kinds = core_kinds();
+    if kinds.len() != cores.len() {
+        return None;
+    }
+    let v: Vec<f64> = cores
+        .iter()
+        .zip(kinds)
+        .filter(|(_, k)| **k == kind)
+        .map(|(c, _)| *c)
+        .collect();
+    (!v.is_empty()).then(|| v.iter().sum::<f64>() / v.len() as f64)
 }
 
 static LIVE: Mutex<Option<Live>> = Mutex::new(None);
@@ -261,6 +291,7 @@ struct Acc {
     power_n: f64,
     gpu_n: f64,
     parts_n: f64,
+    kinds_n: f64,
 }
 
 impl Acc {
@@ -296,6 +327,11 @@ impl Acc {
             m.gpu = Some(m.gpu.unwrap_or(0.0) + g);
             m.gpu_max = Some(m.gpu_max.unwrap_or(0.0).max(g));
             self.gpu_n += 1.0;
+        }
+        if let (Some(p), Some(e)) = (s.cpu_p, s.cpu_e) {
+            m.cpu_p = Some(m.cpu_p.unwrap_or(0.0) + p);
+            m.cpu_e = Some(m.cpu_e.unwrap_or(0.0) + e);
+            self.kinds_n += 1.0;
         }
         if let Some(p) = s.mem_parts {
             m.mem_app = Some(m.mem_app.unwrap_or(0.0) + p.app);
@@ -343,8 +379,12 @@ impl Acc {
         {
             *v /= self.parts_n.max(1.0);
         }
+        for v in [&mut m.cpu_p, &mut m.cpu_e].into_iter().flatten() {
+            *v /= self.kinds_n.max(1.0);
+        }
         self.gpu_n = 0.0;
         self.parts_n = 0.0;
+        self.kinds_n = 0.0;
         let mut apps: Vec<AppUse> = self
             .apps
             .drain()
@@ -623,6 +663,11 @@ fn run() {
             }
         }
         let mem_total = sys.total_memory() as f64;
+        let cores: Vec<f64> = sys
+            .cpus()
+            .iter()
+            .map(|c| (c.cpu_usage() as f64).clamp(0.0, 100.0))
+            .collect();
         let s = Sample {
             t: chrono::Local::now().timestamp_millis(),
             cpu: (sys.global_cpu_usage() as f64).clamp(0.0, 100.0),
@@ -639,6 +684,8 @@ fn run() {
             gpu: gpu_then,
             mem_parts: crate::system::mem_parts(),
             on_ac: battery.as_ref().is_some_and(|b| b.on_ac),
+            cpu_p: kind_avg(&cores, 'P'),
+            cpu_e: kind_avg(&cores, 'E'),
         };
 
         let minute = now / 60;
@@ -688,6 +735,7 @@ fn run() {
             l.mem_total = mem_total;
             l.apps = apps;
             l.battery = battery;
+            l.cores = cores;
         });
         share();
     }
@@ -876,6 +924,9 @@ pub struct LiveInfo {
     pub battery: Option<Battery>,
     pub processes: usize,
     pub cores: usize,
+    /// Each core's use now, 0-100, and its kind ('P' or 'E'; empty where the Mac doesn't say).
+    pub core_use: Vec<f64>,
+    pub core_kinds: String,
     pub mem_total: f64,
     pub paused_until: Option<i64>,
     pub status: Status,
@@ -899,6 +950,12 @@ pub async fn perf_live() -> LiveInfo {
             battery: l.battery.clone(),
             processes: l.processes,
             cores: std::thread::available_parallelism().map_or(1, |n| n.get()),
+            core_use: l.cores.clone(),
+            core_kinds: if core_kinds().len() == l.cores.len() {
+                core_kinds().iter().collect()
+            } else {
+                String::new()
+            },
             mem_total: l.mem_total,
             paused_until: l.paused_until,
             status,

@@ -1903,6 +1903,80 @@ pre,
 .metric .big .num {
   font-size: 40px;
 }
+/* The card's meter: how full the measure is right now, in lit segments above its chart. */
+.meter {
+  position: relative;
+  height: 14px;
+}
+.meter i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+.meter i.on,
+.cores i.on {
+  background: var(--c);
+}
+/* The CPU card's chevron, which shows and hides its cores. */
+.chev {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin: -4px -4px -4px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.chev:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.chev svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.2s;
+}
+.chev.open svg {
+  transform: rotate(180deg);
+}
+/* The CPU card's cores: a column of segments each, performance cores then efficiency. */
+.cores {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+}
+.cores .grp {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-basis: 0;
+  min-width: 0;
+}
+.cores .cols {
+  display: flex;
+  gap: 3px;
+  height: 30px;
+}
+.cores .col {
+  flex: 1;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+.cores i {
+  flex: 1;
+  border-radius: 1.5px;
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+}
 .big {
   display: flex;
   align-items: baseline;
@@ -2145,6 +2219,9 @@ pre,
 .chartlegend .lkline {
   stroke: var(--tide);
   stroke-width: 2;
+}
+.chartlegend .lkline.thin {
+  stroke-width: 1.25;
 }
 .chartlegend .lkmark {
   stroke: var(--mark);
@@ -2502,6 +2579,13 @@ html.tray #root {
 }
 .traywin .menu-item.tall {
   min-height: 46px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+/* Each reading's meter, directly under its name. */
+.traywin .meter {
+  height: 6px;
+  margin: 3px 0 2px;
 }
 .traywin .menu-item:hover {
   background: var(--tide-soft);
@@ -2539,6 +2623,7 @@ html.tray #root {
   margin-left: auto;
   text-align: right;
   font-weight: 600;
+  white-space: nowrap;
 }
 .traywin .tactions {
   padding: 6px;

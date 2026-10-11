@@ -64,6 +64,32 @@ SCENES = [
 APPS = ["Safari", "Xcode", "Mail", "Slack", "Music", "Photos", "Finder", "Terminal"]
 
 
+def core_counts():
+    """This Mac's performance and efficiency cores, so the demo's cores match the kinds the app
+    reads from the device tree; (0, 0) where it doesn't say."""
+
+    def n(key):
+        out = subprocess.run(
+            ["sysctl", "-n", key], capture_output=True, text=True, check=False
+        ).stdout
+        return int(out) if out.strip().isdigit() else 0
+
+    return n("hw.perflevel0.logicalcpu"), n("hw.perflevel1.logicalcpu")
+
+
+P_CORES, E_CORES = core_counts()
+
+
+def split(cpu):
+    """The CPU's average as its efficiency and performance cores' averages: macOS puts the
+    background work on the efficiency cores, so they run busier while the Mac is quiet."""
+    if not P_CORES or not E_CORES:
+        return None, None
+    e = min(100.0, cpu * 1.6)
+    p = max(0.0, (cpu * (P_CORES + E_CORES) - e * E_CORES) / P_CORES)
+    return min(100.0, p), e
+
+
 # ---- the demo ----
 
 
@@ -211,7 +237,7 @@ CREATE TABLE perf (
   swap REAL, swap_max REAL, pressure INTEGER, disk_r REAL, disk_w REAL, disk_max REAL,
   net_in REAL, net_out REAL, net_max REAL, thermal INTEGER, power REAL, power_max REAL,
   battery REAL, on_ac INTEGER, gpu REAL, gpu_max REAL, mem_app REAL, mem_wired REAL,
-  mem_comp REAL, net_in_max REAL, net_out_max REAL);
+  mem_comp REAL, net_in_max REAL, net_out_max REAL, cpu_p REAL, cpu_e REAL);
 CREATE TABLE procs (ts INTEGER, app TEXT, cpu REAL, mem REAL, energy REAL, PRIMARY KEY (ts, app));
 CREATE TABLE incidents (
   id INTEGER PRIMARY KEY, kind TEXT, started INTEGER, ended INTEGER, peak REAL, peak_at INTEGER,
@@ -315,6 +341,7 @@ def make_demo():
                 mem * 0.38 - 3.2 * GB + 2.1 * GB,
                 nin * 1.6,
                 nout * 1.6,
+                *split(cpu),
             )
         )
         weights = [0.32, 0.26 if work else 0.04, 0.08, 0.1, 0.06, 0.05, 0.03, 0.05]
@@ -322,7 +349,7 @@ def make_demo():
         for a, w, m in zip(APPS, weights, mems, strict=True):
             procs.append((t, a, cpu * w, m * GB, power * w * 0.5))
         t += 60
-    db.executemany("INSERT INTO perf VALUES (" + ",".join("?" * 27) + ")", perf)
+    db.executemany("INSERT INTO perf VALUES (" + ",".join("?" * 29) + ")", perf)
     db.executemany("INSERT INTO procs VALUES (?,?,?,?,?)", procs)
     snap_cpu = json.dumps(
         [
@@ -451,8 +478,16 @@ def write_live(data):
                 "gpu": r.uniform(3, 9),
                 "mem_parts": {"app": 8.9 * GB, "wired": 3.2 * GB, "compressed": 2.1 * GB},
                 "on_ac": False,
+                "cpu_p": split(cpu)[0],
+                "cpu_e": split(cpu)[1],
             }
         )
+    # Each core's use now, around the last reading's split: efficiency cores first, as the device
+    # tree numbers them.
+    p, e = split(samples[-1]["cpu"])
+    cores = [max(0.0, e * r.uniform(0.4, 1.6)) for _ in range(E_CORES)] + [
+        max(0.0, p * r.uniform(0.2, 2.2)) for _ in range(P_CORES)
+    ]
     apps = [
         {"app": a, "cpu": c, "mem": m * GB, "energy": e}
         for a, c, m, e in [
@@ -483,6 +518,7 @@ def write_live(data):
         },
         "paused_until": None,
         "open": {},
+        "cores": cores,
     }
     (data / "live.json").write_text(json.dumps(live))
 

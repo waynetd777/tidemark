@@ -97,6 +97,8 @@ fn open() -> Connection {
         "ALTER TABLE perf ADD COLUMN mem_comp REAL",
         "ALTER TABLE perf ADD COLUMN net_in_max REAL",
         "ALTER TABLE perf ADD COLUMN net_out_max REAL",
+        "ALTER TABLE perf ADD COLUMN cpu_p REAL",
+        "ALTER TABLE perf ADD COLUMN cpu_e REAL",
     ] {
         let _ = c.execute(sql, []);
     }
@@ -172,6 +174,12 @@ pub struct Minute {
     pub net_in_max: f64,
     #[serde(default)]
     pub net_out_max: f64,
+    /// The performance cores' and the efficiency cores' average use, 0-100; None before they
+    /// were recorded, or on a Mac that doesn't say which core is which.
+    #[serde(default)]
+    pub cpu_p: Option<f64>,
+    #[serde(default)]
+    pub cpu_e: Option<f64>,
     /// Minutes recorded in this point (1 for a minute; a bucket's count), so a rate times
     /// `minutes * 60` is what moved.
     #[serde(default)]
@@ -194,14 +202,14 @@ pub fn add_minute(m: &Minute, apps: &[AppUse]) {
             "INSERT OR REPLACE INTO perf (ts, cpu, cpu_max, mem, mem_max, mem_total, swap, swap_max,
                pressure, disk_r, disk_w, disk_max, net_in, net_out, net_max, thermal, power,
                power_max, battery, on_ac, gpu, gpu_max, mem_app, mem_wired, mem_comp, net_in_max,
-               net_out_max)
+               net_out_max, cpu_p, cpu_e)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,
-                     ?21,?22,?23,?24,?25,?26,?27)",
+                     ?21,?22,?23,?24,?25,?26,?27,?28,?29)",
             params![
                 m.ts, m.cpu, m.cpu_max, m.mem, m.mem_max, m.mem_total, m.swap, m.swap_max,
                 m.pressure, m.disk_r, m.disk_w, m.disk_max, m.net_in, m.net_out, m.net_max,
                 m.thermal, m.power, m.power_max, m.battery, m.on_ac, m.gpu, m.gpu_max,
-                m.mem_app, m.mem_wired, m.mem_comp, m.net_in_max, m.net_out_max
+                m.mem_app, m.mem_wired, m.mem_comp, m.net_in_max, m.net_out_max, m.cpu_p, m.cpu_e
             ],
         )?;
         let mut st = c.prepare_cached(
@@ -225,7 +233,8 @@ pub fn perf_range(from: i64, to: i64, points: i64) -> Vec<Minute> {
                     AVG(net_in), AVG(net_out), MAX(net_max), MAX(thermal), COUNT(*),
                     AVG(power), MAX(power_max), AVG(battery), MAX(on_ac),
                     AVG(gpu), MAX(gpu_max), AVG(mem_app), AVG(mem_wired), AVG(mem_comp),
-                    MAX(COALESCE(net_in_max, net_in)), MAX(COALESCE(net_out_max, net_out))
+                    MAX(COALESCE(net_in_max, net_in)), MAX(COALESCE(net_out_max, net_out)),
+                    AVG(cpu_p), AVG(cpu_e)
              FROM perf WHERE ts >= ?1 AND ts <= ?2 GROUP BY (ts - ?1) / ?3 ORDER BY 1",
         )?;
         let rows = st.query_map(params![from, to, bucket], |r| {
@@ -258,6 +267,8 @@ pub fn perf_range(from: i64, to: i64, points: i64) -> Vec<Minute> {
                 mem_comp: r.get(25)?,
                 net_in_max: r.get::<_, Option<f64>>(26)?.unwrap_or(0.0),
                 net_out_max: r.get::<_, Option<f64>>(27)?.unwrap_or(0.0),
+                cpu_p: r.get(28)?,
+                cpu_e: r.get(29)?,
             })
         })?;
         rows.collect()

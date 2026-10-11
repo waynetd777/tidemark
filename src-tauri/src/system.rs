@@ -1,14 +1,16 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-//! Two readings sysinfo doesn't give: how busy the GPU is, and what the memory in use is made
-//! of.
+//! Readings sysinfo doesn't give: how busy the GPU is, what the memory in use is made of, and
+//! which cores are performance cores and which efficiency cores.
 //!
 //! The GPU's driver publishes its own utilisation in the I/O Registry
 //! (IOAccelerator > PerformanceStatistics > "Device Utilization %"), read through `ioreg`; a Mac
 //! with more than one GPU reports the busiest. Memory comes from the kernel's VM statistics
 //! (host_statistics64), split as Activity Monitor splits it: app memory (anonymous pages, less
-//! what can be purged), wired (the kernel's, never paged out) and compressed.
+//! what can be purged), wired (the kernel's, never paged out) and compressed. Each core's kind is
+//! the device tree's `cluster-type` ("P" or "E") on its cpu node, by `logical-cpu-id`, which is
+//! the order sysinfo lists cores in.
 
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +40,53 @@ pub fn parse_gpu(xml: &[u8]) -> Option<f64> {
         })
         .reduce(f64::max)
         .map(|v| v.clamp(0.0, 100.0))
+}
+
+/// Each core's kind, 'P' or 'E', in sysinfo's order; empty where the Mac doesn't say (Intel).
+pub fn core_kinds() -> Vec<char> {
+    std::process::Command::new("/usr/sbin/ioreg")
+        .args([
+            "-p",
+            "IODeviceTree",
+            "-c",
+            "IOPlatformDevice",
+            "-k",
+            "cluster-type",
+            "-r",
+            "-d",
+            "1",
+            "-a",
+        ])
+        .output()
+        .map(|o| parse_core_kinds(&o.stdout))
+        .unwrap_or_default()
+}
+
+pub fn parse_core_kinds(xml: &[u8]) -> Vec<char> {
+    let Ok(v) = plist::from_bytes::<plist::Value>(xml) else {
+        return Vec::new();
+    };
+    let mut cores: Vec<(u64, char)> = v
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|e| {
+            let d = e.as_dictionary()?;
+            let id = d.get("logical-cpu-id")?.as_unsigned_integer()?;
+            let kind = match d.get("cluster-type")? {
+                plist::Value::Data(b) => *b.first()? as char,
+                plist::Value::String(s) => s.chars().next()?,
+                _ => return None,
+            };
+            matches!(kind, 'P' | 'E').then_some((id, kind))
+        })
+        .collect();
+    cores.sort();
+    // Ids with a hole in them would put a kind against the wrong core: trust none of it.
+    if cores.iter().enumerate().any(|(i, (id, _))| *id != i as u64) {
+        return Vec::new();
+    }
+    cores.into_iter().map(|(_, k)| k).collect()
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq)]
@@ -98,6 +147,20 @@ mod tests {
 </array></plist>"#;
         assert_eq!(parse_gpu(xml), Some(40.0));
         assert_eq!(parse_gpu(b"<plist version=\"1.0\"><array/></plist>"), None);
+    }
+
+    #[test]
+    fn reads_core_kinds_in_order() {
+        let xml = br#"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><array>
+<dict><key>logical-cpu-id</key><integer>1</integer><key>cluster-type</key><data>UAA=</data></dict>
+<dict><key>logical-cpu-id</key><integer>0</integer><key>cluster-type</key><data>RQA=</data></dict>
+</array></plist>"#;
+        assert_eq!(parse_core_kinds(xml), vec!['E', 'P']);
+        let holed = br#"<plist version="1.0"><array>
+<dict><key>logical-cpu-id</key><integer>2</integer><key>cluster-type</key><data>UAA=</data></dict>
+</array></plist>"#;
+        assert!(parse_core_kinds(holed).is_empty());
     }
 
     #[test]

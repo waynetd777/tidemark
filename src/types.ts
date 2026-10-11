@@ -108,6 +108,10 @@ export interface Sample {
   /// What memory in use is made of, bytes.
   mem_parts: MemParts | null;
   on_ac: boolean;
+  /// The performance and the efficiency cores' average use, 0-100; null where the Mac doesn't
+  /// say which core is which.
+  cpu_p: number | null;
+  cpu_e: number | null;
 }
 
 export interface MemParts {
@@ -170,6 +174,9 @@ export interface Live {
   battery: Battery | null;
   processes: number;
   cores: number;
+  /// Each core's use now, 0-100, and its kind, "P" or "E" per core ("" where the Mac doesn't say).
+  core_use: number[];
+  core_kinds: string;
   mem_total: number;
   paused_until: number | null;
   status: Status;
@@ -207,6 +214,9 @@ export interface Minute {
   /// The busiest moment of download and of upload, bytes a second.
   net_in_max: number;
   net_out_max: number;
+  /// The performance and the efficiency cores' average use; null before they were recorded.
+  cpu_p: number | null;
+  cpu_e: number | null;
 }
 
 export interface Mark {

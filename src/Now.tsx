@@ -17,9 +17,10 @@ import {
 } from "./askDetails";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
+import { useRemembered } from "./remember";
 import { flagFor } from "./status";
 import { api } from "./api";
-import { Area, Legend, type Pt } from "./charts";
+import { Area, Cores, Legend, Meter, type Pt } from "./charts";
 import { crashGroups, crashTitle, incidentTitle, incidentWhy } from "./incidents";
 import { gapsOf, now, startOfToday, upToNow, usePoll } from "./perf";
 import type { Crash, GrowthInfo, Incident, Live, Screen } from "./types";
@@ -44,6 +45,12 @@ export default function Now({
   ask: (q: string, detail?: AskDetail) => void;
 }) {
   const assistant = useAssistant();
+  // The CPU card's cores, shown when asked for (the chevron), and remembered.
+  const [coresOpen, setCoresOpen] = useRemembered(
+    "now.cores",
+    false,
+    (v): v is boolean => typeof v === "boolean",
+  );
   // The charts: the last hour, minute by minute. The day: today's highs and totals.
   const hour = usePoll(() => api.perf(HOUR, 60), 30_000);
   const day = usePoll(() => api.perf(DAY, 288), 60_000);
@@ -155,6 +162,7 @@ export default function Now({
       unit: "%",
       sub: `${live?.cores ?? "–"} cores · ${busy} app${busy === 1 ? "" : "s"} busy`,
       pts: series("cpu"),
+      level: latest ? latest.cpu / 100 : null,
       max: 100,
       mark: tm.cpu
         ? { v: tm.cpu.value, label: `Tidemark ${pct(tm.cpu.value)} · ${fmtAt(tm.cpu.at)}` }
@@ -182,6 +190,7 @@ export default function Now({
               latest ? latest.t / 1000 : undefined,
               latest?.gpu,
             ),
+            level: latest?.gpu != null ? latest.gpu / 100 : null,
             max: 100,
             mark: tm.gpu
               ? { v: tm.gpu.value, label: `Tidemark ${pct(tm.gpu.value)} · ${fmtAt(tm.gpu.at)}` }
@@ -204,6 +213,7 @@ export default function Now({
         ? `Pressure ${latest.pressure >= 4 ? "critical" : latest.pressure >= 2 ? "raised" : "normal"} · swap ${fmt(latest.swap)}`
         : "",
       pts: series("mem"),
+      level: latest && total > 1 ? latest.mem / total : null,
       max: total,
       mark: tm.mem
         ? { v: tm.mem.value, label: `Tidemark ${fmt(tm.mem.value)} · ${fmtAt(tm.mem.at)}` }
@@ -226,6 +236,11 @@ export default function Now({
         latest ? latest.t / 1000 : undefined,
         latest ? latest.disk_r + latest.disk_w : undefined,
       ),
+      // Rates fill against the hour's busiest moment, so a quiet minute reads as quiet.
+      level: latest
+        ? (latest.disk_r + latest.disk_w) /
+          Math.max(1, ...(hour?.points ?? []).map((m) => m.disk_max))
+        : null,
       max: Math.max(1, ...(hour?.points ?? []).map((m) => m.disk_r + m.disk_w)),
       mark: null,
       high: ioHigh ? `Busiest ${fmtRate(ioHigh.v)} at ${fmtAt(ioHigh.t)}` : "Quiet so far today",
@@ -241,6 +256,9 @@ export default function Now({
       unit: latest ? `${fmtRate(latest.net_in).split(" ")[1]} ↓` : "",
       sub: latest ? `${fmt(movedToday("net_in"))} down today` : "",
       pts: series("net_in"),
+      level: latest
+        ? latest.net_in / Math.max(1, ...(hour?.points ?? []).map((m) => m.net_in_max))
+        : null,
       max: Math.max(1, ...(hour?.points ?? []).map((m) => m.net_in)),
       mark: null,
       high: netHigh ? `Busiest ${fmtRate(netHigh.v)} at ${fmtAt(netHigh.t)}` : "Quiet so far today",
@@ -260,6 +278,9 @@ export default function Now({
         latest ? latest.t / 1000 : undefined,
         latest?.net_out,
       ),
+      level: latest
+        ? latest.net_out / Math.max(1, ...(hour?.points ?? []).map((m) => m.net_out_max))
+        : null,
       max: Math.max(1, ...(hour?.points ?? []).map((m) => m.net_out)),
       mark: null,
       high: upHigh ? `Busiest ${fmtRate(upHigh.v)} at ${fmtAt(upHigh.t)}` : "Quiet so far today",
@@ -284,6 +305,15 @@ export default function Now({
         latest ? latest.t / 1000 : undefined,
         latest?.power,
       ),
+      level:
+        latest?.power != null
+          ? latest.power /
+            Math.max(
+              1,
+              tm.power?.value ?? 0,
+              ...(hour?.points ?? []).map((m) => m.power_max ?? m.power ?? 0),
+            )
+          : null,
       max: Math.max(1, ...(hour?.points ?? []).map((m) => m.power ?? 0)),
       mark: tm.power
         ? { v: tm.power.value, label: `Tidemark ${fmtW(tm.power.value)} · ${fmtAt(tm.power.at)}` }
@@ -302,6 +332,7 @@ export default function Now({
       unit: "GB free",
       sub: diskTotal ? `${fmt(diskNow)} of ${fmt(diskTotal)} used` : "Recorded hourly",
       pts: dayDiskPts,
+      level: diskTotal ? diskNow / diskTotal : null,
       max: Math.max(1, ...dayDiskPts.map((p) => p.v), disk?.high?.used ?? 0) * 1.005,
       min: dayDiskPts.length ? Math.min(...dayDiskPts.map((p) => p.v)) * 0.995 : 0,
       mark: disk?.high
@@ -332,6 +363,7 @@ export default function Now({
     "Is the disk filling faster than usual?",
   ];
 
+  const perCore = (live?.core_use.length ?? 0) > 1;
   // One measure's card: its figure, a chart of the range with the tidemark, and its high.
   const card = (c: (typeof cards)[number]) => {
     const flag = flagFor(st, c.name);
@@ -370,12 +402,33 @@ export default function Now({
           <span className="num">{c.value}</span>
           <span className={`unit${flag ? "" : " muted"}`}>{c.unit}</span>
         </div>
-        <div className="muted small">{c.sub}</div>
+        {perCore && c.name === "CPU" ? (
+          <div className="row between">
+            <span className="muted small">{c.sub}</span>
+            <button
+              className={`chev${coresOpen ? " open" : ""}`}
+              onClick={() => setCoresOpen(!coresOpen)}
+              aria-expanded={coresOpen}
+              title={coresOpen ? "Hide each core" : "Show each core"}
+            >
+              <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+                <path d="M3 4.5l3 3 3-3" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <div className="muted small">{c.sub}</div>
+        )}
+        <Meter level={c.level} tone={flag?.tone} label={`${c.name} now`} />
+        {perCore && coresOpen && c.name === "CPU" && (
+          <Cores use={live!.core_use} kinds={live!.core_kinds} tone={flag?.tone} />
+        )}
         <Area
           pts={c.pts}
           max={c.max}
           min={c.min ?? 0}
-          height={150}
+          // The CPU card's chart gives up the room its cores take, so the cards stay level.
+          height={perCore && coresOpen && c.name === "CPU" ? 112 : 150}
           axis={false}
           domain={[nowS - (c.range === "Last 24 h" ? DAY : HOUR), nowS]}
           sleeps={c.name === "Disk space" ? undefined : (sleeps ?? [])}

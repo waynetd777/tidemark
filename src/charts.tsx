@@ -5,7 +5,15 @@
 // mark of the period) that runs through the whole app. Drawn as SVG at the measured width so
 // lines stay 2px and markers round.
 
-import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { gapMin, gapsOf, type Gap } from "./perf";
 import { toneColor, type Tone } from "./status";
 import type { Sleep } from "./types";
@@ -193,6 +201,9 @@ export interface AreaProps {
   /// The time span across the chart (unix seconds): the range asked for, so a reading sits at
   /// its real time and the labels under the chart are true even when the record is shorter.
   domain?: [number, number];
+  /// Thinner lines over the main one, each with its own dash: the parts of the whole (the
+  /// performance and the efficiency cores of the CPU). The legend keys them by the same dash.
+  also?: { pts: Pt[]; label: string; dash: string }[];
 }
 
 /// A line over its area, with a crosshair that follows the pointer, snaps to the nearest
@@ -216,6 +227,7 @@ export function Area({
   hi: band,
   sleeps,
   tone,
+  also,
 }: AreaProps) {
   const color = toneColor(tone);
   const hatch = useId();
@@ -266,6 +278,18 @@ export function Area({
     // x and y follow W, the band, the time span and the scale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [band, W, hi, lo, H, t0, t1]);
+  const alsoPaths = useMemo(
+    () =>
+      (also ?? []).map((a) => ({
+        dash: a.dash,
+        lines: runs(a.pts, gapMin(step(a.pts))).map(
+          (r) => "M" + r.map((p) => `${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" L"),
+        ),
+      })),
+    // x and y follow W, the lines, the time span and the scale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [also, W, hi, lo, H, t0, t1],
+  );
   const nearest = (clientX: number, el: HTMLElement) => {
     if (!pts.length) return null;
     const r = el.getBoundingClientRect();
@@ -357,6 +381,20 @@ export function Area({
                   />
                 </g>
               ),
+            )}
+            {alsoPaths.map((a, i) =>
+              a.lines.map((d, j) => (
+                <path
+                  key={`a${i}-${j}`}
+                  d={d}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={1.25}
+                  strokeOpacity={0.8}
+                  strokeDasharray={a.dash}
+                  strokeLinejoin="round"
+                />
+              )),
             )}
             {mark && mark.v > 0 && (
               <line
@@ -520,10 +558,13 @@ export function Legend({
   band,
   mark,
   gaps,
+  also,
 }: {
   line: string;
   band?: string;
   mark?: string;
+  /// The chart's thinner lines (Area's `also`), each keyed by its dash.
+  also?: { label: string; dash: string }[];
   /// The chart's gaps: a key for each kind it has.
   gaps?: Gap[];
 }) {
@@ -535,6 +576,14 @@ export function Legend({
         </svg>
         {line}
       </span>
+      {also?.map((a) => (
+        <span className="lk" key={a.label}>
+          <svg width="18" height="6" aria-hidden="true">
+            <line className="lkline thin" x1="0" x2="18" y1="3" y2="3" strokeDasharray={a.dash} />
+          </svg>
+          {a.label}
+        </span>
+      ))}
       {band && (
         <span className="lk">
           <i className="bandkey" aria-hidden="true" />
@@ -562,5 +611,89 @@ export function Legend({
         </span>
       )}
     </span>
+  );
+}
+
+/// How full a measure is right now, as a row of lit segments. `level` is 0 to 1; null shows
+/// the row unlit.
+export function Meter({
+  level,
+  tone,
+  label,
+}: {
+  level: number | null;
+  tone?: Tone;
+  label: string;
+}) {
+  // Every segment the same whole number of pixels, so the edges stay sharp and the segments
+  // equal: as many as fit, with the row centred in what is left over.
+  const SEG = 3;
+  const GAP = 3;
+  const [ref, W] = useWidth<HTMLDivElement>();
+  const N = Math.max(1, Math.floor((W + GAP) / (SEG + GAP)));
+  const pad = Math.floor((W - (N * (SEG + GAP) - GAP)) / 2);
+  const v = level == null ? 0 : Math.min(1, Math.max(0, level));
+  // Any reading above nothing lights at least one segment.
+  const lit = v > 0 ? Math.max(1, Math.round(v * N)) : 0;
+  return (
+    <div
+      ref={ref}
+      className="meter"
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(v * 100)}
+      style={{ "--c": toneColor(tone) } as CSSProperties}
+    >
+      {W > 0 &&
+        Array.from({ length: N }, (_, i) => (
+          <i
+            key={i}
+            className={i < lit ? "on" : undefined}
+            style={{ left: pad + i * (SEG + GAP), width: SEG }}
+          />
+        ))}
+    </div>
+  );
+}
+
+/// Each core's use now, as a column of lit segments: performance cores, then efficiency cores,
+/// where the Mac says which is which.
+export function Cores({ use, kinds, tone }: { use: number[]; kinds: string; tone?: Tone }) {
+  const SEG = 8;
+  const all = use.map((v, i) => ({ v, i, k: kinds[i] ?? "" }));
+  const groups = kinds
+    ? [
+        { name: "performance", cores: all.filter((c) => c.k === "P") },
+        { name: "efficiency", cores: all.filter((c) => c.k === "E") },
+      ].filter((g) => g.cores.length)
+    : [{ name: "", cores: all }];
+  return (
+    <div className="cores" style={{ "--c": toneColor(tone) } as CSSProperties}>
+      {groups.map((g) => (
+        <div className="grp" key={g.name} style={{ flexGrow: g.cores.length }}>
+          <div className="cols">
+            {g.cores.map((c) => {
+              const lit = c.v > 0 ? Math.max(1, Math.round((Math.min(100, c.v) / 100) * SEG)) : 0;
+              return (
+                <div
+                  className="col"
+                  key={c.i}
+                  title={`Core ${c.i + 1}${g.name ? ` (${g.name})` : ""}: ${Math.round(c.v)}%`}
+                >
+                  {Array.from({ length: SEG }, (_, j) => (
+                    <i key={j} className={j < lit ? "on" : undefined} />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+          <span className="muted">
+            {g.name ? `${g.cores.length} ${g.name}` : `${g.cores.length} cores`}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }

@@ -13,7 +13,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Labelled } from "./icons";
 import { metricOf } from "./metrics";
 import { api, on } from "./api";
-import { Spark, type Pt } from "./charts";
+import { Meter, Spark, type Pt } from "./charts";
 import { Mark } from "./Mark";
 import { flagFor } from "./status";
 import Tooltips from "./Tooltips";
@@ -258,9 +258,13 @@ export default function Tray() {
   const memWarn = about === "memory" || about === "swap";
   const memNewMark = memWarn && tm.mem && latest && latest.mem >= tm.mem.value * 0.98;
 
+  // The busiest moment of the hour, for the rate meters (as on Now).
+  const hourTop = (pick: (m: Minute) => number | null) =>
+    Math.max(1, ...(hour?.points ?? []).map((m) => pick(m) ?? 0));
   const rows = [
     {
       name: "CPU",
+      level: latest ? latest.cpu / 100 : null,
       note: cpuHigh ? `Today's high ${pct(cpuHigh.v)} · ${fmtAt(cpuHigh.t)}` : "Recording",
       flag: flagFor(live.status, "CPU"),
       value: latest ? pct(latest.cpu) : "–",
@@ -278,6 +282,7 @@ export default function Tray() {
     },
     {
       name: "Memory",
+      level: latest && live.mem_total ? latest.mem / live.mem_total : null,
       note: memNewMark
         ? `New tidemark · swap ${fmt(latest.swap)}`
         : memHigh
@@ -299,6 +304,7 @@ export default function Tray() {
     },
     {
       name: "Network",
+      level: latest ? latest.net_in / hourTop((m) => m.net_in_max) : null,
       note: latest ? `↑ ${fmtRate(latest.net_out)} up` : "Recording",
       flag: null,
       value: latest ? `↓ ${fmtRate(latest.net_in)}` : "–",
@@ -314,6 +320,14 @@ export default function Tray() {
     },
     {
       name: "Energy",
+      level:
+        latest?.power != null
+          ? latest.power /
+            Math.max(
+              tm.power?.value ?? 0,
+              hourTop((m) => m.power_max ?? m.power),
+            )
+          : null,
       note: live.battery ? batteryLine(live.battery) : "No battery",
       flag: flagFor(live.status, "Energy"),
       value: latest?.power != null ? fmtW(latest.power) : "–",
@@ -330,6 +344,7 @@ export default function Tray() {
     },
     {
       name: "Disk space",
+      level: diskTotal ? diskNow / diskTotal : null,
       note: diskToday > 1e8 ? `${fmtDelta(diskToday)} today` : "Steady today",
       flag: flagFor(live.status, "Disk space"),
       value: diskTotal ? `${fmt(diskTotal - diskNow)} free` : "–",
@@ -400,6 +415,7 @@ export default function Tray() {
               <span className="nm">
                 <Labelled m={metricOf(r.name)}>{r.name}</Labelled>
               </span>
+              <Meter level={r.level} tone={r.flag?.tone} label={`${r.name} now`} />
               <span className={`tiny ${r.flag ? r.flag.cls : "muted"}`}>{r.note}</span>
             </span>
             {r.spark}

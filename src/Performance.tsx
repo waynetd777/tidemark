@@ -134,6 +134,20 @@ export default function Performance({
   const blame = (blameByMem ? apps?.by_mem : apps?.by_cpu) ?? [];
   const top = blame[0];
   const atValue = atPoint ? (blameByMem ? atPoint.mem_max : atPoint.cpu_max) : null;
+  // The CPU's performance and efficiency cores, where the Mac says which is which.
+  const kindLine = (k: "cpu_p" | "cpu_e"): Pt[] =>
+    upToNow(
+      points.filter((m) => m[k] != null).map((m) => ({ t: m.ts, v: m[k] as number })),
+      latest ? latest.t / 1000 : undefined,
+      latest?.[k] ?? undefined,
+    );
+  const cpuKinds =
+    points.some((m) => m.cpu_p != null) || latest?.cpu_p != null
+      ? [
+          { pts: kindLine("cpu_p"), label: "Performance cores", dash: "5 3" },
+          { pts: kindLine("cpu_e"), label: "Efficiency cores", dash: "1.5 2.5" },
+        ]
+      : undefined;
   const charts = [
     {
       name: "CPU",
@@ -147,8 +161,20 @@ export default function Performance({
         ? { v: tm.cpu.value, label: `Tidemark ${pct(tm.cpu.value)} · ${fmtAt(tm.cpu.at)}` }
         : null,
       peak: cpuPeak ? { ...cpuPeak, label: `${pct(cpuPeak.v)} · ${fmtAt(cpuPeak.t)}` } : null,
-      extra: (i: number) =>
-        points[i] ? <span>Peak {pct(points[i].cpu_max)}</span> : <span>Now</span>,
+      extra: (i: number) => {
+        const m = points[i] ?? latest;
+        return (
+          <>
+            {points[i] ? <span>Peak {pct(points[i].cpu_max)}</span> : <span>Now</span>}
+            {m?.cpu_p != null && m.cpu_e != null && (
+              <span>
+                Performance {pct(m.cpu_p)} · efficiency {pct(m.cpu_e)}
+              </span>
+            )}
+          </>
+        );
+      },
+      also: cpuKinds,
       why: "cpu",
     },
     // The GPU, where one reports how busy it is.
@@ -346,6 +372,7 @@ export default function Performance({
                   line={`${c.name}, ${per} average`}
                   band={per === "minute" ? "Each minute's peak" : `Each ${per} peak`}
                   mark="Week's tidemark"
+                  also={"also" in c ? c.also : undefined}
                   gaps={gapsOf(
                     c.pts.map((p) => p.t),
                     [now() - secs, now()],
@@ -365,6 +392,7 @@ export default function Performance({
                   fmtT={(t) => fmtAt(t)}
                   name={c.name}
                   extra={c.extra}
+                  also={"also" in c ? c.also : undefined}
                   xLabels={xLabels(secs)}
                   domain={[now() - secs, now()]}
                   sleeps={sleeps ?? []}
