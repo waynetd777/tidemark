@@ -342,7 +342,26 @@ export default function Now({
             <Labelled m={metricOf(c.name)}>{c.name}</Labelled>
           </span>
           {flag ? (
-            <span className={`badge ${flag.tone}`}>{flag.label}</span>
+            <span className="row gap6">
+              <span className={`badge ${flag.tone}`}>{flag.label}</span>
+              <AskButton
+                title={`Ask why ${c.name.toLowerCase()} is flagged (opens Ask with this chart's figures)`}
+                onAsk={() => {
+                  const pts = c.pts.filter((p) => p.v != null);
+                  const vals = pts.map((p) => p.v);
+                  const f = c.fmt;
+                  const { question, detail } = flaggedDetail(live, c.name, [
+                    `Now: ${c.value} ${c.unit}. ${c.sub}.`,
+                    vals.length
+                      ? `${c.range}: lowest ${f(Math.min(...vals))}, highest ${f(Math.max(...vals))}, average ${f(vals.reduce((a, b) => a + b, 0) / vals.length)}.`
+                      : "",
+                    c.mark ? `The week's tidemark: ${c.mark.label}.` : "",
+                    c.high ? `${c.high}.` : "",
+                  ]);
+                  ask(question, detail);
+                }}
+              />
+            </span>
           ) : (
             <span className="muted small">{c.range}</span>
           )}
@@ -384,25 +403,6 @@ export default function Now({
           <span className="muted ell" title={c.high}>
             {c.high}
           </span>
-          {flag && (
-            <AskButton
-              title={`Ask why ${c.name.toLowerCase()} is flagged (opens Ask with this chart's figures)`}
-              onAsk={() => {
-                const pts = c.pts.filter((p) => p.v != null);
-                const vals = pts.map((p) => p.v);
-                const f = c.fmt;
-                const { question, detail } = flaggedDetail(live, c.name, [
-                  `Now: ${c.value} ${c.unit}. ${c.sub}.`,
-                  vals.length
-                    ? `${c.range}: lowest ${f(Math.min(...vals))}, highest ${f(Math.max(...vals))}, average ${f(vals.reduce((a, b) => a + b, 0) / vals.length)}.`
-                    : "",
-                  c.mark ? `The week's tidemark: ${c.mark.label}.` : "",
-                  c.high ? `${c.high}.` : "",
-                ]);
-                ask(question, detail);
-              }}
-            />
-          )}
           <button
             className="link"
             onClick={() =>
