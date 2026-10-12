@@ -23,7 +23,7 @@ import { api } from "./api";
 import { Area, Cores, Legend, Meter, type Pt } from "./charts";
 import { crashGroups, crashTitle, incidentTitle, incidentWhy } from "./incidents";
 import { gapsOf, now, startOfToday, upToNow, usePoll } from "./perf";
-import type { Crash, GrowthInfo, Incident, Live, Screen } from "./types";
+import type { AppUse, Crash, GrowthInfo, Incident, Live, Screen } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtMem, fmtRate, fmtW, pct } from "./util";
 
 const DAY = 86400;
@@ -542,6 +542,41 @@ export default function Now({
 
         <div className="cards4">{cards.map((c) => card(c))}</div>
 
+        <div className="cards2 halves" data-focus="apps-now">
+          {appsCard(
+            "Memory",
+            live,
+            live?.apps_mem,
+            (a) => a.mem,
+            fmtMem,
+            (a) => `${pct(a.cpu)} CPU`,
+          )}
+          {appsCard(
+            "CPU",
+            live,
+            live?.apps_cpu,
+            (a) => a.cpu,
+            pct,
+            (a) => fmtMem(a.mem),
+          )}
+          {appsCard(
+            "Disk I/O",
+            live,
+            live?.apps_disk,
+            (a) => a.disk ?? 0,
+            fmtRate,
+            (a) => `${pct(a.cpu)} CPU`,
+          )}
+          {appsCard(
+            "Energy",
+            live,
+            live?.apps_energy,
+            (a) => a.energy,
+            fmtW,
+            (a) => `${pct(a.cpu)} CPU`,
+          )}
+        </div>
+
         <div className="cards2 thirds">
           <section className="card list">
             <div className="row between head">
@@ -616,5 +651,46 @@ export default function Now({
         </section>
       </div>
     </>
+  );
+}
+
+/// The apps using the most of one measure, live: five deep, with another measure beside each
+/// name. Apps using none of it (an idle disk) are left out.
+function appsCard(
+  measure: "Memory" | "CPU" | "Disk I/O" | "Energy",
+  live: Live | null,
+  apps: AppUse[] | undefined,
+  value: (a: AppUse) => number,
+  show: (n: number) => string,
+  other: (a: AppUse) => string,
+) {
+  const top = (apps ?? []).filter((a) => value(a) > 0).slice(0, 5);
+  const most = top.length ? value(top[0]) : 0;
+  return (
+    <section className="card list">
+      <div className="row between head">
+        <span className="eyebrow">
+          <Labelled m={metricOf(measure)}>
+            Using the most {measure === "CPU" ? measure : measure.toLowerCase()} right now
+          </Labelled>
+        </span>
+      </div>
+      {top.length === 0 && (
+        <div className="muted rowline">
+          {live ? "No app is using any right now." : "The first readings arrive in a few seconds."}
+        </div>
+      )}
+      {top.map((a) => (
+        <div className="grewrow" key={a.app}>
+          <span className="ell">
+            {a.app} <span className="tiny muted">{other(a)}</span>
+          </span>
+          <span className="bar">
+            <i style={{ width: `${most > 0 ? (100 * value(a)) / most : 0}%` }} />
+          </span>
+          <b className="r">{show(value(a))}</b>
+        </div>
+      ))}
+    </section>
   );
 }

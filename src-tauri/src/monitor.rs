@@ -607,12 +607,13 @@ fn share() {
     });
 }
 
-/// The busiest apps by CPU, by memory and by energy, each list as long as `perf_live` shows, so
-/// the follower can sort them each way (Now's "Using the most", the menu bar's memory lines).
+/// The busiest apps by CPU, by memory, by energy and by disk I/O, each list as long as
+/// `perf_live` shows, so the follower can sort them each way (Now's "Using the most" cards, the
+/// menu bar's list).
 /// In CPU order, as `Live::apps` is.
 fn busiest(apps: &[AppUse]) -> Vec<AppUse> {
     let mut keep: Vec<&AppUse> = Vec::new();
-    let by: [fn(&AppUse) -> f64; 3] = [|a| a.cpu, |a| a.mem, |a| a.energy];
+    let by: [fn(&AppUse) -> f64; 4] = [|a| a.cpu, |a| a.mem, |a| a.energy, |a| a.disk];
     for f in by {
         let mut sorted: Vec<&AppUse> = apps.iter().collect();
         sorted.sort_by(|a, b| f(b).total_cmp(&f(a)));
@@ -719,10 +720,19 @@ pub fn start() {
     std::thread::Builder::new()
         .name("monitor".into())
         .spawn(|| {
+            // Screenshots follow no recorder: their live readings are the demo's live.json.
+            if crate::scene::active() {
+                let path = crate::cache::dir().join("live.json");
+                match std::fs::read(&path).map(|b| serde_json::from_slice::<Live>(&b)) {
+                    Ok(Ok(v)) => *LIVE.lock().unwrap_or_else(|e| e.into_inner()) = Some(v),
+                    Ok(Err(e)) => eprintln!("{}: {e}", path.display()),
+                    Err(e) => eprintln!("{}: {e}", path.display()),
+                }
+                return;
+            }
             let mut link: Option<Link> = None;
             loop {
-                // Screenshots record nothing: they show the demo's live readings.
-                if !crate::scene::active() && try_lock() {
+                if try_lock() {
                     RECORDING.store(true, Ordering::SeqCst);
                     link = None;
                     serve();
@@ -1267,6 +1277,7 @@ pub struct LiveInfo {
     pub apps_cpu: Vec<AppUse>,
     pub apps_mem: Vec<AppUse>,
     pub apps_energy: Vec<AppUse>,
+    pub apps_disk: Vec<AppUse>,
     pub battery: Option<Battery>,
     pub processes: usize,
     pub cores: usize,
@@ -1288,11 +1299,15 @@ pub async fn perf_live() -> LiveInfo {
         let mut by_energy = l.apps.clone();
         by_energy.sort_by(|a, b| b.energy.total_cmp(&a.energy));
         by_energy.truncate(LIVE_APPS);
+        let mut by_disk = l.apps.clone();
+        by_disk.sort_by(|a, b| b.disk.total_cmp(&a.disk));
+        by_disk.truncate(LIVE_APPS);
         LiveInfo {
             samples: l.samples.iter().cloned().collect(),
             apps_cpu: l.apps.iter().take(LIVE_APPS).cloned().collect(),
             apps_mem: by_mem,
             apps_energy: by_energy,
+            apps_disk: by_disk,
             battery: l.battery.clone(),
             processes: l.processes,
             cores: std::thread::available_parallelism().map_or(1, |n| n.get()),
@@ -1680,7 +1695,7 @@ mod tests {
         assert_eq!(app_of(None, "kernel_task"), "kernel_task");
     }
 
-    /// The shared list keeps the busiest by memory and energy too, not only by CPU.
+    /// The shared list keeps the busiest by memory, energy and disk I/O too, not only by CPU.
     #[test]
     fn shared_apps_keep_each_measures_busiest() {
         let mut apps: Vec<AppUse> = (0..20)
@@ -1700,11 +1715,17 @@ mod tests {
             energy: 9.0,
             ..Default::default()
         });
+        apps.push(AppUse {
+            app: "writer".into(),
+            disk: 5e8,
+            ..Default::default()
+        });
         let kept = busiest(&apps);
         assert!(kept.iter().any(|a| a.app == "hog"));
         assert!(kept.iter().any(|a| a.app == "drain"));
+        assert!(kept.iter().any(|a| a.app == "writer"));
         assert_eq!(kept[0].app, "cpu0");
-        assert!(kept.len() <= 3 * LIVE_APPS);
+        assert!(kept.len() <= 4 * LIVE_APPS);
     }
 
     #[test]

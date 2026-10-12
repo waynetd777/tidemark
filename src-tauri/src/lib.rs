@@ -123,6 +123,17 @@ fn help_menu(app: &tauri::App) -> tauri::Result<()> {
                 )?,
                 1,
             )?;
+            // The standard Quit quits at once; this one asks first (tray::confirm_quit).
+            let items = app_menu.items()?;
+            if let Some(at) = items.iter().position(|i| {
+                matches!(i, MenuItemKind::Predefined(p) if p.text().is_ok_and(|t| t.starts_with("Quit")))
+            }) {
+                app_menu.remove_at(at)?;
+                app_menu.insert(
+                    &MenuItem::with_id(app, "quit", "Quit Tidemark", true, Some("CmdOrCtrl+Q"))?,
+                    at,
+                )?;
+            }
         }
     }
     if let Some(help) = menu
@@ -153,6 +164,7 @@ fn help_menu(app: &tauri::App) -> tauri::Result<()> {
         "website" => open_website(),
         "about" => about(app),
         "check-updates" => updates::check_now(app),
+        "quit" => tray::confirm_quit(app),
         _ => {}
     });
     Ok(())
@@ -229,6 +241,8 @@ pub fn run() {
             tray::show_main_window,
             tray::open_ask,
             tray::quit,
+            tray::quit_now,
+            tray::quit_cancelled,
             tray::open_activity_monitor,
             tray::login_item,
             tray::set_login_item,

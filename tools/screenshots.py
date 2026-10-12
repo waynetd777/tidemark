@@ -667,17 +667,18 @@ def write_live(data, strained=False):
     cores = [max(0.0, e * r.uniform(0.4, 1.6)) for _ in range(E_CORES)] + [
         max(0.0, p * r.uniform(0.2, 2.2)) for _ in range(P_CORES)
     ]
+    # Disk I/O in MB a second, read and written together.
     apps = [
-        {"app": a, "cpu": c, "mem": m * GIB, "energy": e}
-        for a, c, m, e in [
-            ("Xcode", 71.0, 9.6, 14.2) if strained else ("Safari", 5.1, 3.4, 1.9),
-            ("Safari", 5.1, 3.4, 1.9) if strained else ("Xcode", 3.2, 2.9, 1.4),
-            ("Slack", 1.4, 0.8, 0.4),
-            ("Mail", 0.9, 0.9, 0.3),
-            ("Music", 0.8, 0.4, 0.3),
-            ("Photos", 0.6, 0.7, 0.2),
-            ("Finder", 0.3, 0.2, 0.1),
-            ("Terminal", 0.2, 0.1, 0.1),
+        {"app": a, "cpu": c, "mem": m * GIB, "energy": e, "disk": d * 1e6}
+        for a, c, m, e, d in [
+            ("Xcode", 71.0, 9.6, 14.2, 2.4) if strained else ("Safari", 5.1, 3.4, 1.9, 0.6),
+            ("Safari", 5.1, 3.4, 1.9, 0.6) if strained else ("Xcode", 3.2, 2.9, 1.4, 0.3),
+            ("Slack", 1.4, 0.8, 0.4, 0.1),
+            ("Mail", 0.9, 0.9, 0.3, 0.4),
+            ("Music", 0.8, 0.4, 0.3, 0.0),
+            ("Photos", 0.6, 0.7, 0.2, 0.9),
+            ("Finder", 0.3, 0.2, 0.1, 0.2),
+            ("Terminal", 0.2, 0.1, 0.1, 0.0),
         ]
     ]
     live = {

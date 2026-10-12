@@ -10,6 +10,7 @@ How your Mac is doing, at a glance.
 
 - A sentence on how the Mac is doing; every measure needing attention coloured amber or red.
 - Eight cards, each with a meter of how full it is now: CPU (with each core behind a chevron), GPU, memory, disk I/O, network download, network upload and energy over the last hour; disk space over the last 24 hours.
+- The apps using the most memory, CPU, disk I/O and energy right now, live, each with an icon.
 - The week's tidemarks, its crashes and hangs, and what grew on the disk, side by side.
 - **Details** on a card opens Recent at its tab. A card flagged amber or red, each incident in the week's tidemarks and each crash in Crashes and hangs has an **Ask** button.
 - Suggested questions along the foot open Ask. The sidebar's **This Mac** shows the chip, cores, memory and uptime.
@@ -77,9 +78,9 @@ Closing the window keeps Tidemark recording in the menu bar.
 <a href="images/index.md#menu-bar"><picture><source media="(prefers-color-scheme: dark)" srcset="images/menu-bar-dark.png"><img alt="The menu-bar window" src="images/menu-bar-light.png" width="380"></picture></a>
 
 - The icon is marked when something needs attention.
-- Click it for CPU, memory, network, energy and disk space, each with a meter and its last hour (the disk's last 24 hours); click one to open Recent at its tab.
-- Below them, what is using the most, a line about the week, and the action that helps.
-- At the foot, **Open Tidemark** (⌘O), **Settings** (⌘,) and **Quit** (⌘Q). ⌘2 and ⌘4 open Recent and Disk Map; Esc closes the window.
+- Click it for CPU, memory, network, energy and disk I/O, each with a meter and its last hour; click one to open Recent at its tab.
+- Below them, the apps using the most of whatever is tightest right now (the measure needing attention, or else whichever of CPU and memory is nearer its limit), which open Now's list of them; a line about the week; and the action that helps.
+- At the foot, **Open Tidemark** (⌘O), **Settings** (⌘,) and **Quit** (⌘Q). ⌘1, ⌘2 and ⌘4 open Now, Recent and Disk Map; Esc closes the window.
 
 ## Ask (⌘K)
 

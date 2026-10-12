@@ -1,11 +1,12 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-// The menu-bar window: how the Mac is doing in a sentence, CPU, memory and disk with their
-// sparklines and today's highs, what is using the most, the week's disk growth, and the few
-// things worth doing from the menu bar. Built the way Keepr's is: it re-reads everything each
-// time it opens (System Settings can change Open at Login behind its back), every item closes it,
-// the shortcuts it shows work while it is open, and it sizes its window to what it shows.
+// The menu-bar window: how the Mac is doing in a sentence, CPU, memory, network, energy and disk
+// I/O with their sparklines, what is using the most of the tightest one, the week's line, and
+// the few things worth doing from the menu bar. Built the way Keepr's is: it re-reads everything
+// each time it opens (System Settings can change Open at Login behind its back), every item
+// closes it, the shortcuts it shows work while it is open, and it sizes its window to what it
+// shows.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LogicalSize } from "@tauri-apps/api/dpi";
@@ -18,7 +19,7 @@ import { Mark } from "./Mark";
 import { flagFor } from "./status";
 import Tooltips from "./Tooltips";
 import { startOfToday, upToNow } from "./perf";
-import type { DiskTrend, GrowthInfo, Live, Minute, PerfHistory, Sleep } from "./types";
+import type { AppUse, GrowthInfo, Live, Minute, PerfHistory, Sleep } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtMem, fmtRate, fmtW, pct } from "./util";
 
 const WIDTH = 360;
@@ -78,13 +79,28 @@ export function Switch({
   );
 }
 
+type TopBy = "cpu" | "memory" | "energy";
+
+/// The menu's "Using the most" list, for each measure it can rank by: the list, its name in the
+/// heading, and each app's line, the measure first.
+const TOP_BY: Record<
+  TopBy,
+  { list: "apps_cpu" | "apps_mem" | "apps_energy"; name: string; line: (a: AppUse) => string }
+> = {
+  cpu: { list: "apps_cpu", name: "CPU", line: (a) => `${pct(a.cpu)} CPU · ${fmtMem(a.mem)}` },
+  memory: { list: "apps_mem", name: "memory", line: (a) => `${fmtMem(a.mem)} · ${pct(a.cpu)} CPU` },
+  energy: {
+    list: "apps_energy",
+    name: "energy",
+    line: (a) => `${fmtW(a.energy)} · ${pct(a.cpu)} CPU`,
+  },
+};
+
 export default function Tray() {
   const [live, setLive] = useState<Live | null>(null);
   const [day, setDay] = useState<PerfHistory | null>(null);
-  // The lines: the last hour minute by minute, and the disk's last day, as on Now.
+  // The lines: the last hour minute by minute, as on Now.
   const [hour, setHour] = useState<PerfHistory | null>(null);
-  const [diskDay, setDiskDay] = useState<DiskTrend | null>(null);
-  const [disk, setDisk] = useState<DiskTrend | null>(null);
   const [growth, setGrowth] = useState<GrowthInfo | null>(null);
   const [home, setHome] = useState("");
   const [helperOn, setHelperOn] = useState(false);
@@ -99,16 +115,8 @@ export default function Tray() {
       .then(setDay)
       .catch(() => {});
     api
-      .diskTrend(7)
-      .then(setDisk)
-      .catch(() => {});
-    api
       .perf(3600, 60)
       .then(setHour)
-      .catch(() => {});
-    api
-      .diskTrend(1)
-      .then(setDiskDay)
       .catch(() => {});
     api
       .growth("/", 7)
@@ -182,15 +190,16 @@ export default function Tray() {
         }
       : {
           label: `Show what's using ${about === "cpu" ? "the CPU" : about === "energy" ? "energy" : "memory"}`,
-          keys: "⌘2",
-          run: () => api.showMain("performance"),
-          tip: "Open Recent to see which apps are responsible",
+          keys: "⌘1",
+          run: () => api.showMain("now", "apps-now"),
+          tip: "Open Now to see which apps are responsible",
         };
 
   // The shortcuts the menu shows work while it is open.
   useEffect(() => {
     const keys: Record<string, () => unknown> = {
       o: () => api.showMain(),
+      "1": () => api.showMain("now", "apps-now"),
       ",": () => api.showMain("settings"),
       q: () => api.quit(),
       "2": () => api.showMain("performance"),
@@ -249,12 +258,6 @@ export default function Tray() {
   const memHigh = highToday("mem_max");
   const tm = day?.tidemarks ?? {};
   const series = (k: "cpu" | "mem"): Pt[] => lastHour((m) => m[k], latest?.[k]);
-  const diskPts: Pt[] = (disk?.points ?? []).map((p) => ({ t: p.ts, v: p.used }));
-  const dayDiskPts: Pt[] = (diskDay?.points ?? []).map((p) => ({ t: p.ts, v: p.used }));
-  const diskNow = diskPts[diskPts.length - 1]?.v ?? 0;
-  const diskTotal = disk?.points[disk.points.length - 1]?.total ?? 0;
-  const startOfDay = (disk?.points ?? []).find((p) => p.ts >= today);
-  const diskToday = startOfDay ? diskNow - startOfDay.used : 0;
   const memWarn = about === "memory" || about === "swap";
   const memNewMark = memWarn && tm.mem && latest && latest.mem >= tm.mem.value * 0.98;
 
@@ -343,25 +346,46 @@ export default function Tray() {
       ),
     },
     {
-      name: "Disk space",
-      level: diskTotal ? diskNow / diskTotal : null,
-      note: diskToday > 1e8 ? `${fmtDelta(diskToday)} today` : "Steady today",
-      flag: flagFor(live.status, "Disk space"),
-      value: diskTotal ? `${fmt(diskTotal - diskNow)} free` : "–",
+      name: "Disk I/O",
+      level: latest
+        ? (latest.disk_r + latest.disk_w) /
+          hourTop((m) => Math.max(m.disk_max, m.disk_r + m.disk_w))
+        : null,
+      note: latest ? `Writing ${fmtRate(latest.disk_w)}` : "Recording",
+      flag: null,
+      value: latest ? fmtRate(latest.disk_r + latest.disk_w) : "–",
       spark: (
         <Spark
-          pts={dayDiskPts}
-          min={dayDiskPts.length ? Math.min(...dayDiskPts.map((p) => p.v)) * 0.995 : 0}
-          max={Math.max(1, ...dayDiskPts.map((p) => p.v), disk?.high?.used ?? 0)}
-          mark={disk?.high?.used}
-          tone={flagFor(live.status, "Disk space")?.tone}
-          label="Disk space used, last 24 hours"
+          sleeps={sleeps}
+          domain={liveDomain}
+          pts={lastHour((m) => m.disk_r + m.disk_w, latest ? latest.disk_r + latest.disk_w : null)}
+          max={Math.max(
+            1,
+            ...lastHour(
+              (m) => m.disk_r + m.disk_w,
+              latest ? latest.disk_r + latest.disk_w : null,
+            ).map((p) => p.v),
+          )}
+          label="Disk reads and writes, last hour"
         />
       ),
     },
   ];
 
-  const top = (about === "cpu" ? live.apps_cpu : live.apps_mem).slice(0, 3);
+  // What the list ranks by: the measure needing attention, if it has apps; otherwise whichever
+  // of CPU and memory is nearer its limit. Disk I/O and energy have no limit to be near.
+  const by: TopBy =
+    about === "cpu"
+      ? "cpu"
+      : about === "memory" || about === "swap"
+        ? "memory"
+        : about === "energy"
+          ? "energy"
+          : latest && live.mem_total && latest.cpu / 100 > latest.mem / live.mem_total
+            ? "cpu"
+            : "memory";
+  const ranked = TOP_BY[by];
+  const top = live[ranked.list].slice(0, 3);
   const landed = (growth?.landed ?? []).filter((g) => g.delta > 0);
   const grew = Math.max(0, growth?.total ?? 0);
   const memHog = live.apps_mem[0];
@@ -425,21 +449,19 @@ export default function Tray() {
       </div>
 
       <div className="tsec tops">
-        <div className="muted tiny tl">Using the most right now</div>
+        <div className="muted tiny tl">Using the most {ranked.name} right now</div>
         {top.map((a) => (
           <button
             key={a.app}
             className="menu-item"
-            title="Open Recent to see the busiest apps"
+            title="Open Now to see the busiest apps"
             onClick={() => {
-              void api.showMain("performance");
+              void api.showMain("now", "apps-now");
               hide();
             }}
           >
             <span className="grow ell">{a.app}</span>
-            <span className="tiny muted">
-              {fmtMem(a.mem)} · {pct(a.cpu)} CPU
-            </span>
+            <span className="tiny muted">{ranked.line(a)}</span>
           </button>
         ))}
       </div>

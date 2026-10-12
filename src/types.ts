@@ -192,6 +192,7 @@ export interface Live {
   apps_cpu: AppUse[];
   apps_mem: AppUse[];
   apps_energy: AppUse[];
+  apps_disk: AppUse[];
   battery: Battery | null;
   processes: number;
   cores: number;

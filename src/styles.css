@@ -1957,6 +1957,15 @@ pre,
 .cards2.thirds {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
 }
+/* Two by two: Now's "Using the most" cards, one wide each on a narrow window. */
+.cards2.halves {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 760px) {
+  .cards2.halves {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .cards2 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));

@@ -233,10 +233,46 @@ pub fn open_activity_monitor() {
         .status();
 }
 
+/// Whether the main window was closed when the quit question came up: Cancel closes it again.
+static QUIT_FROM_HIDDEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Asks before quitting, in the main window's own dialog (src/Quit.tsx): ⌘Q is next to ⌘W, and
+/// the menu-bar window's Quit can move under the pointer as that window resizes.
+pub fn confirm_quit(app: &AppHandle) {
+    let Some(w) = app.get_webview_window("main") else {
+        return quit_now(app.clone());
+    };
+    if !w.is_visible().unwrap_or(false) {
+        QUIT_FROM_HIDDEN.store(true, Ordering::SeqCst);
+    }
+    // AppKit wants the main thread; the hidden window's page still gets the event meanwhile.
+    let a = app.clone();
+    let _ = app.run_on_main_thread(move || show_main(&a));
+    let _ = w.emit("confirm-quit", crate::recorder::background_helper().on);
+}
+
+/// The menu-bar window's Quit: asks first.
 #[tauri::command]
 pub fn quit(app: AppHandle) {
+    confirm_quit(&app)
+}
+
+/// Quit, answered.
+#[tauri::command]
+pub fn quit_now(app: AppHandle) {
     let _ = app.save_window_state(crate::STATE_FLAGS);
     app.exit(0)
+}
+
+/// Cancel, answered: a window opened only to ask closes again.
+#[tauri::command]
+pub fn quit_cancelled(app: AppHandle) {
+    if QUIT_FROM_HIDDEN.swap(false, Ordering::SeqCst) {
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.hide();
+            set_in_dock(&app, false);
+        }
+    }
 }
 
 /// Open at Login: (available, on). Only the installed app can register itself.

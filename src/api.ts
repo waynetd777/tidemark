@@ -102,6 +102,8 @@ export const api = {
     invoke<void>("show_main_window", { screen: screen ?? null, focus: focus ?? null }),
   openAsk: () => invoke<void>("open_ask"),
   quit: () => invoke<void>("quit"),
+  quitNow: () => invoke<void>("quit_now"),
+  quitCancelled: () => invoke<void>("quit_cancelled"),
   /// Screenshot mode (tools/screenshots.py): the screen or menu-bar window to show, and the theme.
   scene: () =>
     invoke<{
