@@ -2208,11 +2208,21 @@ pre,
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
-/* The moment the snapshot is of, on every chart of the screen. */
+/* The moment the snapshot is of, on every chart of the screen: in the text's colour, not the
+   line's, with a halo of the panel so it reads across the line and its fill, capped by a dot. */
+.area .pickh {
+  stroke: var(--panel);
+  stroke-width: 5;
+  opacity: 0.85;
+}
 .area .pickl {
-  stroke: var(--tide);
-  stroke-width: 1.5;
-  opacity: 0.7;
+  stroke: var(--mark);
+  stroke-width: 2;
+}
+.area .pickc {
+  fill: var(--mark);
+  stroke: var(--panel);
+  stroke-width: 2;
 }
 /* Gaps: the Mac asleep (a soft shade) or Tidemark not recording (hatched). Neutral, so they
    never read as a measure. */

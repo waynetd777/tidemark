@@ -469,7 +469,11 @@ export function Area({
             )}
             {peak && <line className="peakl" x1={x(peak.t)} x2={x(peak.t)} y1={0} y2={H} />}
             {marker != null && marker >= t0 && marker <= t1 && (
-              <line className="pickl" x1={x(marker)} x2={x(marker)} y1={0} y2={H} />
+              <g className="pickm">
+                <line className="pickh" x1={x(marker)} x2={x(marker)} y1={0} y2={H} />
+                <line className="pickl" x1={x(marker)} x2={x(marker)} y1={0} y2={H} />
+                <circle className="pickc" cx={x(marker)} cy={4} r={3.5} />
+              </g>
             )}
             {hp && <line className="cross" x1={x(hp.t)} x2={x(hp.t)} y1={0} y2={H} />}
           </svg>
