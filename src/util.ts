@@ -102,6 +102,25 @@ export function fmtAt(ts: number, withTime = true): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+/// A unix time (seconds) as an event in a list: "Today at 16:29", "Yesterday at 19:30",
+/// "Wed 7 Oct at 09:12", with the year when it isn't this one.
+export function fmtEvent(ts: number): string {
+  const d = new Date(ts * 1000);
+  const hm = d.toTimeString().slice(0, 5);
+  const now = new Date();
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (diff === 0) return `Today at ${hm}`;
+  if (diff === 1) return `Yesterday at ${hm}`;
+  const date = d.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: d.getFullYear() === now.getFullYear() ? undefined : "numeric",
+  });
+  return `${date.replace(",", "")} at ${hm}`;
+}
+
 /// A signed size change: "+6.1 GB", "−0.3 GB".
 export function fmtDelta(b: number): string {
   return `${b < 0 ? "\u2212" : "+"}${fmt(Math.abs(b))}`;

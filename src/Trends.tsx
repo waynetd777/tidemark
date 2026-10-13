@@ -661,17 +661,19 @@ export default function Trends({
           {big.length === 0 && (
             <span className="muted small">None of 2 GB or more in the range.</span>
           )}
-          {big.map((j) => (
-            <button
-              className="incident"
-              key={j.ts}
-              onClick={() => setPicked({ t: j.ts, why: "Disk space" })}
-              title="Show that day"
-            >
-              <b>{fmtDelta(j.delta)}</b>
-              <span className="muted">{dateLabel(j.ts)}</span>
-            </button>
-          ))}
+          {[...big]
+            .sort((a, b) => b.ts - a.ts)
+            .map((j) => (
+              <button
+                className="incident"
+                key={j.ts}
+                onClick={() => setPicked({ t: j.ts, why: "Disk space" })}
+                title="Show that day"
+              >
+                <b>{fmtDelta(j.delta)}</b>
+                <span className="muted">{dayLabel(j.ts)}</span>
+              </button>
+            ))}
         </div>
         {high && last && (
           <span className="muted small">

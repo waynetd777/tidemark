@@ -24,7 +24,18 @@ import { Area, Cores, Legend, Meter, type Pt } from "./charts";
 import { crashGroups, crashTitle, incidentTitle, incidentWhy } from "./incidents";
 import { gapsOf, now, startOfToday, upToNow, usePoll } from "./perf";
 import type { AppUse, Crash, GrowthInfo, Incident, Live, Screen } from "./types";
-import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtMem, fmtRate, fmtW, pct } from "./util";
+import {
+  abbrev,
+  batteryLine,
+  fmt,
+  fmtAt,
+  fmtDelta,
+  fmtEvent,
+  fmtMem,
+  fmtRate,
+  fmtW,
+  pct,
+} from "./util";
 
 const DAY = 86400;
 const HOUR = 3600;
@@ -366,12 +377,19 @@ export default function Now({
   ];
 
   const perCore = (live?.core_use.length ?? 0) > 1;
-  // The week's list in two: the peaks (incidents, the disk's high), and what crashed or hung.
-  const peaks = marks.filter((m) => !m.crash);
-  const breaks = marks.filter((m) => m.crash);
+  // The week's list in two, the latest five of each, most recent first: the peaks (incidents,
+  // the disk's high), and what crashed or hung.
+  const peaks = marks
+    .filter((m) => !m.crash)
+    .slice(-5)
+    .reverse();
+  const breaks = marks
+    .filter((m) => m.crash)
+    .slice(-5)
+    .reverse();
   const markRow = (m: (typeof marks)[number], i: number) => (
     <div className="rowline" key={i}>
-      <span className="mono muted when">{fmtAt(m.t)}</span>
+      <span className="muted when">{fmtEvent(m.t)}</span>
       <span className="col">
         <span className="row wrap">
           <b>{m.what}</b>
@@ -590,7 +608,7 @@ export default function Now({
                 No incidents this week. Peaks appear here as they happen.
               </div>
             )}
-            {peaks.slice(-5).map(markRow)}
+            {peaks.map(markRow)}
           </section>
           <section className="card list">
             <div className="row between head">
@@ -599,7 +617,7 @@ export default function Now({
             {breaks.length === 0 && (
               <div className="muted rowline">No app crashed or hung this week.</div>
             )}
-            {breaks.slice(-5).map(markRow)}
+            {breaks.map(markRow)}
           </section>
           <section className="card list">
             <div className="row between head">

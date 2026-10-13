@@ -35,6 +35,7 @@ import {
   bucketWord,
   fmt,
   fmtAt,
+  fmtEvent,
   fmtDelta,
   fmtDuration,
   fmtMem,
@@ -723,12 +724,10 @@ export default function Performance({
           .slice(0, 10)
           .map((g) => (
             <div className="rowline" key={`${g.app}${g.kind}`}>
-              <span className="mono muted when">{fmtAt(g.last)}</span>
+              <span className="muted when">{fmtEvent(g.last)}</span>
               <span className="col grow minw0">
                 <b>{crashTitle(g)}</b>
-                <span className="muted small">
-                  {g.n > 1 ? `${g.n} reports, the last ${fmtAt(g.last)}` : "One report"}
-                </span>
+                <span className="muted small">{g.n > 1 ? `${g.n} reports` : "One report"}</span>
               </span>
             </div>
           ))}
@@ -867,7 +866,9 @@ export default function Performance({
   );
   // The range's incidents of some kinds; picking one shows its moment in the snapshot.
   const incidentsCard = (title: string, kinds: Incident["kind"][], none: string) => {
-    const list = rangeIncidents.filter((i) => kinds.includes(i.kind));
+    const list = rangeIncidents
+      .filter((i) => kinds.includes(i.kind))
+      .sort((a, b) => b.started - a.started);
     return (
       <section className="card list">
         <div className="row between head">
@@ -892,7 +893,7 @@ export default function Performance({
                     : "now"}
                 </span>
               </span>
-              <span className="muted">{fmtAt(i.started)}</span>
+              <span className="muted">{fmtEvent(i.started)}</span>
             </button>
           ))}
         </div>
@@ -911,7 +912,9 @@ export default function Performance({
     const top = points
       .filter((m) => by(m) > 0)
       .sort((a, b) => by(b) - by(a))
-      .slice(0, 5);
+      .slice(0, 5)
+      // The five busiest, listed most recent first.
+      .sort((a, b) => b.ts - a.ts);
     return (
       <section className="card list">
         <div className="row between head">
@@ -929,7 +932,7 @@ export default function Performance({
               title="Show what the busiest apps were doing then"
             >
               <b>{f(by(m))}</b>
-              <span className="muted">{fmtAt(m.ts)}</span>
+              <span className="muted">{fmtEvent(m.ts)}</span>
             </button>
           ))}
         </div>
@@ -1636,24 +1639,27 @@ export default function Performance({
               {(incidents ?? []).length === 0 && (
                 <span className="muted small">None. Calm fortnight.</span>
               )}
-              {(incidents ?? []).slice(0, 6).map((i) => (
-                <button
-                  className="incident"
-                  key={i.id}
-                  onClick={() => pickIncident(i)}
-                  title="Show what the 12 busiest apps were doing at its peak"
-                >
-                  <span>
-                    <b>{incidentTitle(i)}</b>{" "}
-                    <span className="muted">
-                      {i.ended != null
-                        ? `${Math.max(1, Math.round((i.ended - i.started) / 60))} min`
-                        : "now"}
+              {[...(incidents ?? [])]
+                .sort((a, b) => b.started - a.started)
+                .slice(0, 6)
+                .map((i) => (
+                  <button
+                    className="incident"
+                    key={i.id}
+                    onClick={() => pickIncident(i)}
+                    title="Show what the 12 busiest apps were doing at its peak"
+                  >
+                    <span>
+                      <b>{incidentTitle(i)}</b>{" "}
+                      <span className="muted">
+                        {i.ended != null
+                          ? `${Math.max(1, Math.round((i.ended - i.started) / 60))} min`
+                          : "now"}
+                      </span>
                     </span>
-                  </span>
-                  <span className="muted">{fmtAt(i.started)}</span>
-                </button>
-              ))}
+                    <span className="muted">{fmtEvent(i.started)}</span>
+                  </button>
+                ))}
               <span className="muted small">
                 Each one keeps a snapshot of what the 12 busiest apps were doing.
               </span>

@@ -2094,7 +2094,7 @@ pre,
   border-top: 1px solid var(--border);
 }
 .rowline .when {
-  width: 96px;
+  width: 128px;
   flex: none;
   padding-top: 1px;
 }
