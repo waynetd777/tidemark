@@ -864,6 +864,38 @@ export default function Performance({
       </div>
     </section>
   );
+  // The six latest incidents under a heading for each kind ("CPU reached 100%"), most recent
+  // first, each with its time and length; picking one shows its moment in the snapshot.
+  const incidentGroups = (list: Incident[]) => {
+    const groups = new Map<string, Incident[]>();
+    for (const i of [...list].sort((a, b) => b.started - a.started).slice(0, 6)) {
+      const t = incidentTitle(i);
+      groups.set(t, [...(groups.get(t) ?? []), i]);
+    }
+    return [...groups].map(([t, is]) => (
+      <div className="igroup" key={t}>
+        <b>{t}</b>
+        <ul>
+          {is.map((i) => (
+            <li key={i.id}>
+              <button
+                className="incident"
+                onClick={() => pickIncident(i)}
+                title="Show what the 12 busiest apps were doing at its peak"
+              >
+                <span>{fmtEvent(i.started)}</span>
+                <span className="muted">
+                  {i.ended != null
+                    ? `${Math.max(1, Math.round((i.ended - i.started) / 60))} min`
+                    : "now"}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ));
+  };
   // The range's incidents of some kinds; picking one shows its moment in the snapshot.
   const incidentsCard = (title: string, kinds: Incident["kind"][], none: string) => {
     const list = rangeIncidents
@@ -877,26 +909,7 @@ export default function Performance({
           </span>
         </div>
         {list.length === 0 && <div className="muted rowline">{none}</div>}
-        <div className="col gap6">
-          {list.slice(0, 6).map((i) => (
-            <button
-              className="incident"
-              key={i.id}
-              onClick={() => pickIncident(i)}
-              title="Show what the 12 busiest apps were doing at its peak"
-            >
-              <span>
-                <b>{incidentTitle(i)}</b>{" "}
-                <span className="muted">
-                  {i.ended != null
-                    ? `${Math.max(1, Math.round((i.ended - i.started) / 60))} min`
-                    : "now"}
-                </span>
-              </span>
-              <span className="muted">{fmtEvent(i.started)}</span>
-            </button>
-          ))}
-        </div>
+        <div className="col gap6">{incidentGroups(list)}</div>
       </section>
     );
   };
@@ -1639,27 +1652,7 @@ export default function Performance({
               {(incidents ?? []).length === 0 && (
                 <span className="muted small">None. Calm fortnight.</span>
               )}
-              {[...(incidents ?? [])]
-                .sort((a, b) => b.started - a.started)
-                .slice(0, 6)
-                .map((i) => (
-                  <button
-                    className="incident"
-                    key={i.id}
-                    onClick={() => pickIncident(i)}
-                    title="Show what the 12 busiest apps were doing at its peak"
-                  >
-                    <span>
-                      <b>{incidentTitle(i)}</b>{" "}
-                      <span className="muted">
-                        {i.ended != null
-                          ? `${Math.max(1, Math.round((i.ended - i.started) / 60))} min`
-                          : "now"}
-                      </span>
-                    </span>
-                    <span className="muted">{fmtEvent(i.started)}</span>
-                  </button>
-                ))}
+              {incidentGroups(incidents ?? [])}
               <span className="muted small">
                 Each one keeps a snapshot of what the 12 busiest apps were doing.
               </span>

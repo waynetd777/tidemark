@@ -2095,6 +2095,7 @@ pre,
 }
 .rowline .when {
   width: 128px;
+  white-space: nowrap;
   flex: none;
   padding-top: 1px;
 }
@@ -2583,6 +2584,30 @@ pre,
   padding: 2px 0;
   text-align: left;
   font-size: 12.5px;
+  white-space: nowrap;
+}
+/* One line a row: the when keeps its width, the what gives way with an ellipsis. */
+.incident > :first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.incident > :last-child {
+  flex: none;
+}
+/* Incidents under a heading for each kind, a bullet a time. */
+.igroup ul {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+.igroup li::marker {
+  color: var(--muted);
+}
+.igroup .incident {
+  width: 100%;
+}
+.igroup .incident:hover span:first-child {
+  color: var(--tide-ink);
 }
 .incident.static:hover b {
   color: inherit;
