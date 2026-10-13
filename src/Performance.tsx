@@ -620,6 +620,7 @@ export default function Performance({
           height={height}
           tone={flagFor(live?.status, c.name)?.tone}
           marker={at?.t}
+          markerLabel={at ? fmtEvent(at.t) : undefined}
           pts={c.pts}
           hi={c.band}
           max={c.max}
@@ -795,6 +796,15 @@ export default function Performance({
               onPick={pickable ? (p) => pick("Disk space", p.t) : undefined}
               // On its own tab, only the hour picked on it (the tab has no snapshot moment).
               marker={pickable ? diskAt?.p.ts : at?.t}
+              markerLabel={
+                pickable
+                  ? diskAt
+                    ? fmtEvent(diskAt.p.ts)
+                    : undefined
+                  : at
+                    ? fmtEvent(at.t)
+                    : undefined
+              }
               pts={pts}
               max={hi + pad}
               min={Math.max(0, lo - pad)}

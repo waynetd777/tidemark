@@ -69,6 +69,9 @@ function useSame<T>(v: T, same: (a: T, b: T) => boolean): T {
   return v;
 }
 
+/// Where the picked moment's line starts: below its chip and the chip's arrow.
+const PICK_TOP = 26;
+
 const sameAlso = (a: AreaProps["also"], b: AreaProps["also"]) =>
   a === b ||
   (!!a &&
@@ -232,6 +235,8 @@ export interface AreaProps {
   also?: { pts: Pt[]; label: string; dash: string }[];
   /// The moment picked elsewhere on the screen (unix seconds), marked across the chart.
   marker?: number;
+  /// What the marker's chip says; the time as the chart's own times read without it.
+  markerLabel?: string;
 }
 
 /// A line over its area, with a crosshair that follows the pointer, snaps to the nearest
@@ -257,6 +262,7 @@ export function Area({
   tone,
   also: alsoIn,
   marker,
+  markerLabel,
 }: AreaProps) {
   const pts = useSame(ptsIn, samePts);
   const band = useSame(bandIn, samePts);
@@ -361,6 +367,9 @@ export function Area({
   // Within five minutes, or a reading's step on a chart recorded less often (hourly disk space).
   const nowPt =
     domain && last && domain[1] - last.t <= Math.max(300, 1.5 * step(pts)) ? last : null;
+  // The moment picked, where it falls inside the chart, and where its chip sits.
+  const pickAt = marker != null && marker >= t0 && marker <= t1 && W > 0 ? marker : null;
+  const chipLeft = pickAt != null ? Math.min(Math.max(x(pickAt), left + 50), W - 50) : 0;
   const tipLeft = hp ? Math.min(Math.max(x(hp.t), left + 70), W - 70) : 0;
   // A peak at the top of the chart has its label below the dot, inside the card.
   return (
@@ -468,11 +477,10 @@ export function Area({
               />
             )}
             {peak && <line className="peakl" x1={x(peak.t)} x2={x(peak.t)} y1={0} y2={H} />}
-            {marker != null && marker >= t0 && marker <= t1 && (
+            {pickAt != null && (
               <g className="pickm">
-                <line className="pickh" x1={x(marker)} x2={x(marker)} y1={0} y2={H} />
-                <line className="pickl" x1={x(marker)} x2={x(marker)} y1={0} y2={H} />
-                <circle className="pickc" cx={x(marker)} cy={4} r={3.5} />
+                <line className="pickh" x1={x(pickAt)} x2={x(pickAt)} y1={PICK_TOP} y2={H} />
+                <line className="pickl" x1={x(pickAt)} x2={x(pickAt)} y1={PICK_TOP} y2={H} />
               </g>
             )}
             {hp && <line className="cross" x1={x(hp.t)} x2={x(hp.t)} y1={0} y2={H} />}
@@ -523,16 +531,25 @@ export function Area({
                 style={{ left: x(peak.t), top: y(peak.v), background: color }}
               />
             )}
-            <span
-              className="peaklabel"
-              style={{
-                left: Math.min(Math.max(x(peak.t), left + 50), W - 50),
-                top: y(peak.v),
-              }}
-            >
-              {peak.label}
-            </span>
+            {!(pickAt != null && Math.abs(chipLeft - x(peak.t)) < 110) && (
+              <span
+                className="peaklabel"
+                style={{
+                  left: Math.min(Math.max(x(peak.t), left + 50), W - 50),
+                  top: y(peak.v),
+                }}
+              >
+                {peak.label}
+              </span>
+            )}
           </>
+        )}
+        {pickAt != null && (
+          // A chip saying when, its arrow pointing down the line to the moment.
+          <span className="pickchip" style={{ left: chipLeft }}>
+            {markerLabel ?? (fmtT ?? fmtAt)(pickAt)}
+            <i style={{ left: `calc(50% + ${x(pickAt) - chipLeft}px)` }} />
+          </span>
         )}
         {nowPt && W > 0 && (
           <span
