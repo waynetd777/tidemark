@@ -1129,8 +1129,8 @@ kbd {
   background: linear-gradient(
     180deg,
     var(--ground) 0%,
-    var(--ground) 30%,
-    var(--deep) 30.1%,
+    var(--ground) 300px,
+    var(--deep) 300px,
     #0a2129 100%
   );
   color: #fff;
@@ -1140,8 +1140,7 @@ kbd {
 .dl-sea {
   position: absolute;
   inset: 0 0 auto;
-  height: 30%;
-  min-height: 140px;
+  height: 300px;
   pointer-events: none;
 }
 .dl-sea .wave {
