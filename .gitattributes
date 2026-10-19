@@ -1,3 +1,7 @@
+# Text is checked out with LF on every system, Windows' included: the help and docs are built into
+# the app (include_str!, Vite's ?raw), and Git's CRLF on a Windows checkout put a carriage return
+# before every newline there.
+* text=auto eol=lf
 # sift: append-only files merge by union
 _sift/journal.jsonl    merge=union
 _sift/files.jsonl      merge=union
