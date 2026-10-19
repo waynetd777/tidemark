@@ -43,17 +43,20 @@ function HelpText({ md, onLink }: { md: string; onLink: (anchor: string) => void
   );
 }
 
-/** `scroll` brings it to the top of the drawer: the section a link opened. */
+/** `scroll` brings it to the top of the drawer: the section a link opened. With `onOpen`, the
+ *  drawer decides what is open (one section at a time), and a click on the title asks it. */
 function Section({
   s,
   open,
   scroll,
   onLink,
+  onOpen,
 }: {
   s: HelpSection;
   open?: boolean;
   scroll?: boolean;
   onLink: (anchor: string) => void;
+  onOpen?: (open: boolean) => void;
 }) {
   const ref = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -61,7 +64,15 @@ function Section({
   }, [scroll]);
   return (
     <details ref={ref} className="help-sec" open={open}>
-      <summary>
+      <summary
+        onClick={
+          onOpen &&
+          ((e) => {
+            e.preventDefault();
+            onOpen(!open);
+          })
+        }
+      >
         {CHEVRON}
         {s.title}
       </summary>
@@ -114,12 +125,16 @@ export default function HelpDrawer({
   const [q, setQ] = useState("");
   const [at, setAt] = useState<string | null>(null);
   const [all, setAll] = useState(false);
+  // The one section open in the guide: opening another closes it. Undefined until one is picked,
+  // when it is the section a link went to, or the screen's first.
+  const [opened, setOpened] = useState<string | null | undefined>(undefined);
   // A new screen opens its own sections again.
   const [seenScreen, setSeenScreen] = useState(screen);
   if (screen !== seenScreen) {
     setSeenScreen(screen);
     setAll(false);
     setAt(null);
+    setOpened(undefined);
   }
   const sections = all
     ? GUIDE.sections
@@ -144,6 +159,7 @@ export default function HelpDrawer({
   const goTo = (anchor: string) => {
     setQ("");
     setAt(anchor);
+    setOpened(anchor);
     if (!sections.some((s) => s.anchor === anchor)) setAll(true);
   };
   const query = q.trim();
@@ -165,9 +181,10 @@ export default function HelpDrawer({
             <Section
               key={s.anchor}
               s={s}
-              open={at ? s.anchor === at : i === 0}
+              open={opened === undefined ? (at ? s.anchor === at : i === 0) : s.anchor === opened}
               scroll={s.anchor === at}
               onLink={goTo}
+              onOpen={(o) => setOpened(o ? s.anchor : null)}
             />
           ))}
         </div>

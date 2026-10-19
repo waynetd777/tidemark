@@ -1193,6 +1193,18 @@ kbd {
   display: grid;
   gap: 14px;
 }
+/* "On a Mac", "On Windows": each system's steps under a heading of its own. */
+.install-os {
+  max-width: 600px;
+  margin: 48px auto 0;
+  text-align: left;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+.install-os + .install {
+  margin-top: 18px;
+}
 .install li {
   counter-increment: s;
   position: relative;

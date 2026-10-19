@@ -1629,6 +1629,9 @@ pre,
 .help-text li {
   margin: 2px 0;
 }
+.help-text > :last-child {
+  margin-bottom: 0;
+}
 .help-text h4 {
   margin: 12px 0 4px;
   font-size: 13px;
@@ -1690,8 +1693,9 @@ pre,
 .help-sec summary::-webkit-details-marker {
   display: none;
 }
+/* Clear of the line under the section, as "The whole guide" is of the one above it. */
 .help-sec .help-text {
-  padding: 4px 0 2px 18px;
+  padding: 4px 0 10px 18px;
 }
 .help-chev {
   width: 12px;
@@ -1706,6 +1710,10 @@ pre,
 .help-none {
   color: var(--muted);
   margin: 0;
+}
+/* "The whole guide" / "Just this screen", clear of the last section's line. */
+.help-all {
+  margin-top: 14px;
 }
 
 /* ---- shared bits for the new screens ---- */

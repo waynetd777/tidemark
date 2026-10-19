@@ -1,6 +1,6 @@
 # Tidemark
 
-*The high-water marks of your Mac.*
+*The high-water marks of your Mac or PC.*
 
 An app for macOS and Windows that records what is using your computer's disk and how hard it is working, now and over time, and marks the highs. Built with Tauri 2, React and Rust.
 

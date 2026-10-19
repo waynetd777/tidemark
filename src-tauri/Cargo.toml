@@ -1,7 +1,7 @@
 [package]
 name = "tidemark"
 version = "2.1.7"
-description = "The high-water marks of your Mac: what is using the disk"
+description = "The high-water marks of your Mac or PC: what is using the disk"
 authors = ["Wayne Davies"]
 license = "GPL-3.0-or-later"
 edition = "2021"

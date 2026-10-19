@@ -6,10 +6,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tidemark: the high-water marks of your Mac</title>
+    <title>Tidemark: the high-water marks of your Mac or PC</title>
     <meta
       name="description"
-      content="Tidemark is a free Mac app that records how hard your Mac works and what fills its disk, over time, and marks the highs: CPU, GPU, memory, disk, network, energy and a map of every folder."
+      content="Tidemark is a free app for Mac and Windows that records how hard your computer works and what fills its disk, over time, and marks the highs: CPU, GPU, memory, disk, network, energy and a map of every folder."
     />
     <meta name="google-site-verification" content="i4TUXxiTMawK83ozrMTEYSBRZYrrRbZOhnqJokfEkfU" />
     <link rel="canonical" href="https://tidemark.davies.co.za/" />
@@ -18,7 +18,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Tidemark" />
     <meta property="og:url" content="https://tidemark.davies.co.za/" />
-    <meta property="og:title" content="Tidemark: the high-water marks of your Mac" />
+    <meta property="og:title" content="Tidemark: the high-water marks of your Mac or PC" />
     <meta
       property="og:description"
       content="How hard your Mac works and what fills its disk, recorded over time, with the highs marked. Free for Mac."
@@ -28,10 +28,10 @@
     <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="Tidemark's Now screen under the headline The high-water marks of your Mac."
+      content="Tidemark's Now screen under the headline The high-water marks of your Mac or PC."
     />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Tidemark: the high-water marks of your Mac" />
+    <meta name="twitter:title" content="Tidemark: the high-water marks of your Mac or PC" />
     <meta
       name="twitter:description"
       content="How hard your Mac works and what fills its disk, recorded over time, with the highs marked. Free for Mac."
@@ -46,10 +46,13 @@
         "@type": "SoftwareApplication",
         "name": "Tidemark",
         "url": "https://tidemark.davies.co.za/",
-        "description": "A Mac app that records CPU, GPU, memory, disk I/O, network, energy and disk space over time, marks the highs, and maps what is using the disk.",
+        "description": "An app for macOS and Windows that records CPU, GPU, memory, disk I/O, network, energy and disk space over time, marks the highs, and maps what is using the disk.",
         "applicationCategory": "UtilitiesApplication",
-        "operatingSystem": "macOS 13 or later (Apple silicon)",
-        "downloadUrl": "https://github.com/waynetd777/tidemark/releases/latest/download/Tidemark.dmg",
+        "operatingSystem": "macOS 13 or later (Apple silicon), Windows 10 or later (64-bit)",
+        "downloadUrl": [
+          "https://github.com/waynetd777/tidemark/releases/latest/download/Tidemark.dmg",
+          "https://github.com/waynetd777/tidemark/releases/latest/download/Tidemark_x64-setup.exe"
+        ],
         "image": "https://tidemark.davies.co.za/img/og.png",
         "screenshot": "https://tidemark.davies.co.za/img/now-light.webp",
         "license": "https://www.gnu.org/licenses/gpl-3.0.html",
@@ -85,14 +88,16 @@
       <section class="hero">
         <div class="hero-sky" aria-hidden="true"><canvas class="stars"></canvas></div>
         <div class="hero-copy">
-          <p class="eyebrow rise">Tidemark for Mac</p>
-          <h1 class="rise">The high-water marks<br /><span class="grad">of your Mac.</span></h1>
+          <p class="eyebrow rise">Tidemark for Mac and Windows</p>
+          <h1 class="rise">
+            The high-water marks<br /><span class="grad">of your Mac or PC.</span>
+          </h1>
           <p class="lede rise">
-            How hard your Mac works and what fills its disk, recorded every minute and kept for
+            How hard your computer works and what fills its disk, recorded every minute and kept for
             weeks, with the highs marked.
           </p>
           <div class="cta rise">
-            <a class="btn btn-light" href="#download">Download for Mac</a>
+            <a class="btn btn-light" href="#download">Download for Mac or Windows</a>
             <a class="link link-light" href="#now"
               >See how it works <span aria-hidden="true">›</span></a
             >
@@ -164,13 +169,13 @@
         <div class="center">
           <p class="eyebrow reveal">Now</p>
           <h2 class="reveal">
-            Everything your Mac<br />is doing. <span class="grad">At a glance.</span>
+            Everything your computer<br />is doing. <span class="grad">At a glance.</span>
           </h2>
           <p class="lede reveal">
             Eight measures, each with a meter of how full it is now and a chart of its last hour
             (the disk's last day). CPU, GPU, memory, energy and disk space carry the week's
-            tidemark. One sentence says how the Mac is doing, and below, the apps using the most
-            memory, CPU, disk I/O and energy right now.
+            tidemark. One sentence says how the computer is doing, and below, the apps using the
+            most memory, CPU, disk I/O and energy right now.
           </p>
         </div>
         <div class="gauges" data-gauges>
@@ -303,7 +308,7 @@
             <li>Click to zoom in</li>
             <li>Free space shown</li>
             <li>Cloud folders on disk and in the cloud</li>
-            <li>Reveal in Finder</li>
+            <li>Reveal in Finder or File Explorer</li>
           </ul>
         </div>
         <figure class="window reveal">
@@ -327,8 +332,8 @@
           <h2 class="reveal">Know when the disk<br /><span class="grad">will be full.</span></h2>
           <p class="lede reveal">
             Every measure a day at a time, over a month to a year: the busiest days and what ran on
-            them, when in the week your Mac works hardest over the last 14 days (or as many as are
-            kept), and how fast the disk is filling.
+            them, when in the week your computer works hardest over the last 14 days (or as many as
+            are kept), and how fast the disk is filling.
           </p>
         </div>
         <div class="trend-pair">
@@ -373,13 +378,13 @@
       <section class="duo">
         <article class="card card-tray reveal">
           <div class="card-copy">
-            <p class="eyebrow">Menu bar</p>
+            <p class="eyebrow">Menu bar · notification area</p>
             <h3>Always recording.<br />Even when it's quit, if you like.</h3>
             <p>
-              Close the window and Tidemark carries on in the menu bar. Its icon gets a mark when
-              something needs you, and its window shows the apps using the most of whatever is
-              tightest. Turn on Keep recording when quit in Settings and a small helper records
-              while the app is quit.
+              Close the window and Tidemark carries on in the menu bar, or the notification area on
+              Windows. Its icon gets a mark when something needs you, and its window shows the apps
+              using the most of whatever is tightest. Turn on Keep recording when quit in Settings
+              and a small helper records while the app is quit.
             </p>
           </div>
           <div class="menubar" aria-hidden="true">
@@ -401,10 +406,10 @@
         </article>
         <article class="card card-ask reveal">
           <div class="card-copy">
-            <p class="eyebrow">Ask <kbd>⌘K</kbd></p>
+            <p class="eyebrow">Ask <kbd>⌘K</kbd> <kbd>Ctrl+K</kbd></p>
             <h3>Ask why.</h3>
             <p>
-              Chat about your Mac with the AI you already use. It sees names, paths, sizes and
+              Chat about your computer with the AI you already use. It sees names, paths, sizes and
               figures, and Tidemark changes nothing.
             </p>
             <ul class="chips">
@@ -415,7 +420,7 @@
             </ul>
           </div>
           <div class="chat" data-chat>
-            <p class="bubble me">Why was my Mac slow on Wednesday afternoon?</p>
+            <p class="bubble me">Why was my laptop slow on Wednesday afternoon?</p>
             <p class="bubble ai"><span data-typed></span><span class="caret"></span></p>
           </div>
         </article>
@@ -424,7 +429,7 @@
       <!-- Trust -->
       <section class="trust">
         <h2 class="center reveal">
-          Your Mac's story.<br /><span class="grad">Kept on your Mac.</span>
+          Your computer's story.<br /><span class="grad">Kept on your computer.</span>
         </h2>
         <div class="tiles">
           <div class="tile reveal">
@@ -434,8 +439,8 @@
             </svg>
             <h3>Nothing leaves.</h3>
             <p>
-              Your history stays in Tidemark's folder on your Mac, and nothing leaves it unless you
-              use Ask. No Tidemark account or server, no tracking.
+              Your history stays in Tidemark's folder on your computer, and nothing leaves it unless
+              you use Ask. No Tidemark account or server, no tracking.
             </p>
           </div>
           <div class="tile reveal">
@@ -486,39 +491,40 @@
         <h2 class="center reveal">Questions.</h2>
         <div class="qs">
           <details class="reveal">
-            <summary>How is it different from Activity Monitor?</summary>
+            <summary>How is it different from Activity Monitor or Task Manager?</summary>
             <p>
-              Activity Monitor shows this moment. Tidemark records every minute for up to 14 days,
-              and every day for a year, so you can go back to Wednesday afternoon and see what was
-              happening, or to last spring. It also maps the disk and marks the week's highs.
+              They show this moment. Tidemark records every minute for up to 14 days, and every day
+              for a year, so you can go back to Wednesday afternoon and see what was happening, or
+              to last spring. It also maps the disk and marks the week's highs.
             </p>
           </details>
           <details class="reveal">
-            <summary>Does it slow my Mac down?</summary>
+            <summary>Does it slow my computer down?</summary>
             <p>
               It reads every 2 seconds while you're watching and every 5 when you're not, and
               redraws at most once a minute when its window is behind others. Disk scans run once a
-              day by default, when the Mac has been idle for 5 minutes and is on power (or after two
-              days, if it never is), and when you open it if the last scan is over an hour old. You
-              can choose hourly, which costs some battery, or off, which scans only when you press
-              Reload.
+              day by default, when the computer has been idle for 5 minutes and is on power (or
+              after two days, if it never is), and when you open it if the last scan is over an hour
+              old. You can choose hourly, which costs some battery, or off, which scans only when
+              you press Reload.
             </p>
           </details>
           <details class="reveal">
-            <summary>Why does it want Full Disk Access?</summary>
+            <summary>Why does it want Full Disk Access on a Mac?</summary>
             <p>
               To see inside Mail, Safari, Photos and other protected folders on the Disk Map.
               Without it those folders are skipped and counted, and a banner says so. Everything
-              else works without it.
+              else works without it. Windows has no such grant: there, the folders only an
+              administrator can open are skipped and counted.
             </p>
           </details>
           <details class="reveal">
             <summary>Where is my history kept?</summary>
             <p>
-              In Tidemark's folder in your Library, on this Mac only: an SQLite file for the
-              history, beside the saved scans and your settings. Choose 3, 7 or 14 days of every
-              minute in Settings; a row a day of every measure, and of disk space, is kept for a
-              year.
+              In Tidemark's folder in your Library on a Mac, or in AppData on Windows, on that
+              computer only: an SQLite file for the history, beside the saved scans and your
+              settings. Choose 3, 7 or 14 days of every minute in Settings; a row a day of every
+              measure, and of disk space, is kept for a year.
             </p>
           </details>
           <details class="reveal">
@@ -531,10 +537,12 @@
             </p>
           </details>
           <details class="reveal">
-            <summary>Is it free? Does it run on Intel or Windows?</summary>
+            <summary>Is it free? What does it run on?</summary>
             <p>
-              It's free and open source under the GNU GPL. For now it's for Apple silicon Macs with
-              macOS 13 or later.
+              It's free and open source under the GNU GPL. It runs on Macs with Apple silicon and
+              macOS 13 or later, and on PCs with Windows 10 or 11 (64-bit). A few things differ on
+              Windows, which doesn't measure each app's energy and gives the power drawn only on
+              battery.
             </p>
           </details>
         </div>
@@ -551,19 +559,29 @@
           </svg>
         </div>
         <img class="big-mark reveal" src="img/mark.svg" alt="" width="96" height="96" />
-        <h2 class="reveal">Know your Mac.</h2>
-        <p class="lede reveal">Install it once and it keeps watch from the menu bar.</p>
+        <h2 class="reveal">Know your computer.</h2>
+        <p class="lede reveal">
+          Install it once and it keeps watch from the menu bar, or the notification area.
+        </p>
         <div class="cta reveal">
           <a
             class="btn"
             href="https://github.com/waynetd777/tidemark/releases/latest/download/Tidemark.dmg"
             >Download for Mac</a
           >
+          <a
+            class="btn"
+            href="https://github.com/waynetd777/tidemark/releases/latest/download/Tidemark_x64-setup.exe"
+            >Download for Windows</a
+          >
           <a class="link" href="https://github.com/waynetd777/tidemark"
             >View on GitHub <span aria-hidden="true">›</span></a
           >
         </div>
-        <p class="fine reveal">Apple silicon (M1 or later), macOS 13 or later.</p>
+        <p class="fine reveal">
+          Mac: Apple silicon (M1 or later), macOS 13 or later. Windows: 10 or 11, 64-bit.
+        </p>
+        <h3 class="install-os reveal">On a Mac</h3>
         <ol class="install reveal">
           <li>Open the disk image and drag Tidemark onto Applications.</li>
           <li>
@@ -581,6 +599,22 @@
           <li>
             To keep recording while it's quit, turn on Keep recording when quit in Settings. It
             appears as Tidemark under General › Login Items › Allow in the Background.
+          </li>
+        </ol>
+        <h3 class="install-os reveal">On Windows</h3>
+        <ol class="install reveal">
+          <li>Run the installer. It installs for you alone, with no administrator password.</li>
+          <li>
+            If Windows says it protected your PC, click More info, then Run anyway: the app isn't
+            code-signed.
+          </li>
+          <li>
+            Open Tidemark from the Start menu. There's no Full Disk Access to give: it reads every
+            folder your account can.
+          </li>
+          <li>
+            To keep recording while it's quit, turn on Keep recording when quit in Settings. It
+            appears as Tidemark Helper under Settings › Apps › Startup.
           </li>
         </ol>
       </section>
