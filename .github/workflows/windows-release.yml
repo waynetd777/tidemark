@@ -1,0 +1,48 @@
+# Copyright (c) 2026 Wayne Davies
+# SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
+
+# The Windows installer for each release make release publishes from the Mac: built from the
+# release's commit, signed with the updater key, and added to the release with its entry in
+# latest.json (tools/update_windows.py), so installed Windows copies update themselves. For a
+# release made before this existed, run it from the Actions tab with the tag.
+name: Windows release
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release to add the Windows installer to (v2.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+      - uses: dtolnay/rust-toolchain@stable
+      # The crates compiled by windows-cache.yml on main. A cache saved here, on a tag, would be
+      # seen by no other release, so nothing is saved.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: windows-release
+          save-if: false
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.x" }
+      - run: npm ci --no-audit --no-fund
+      - run: npx tauri build
+      - run: python tools/update_windows.py "$env:TAG"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}

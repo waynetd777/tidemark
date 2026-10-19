@@ -1,0 +1,43 @@
+# Copyright (c) 2026 Wayne Davies
+# SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
+
+# The Windows release build done on main, so windows-release.yml starts with its crates compiled.
+# A cache saved on a release's tag is seen only by that tag, so each release would otherwise
+# build everything again; one saved on main is seen by every tag. The cache's workspace and
+# shared-key must stay exactly as windows-release.yml has them.
+name: Windows release cache
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src-tauri/**"
+      - "src/**"
+      - "package*.json"
+      - ".github/workflows/windows-cache.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-cache
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Not for a push that is only make release's version bump ("Tidemark 2.2.0"): the release
+    # builds that itself, and nothing the cache holds has changed.
+    if: github.event_name != 'push' || github.event.commits[1] != null || !startsWith(github.event.head_commit.message, 'Tidemark ')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: windows-release
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      # The release's build, without the installer.
+      - run: npx tauri build --no-bundle

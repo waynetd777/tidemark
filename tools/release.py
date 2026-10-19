@@ -39,6 +39,18 @@ BUMPED = [
     "src-tauri/Cargo.lock",
 ]
 DRY_RUN = os.environ.get("DRY_RUN", "") not in ("", "0")
+# Added to every release's notes: how to get past each system's first-run warning. The Windows
+# installer is added by .github/workflows/windows-release.yml once the release is published.
+FIRST_RUN = (
+    "\n### Installing\n\n"
+    "**Mac** (macOS 13 or later): open `Tidemark.dmg` and drag Tidemark onto Applications. The"
+    " first time you open it, macOS warns because it is self-signed rather than notarised: click"
+    " **Done**, then in System Settings \u203a Privacy & Security click **Open Anyway**.\n\n"
+    "**Windows** (10 or 11, 64-bit): run `Tidemark_x64-setup.exe` (added to the release a few"
+    " minutes after it is published). If Windows says it protected your PC, click **More info**,"
+    " then **Run anyway**: the app isn't code-signed. It installs for you alone, with no"
+    " administrator password.\n"
+)
 
 
 def run(*cmd):
@@ -89,7 +101,7 @@ def main():
     head = "HEAD" if DRY_RUN else output("git", "rev-parse", "HEAD").strip()
     dash = NAME.replace(" ", "-")
     files = [f"{OUT}/{dash}.dmg", f"{OUT}/{dash}.app.tar.gz", f"{OUT}/latest.json"]
-    notes_args = ["--title", title, "--notes", notes]
+    notes_args = ["--title", title, "--notes", notes + "\n" + FIRST_RUN]
     run("gh", "release", "create", f"v{v}", *files, "--target", head, *notes_args)
     if os.environ.get("INSTALL", "1") != "0":
         was_running = running()
