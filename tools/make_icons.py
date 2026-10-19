@@ -2,8 +2,9 @@
 # Copyright (c) 2026 Wayne Davies
 # SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-"""Draw the app's artwork: design/icon.png (the Dock icon source) and the menu-bar template images
-src-tauri/icons/tray@2x.png and tray-alert@2x.png.
+"""Draw the app's artwork: design/icon.png (the Dock icon source), the menu-bar template images
+src-tauri/icons/tray@2x.png and tray-alert@2x.png, and Windows' notification-area icons
+src-tauri/icons/tray-win.png and tray-win-alert.png.
 
 The icon is a tidemark: deep water in a dark teal tile, a calm wave across its lower half, a faint
 older mark, and the dashed line the water once reached. Drawn with PIL rather than exported from
@@ -13,6 +14,8 @@ artwork. The geometry follows the design's SVG (viewBox 100..924, the tile's own
 Lessons learned the hard way:
   * the tile needs real transparent corners (qlmanage flattens on white, PIL does not);
   * the tray image is a TEMPLATE: black plus alpha only, macOS tints it, so shape is the message;
+  * Windows tints nothing, so its notification-area icon is the app icon itself, with an amber dot
+    in a notch for the alert;
   * supersample and downsample for smooth edges.
 
     python3 tools/make_icons.py            # then: npx tauri icon design/icon.png
@@ -150,7 +153,30 @@ def tray_icon(alert):
     print(f"wrote {out}")
 
 
+def tray_icon_win(alert):
+    """Windows' notification-area icon, 64px: the app icon, and for the alert a notch in the
+    top-right corner with the app's warning amber in it."""
+    T = 64
+    ss = 8
+    img = (
+        Image.open(ROOT / "design/icon.png").convert("RGBA").resize((T * ss, T * ss), Image.LANCZOS)
+    )
+    if alert:
+        cx, cy, r, ring = 50 * ss, 14 * ss, 11 * ss, 4 * ss
+        notch = Image.new("L", img.size, 255)
+        ImageDraw.Draw(notch).ellipse(
+            [cx - r - ring, cy - r - ring, cx + r + ring, cy + r + ring], fill=0
+        )
+        img.putalpha(Image.composite(img.getchannel("A"), notch, notch))
+        ImageDraw.Draw(img).ellipse([cx - r, cy - r, cx + r, cy + r], fill=(232, 163, 58, 255))
+    out = ROOT / f"src-tauri/icons/tray-win{'-alert' if alert else ''}.png"
+    img.resize((T, T), Image.LANCZOS).save(out)
+    print(f"wrote {out}")
+
+
 if __name__ == "__main__":
     app_icon()
     tray_icon(alert=False)
     tray_icon(alert=True)
+    tray_icon_win(alert=False)
+    tray_icon_win(alert=True)

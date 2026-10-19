@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-//! The disk side: the scan on screen, scanning, and the Finder commands the map offers. A
+//! The disk side: the scan on screen, scanning, and the Finder (or File Explorer) commands the
+//! map offers. A
 //! finished scan is also handed to the history, which is how the app knows what grew.
 
 use crate::{cache, history, scan, volume};
@@ -97,13 +98,14 @@ pub fn home() -> String {
             return h;
         }
     }
-    std::env::var("HOME").unwrap_or_else(|_| "/".into())
+    volume::canonical(&cache::home())
 }
 
 /// ~/Library/Safari is only readable with Full Disk Access (~/Library/CloudStorage is NOT a
-/// valid probe: it is readable without Full Disk Access).
+/// valid probe: it is readable without Full Disk Access). Windows has no such grant: what an
+/// app can't read there, only an administrator can.
 fn has_full_disk_access() -> bool {
-    std::fs::read_dir(Path::new(&home()).join("Library/Safari")).is_ok()
+    cfg!(windows) || std::fs::read_dir(Path::new(&home()).join("Library/Safari")).is_ok()
 }
 
 /// Off the main thread (async): the first call reads the boot volume's name from /Volumes.
@@ -180,15 +182,12 @@ pub fn get_tree(
         .and_then(|s| s.clone())
         .ok_or("no scan yet")?;
     let root = scan.root.clone();
-    let rel = if path == root {
-        String::new()
-    } else if root == "/" {
-        path.trim_start_matches('/').to_string()
-    } else {
-        path.strip_prefix(&format!("{root}/"))
-            .ok_or_else(|| format!("{path} is not under {root}"))?
-            .to_string()
-    };
+    // Under the root: the root itself, or the root and a `/` (which a volume's root ends with).
+    let rel = path
+        .strip_prefix(root.as_str())
+        .filter(|r| r.is_empty() || root.ends_with('/') || r.starts_with('/'))
+        .ok_or_else(|| format!("{path} is not under {root}"))?
+        .to_string();
     let parts: Vec<&str> = rel.split('/').filter(|s| !s.is_empty()).collect();
     let node = scan
         .tree
@@ -210,7 +209,7 @@ pub fn get_tree(
 pub fn walk_root(root: &str, progress: &scan::Progress) -> Option<cache::Scan> {
     let t0 = Instant::now();
     let name = volume::root_name(root);
-    let tree = scan::walk(Path::new(root), name.clone(), false, progress)?;
+    let tree = scan::walk(&volume::native(root), name.clone(), false, progress)?;
     Some(cache::Scan {
         root: root.to_string(),
         root_name: name,
@@ -246,7 +245,8 @@ pub fn keep(s: &cache::Scan) {
 
 /// Held by whichever process is scanning (the app or the background helper) while it scans, so
 /// an automatic scan never starts beside another: a whole-disk walk takes every core for a
-/// minute. A flock on a file beside the cache, released when dropped or when the process ends.
+/// minute. A lock on a file beside the cache (flock, or LockFileEx on Windows), released when
+/// dropped or when the process ends.
 pub struct ScanLock(#[allow(dead_code)] std::fs::File);
 
 /// The scan lock, if no other scan holds it.
@@ -259,9 +259,7 @@ pub fn scan_lock() -> Option<ScanLock> {
         .write(true)
         .open(dir.join("scan.lock"))
         .ok()?;
-    use std::os::fd::AsRawFd;
-    (unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0)
-        .then_some(ScanLock(f))
+    f.try_lock().is_ok().then_some(ScanLock(f))
 }
 
 /// Starts a scan of `root`. With `show` the app switches to that root (the user asked); without
@@ -275,7 +273,7 @@ pub fn start_scan_thread(
     auto: bool,
 ) -> Result<(), String> {
     let state: State<AppState> = app.state();
-    if !Path::new(&root).is_dir() {
+    if !volume::native(&root).is_dir() {
         return Err(format!("{root} is not a folder"));
     }
     let lock = scan_lock();
@@ -342,8 +340,9 @@ pub fn start_scan_thread(
 #[tauri::command(async)]
 pub fn start_scan(app: AppHandle, root: Option<String>) -> Result<(), String> {
     let state: State<AppState> = app.state();
+    // A folder the picker gave is in the system's form; the app's from here on.
     let root = match root {
-        Some(r) if !r.is_empty() => r,
+        Some(r) if !r.is_empty() => volume::canonical(Path::new(&r)),
         _ => state.root(),
     };
     start_scan_thread(&app, root, true, false)
@@ -355,20 +354,57 @@ pub fn stop_scan(state: State<AppState>) {
     state.progress.cancel.store(true, Ordering::SeqCst);
 }
 
+/// Shows the item in Finder, or File Explorer, selected in its folder.
 #[tauri::command(async)]
 pub fn reveal(path: String) -> Result<(), String> {
-    if !Path::new(&path).exists() {
+    let native = volume::native(&path);
+    if !native.exists() {
         return Err(format!("{path} does not exist"));
     }
+    #[cfg(target_os = "macos")]
     Command::new("/usr/bin/open")
         .arg("-R")
-        .arg(&path)
+        .arg(&native)
         .status()
         .map_err(|e| e.to_string())?;
+    // Explorer reads /select, and the path as one argument of its own making: quoted, unescaped.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        Command::new("explorer.exe")
+            .raw_arg(format!("/select,\"{}\"", native.display()))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
-/// Finder's Get Info window for a path, via AppleScript (there is no URL scheme for it).
+/// Finder's Get Info window for a path, via AppleScript (there is no URL scheme for it); on
+/// Windows, File Explorer's Properties, which the shell shows in this process: on the main
+/// thread, whose message loop keeps it open.
+#[cfg(windows)]
+#[tauri::command(async)]
+pub fn get_info(app: AppHandle, path: String) -> Result<(), String> {
+    let native = volume::native(&path);
+    if !native.exists() {
+        return Err(format!("{path} does not exist"));
+    }
+    app.run_on_main_thread(move || {
+        use windows::Win32::UI::Shell::{SHObjectProperties, SHOP_FILEPATH};
+        let p = volume::wide(&native);
+        let _ = unsafe {
+            SHObjectProperties(
+                None,
+                SHOP_FILEPATH,
+                windows::core::PCWSTR(p.as_ptr()),
+                windows::core::PCWSTR::null(),
+            )
+        };
+    })
+    .map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "macos")]
 #[tauri::command(async)]
 pub fn get_info(path: String) -> Result<(), String> {
     if !Path::new(&path).exists() {
@@ -386,8 +422,10 @@ pub fn get_info(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// System Settings' Full Disk Access; Windows has no such grant (the page doesn't offer it there).
 #[tauri::command(async)]
 pub fn open_privacy_settings() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
     Command::new("/usr/bin/open")
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
         .status()

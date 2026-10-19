@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Wayne Davies
 # SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-# make check on macOS (the app is macOS only): every linter, the Rust tests and the TypeScript
+# make check on macOS: every linter, the Rust tests and the TypeScript
 # type-check, as the pre-commit hook runs them. Only for pushes that change the app, not the docs,
 # the product page or sift's records alone; it can also be started from the Actions tab.
 name: CI

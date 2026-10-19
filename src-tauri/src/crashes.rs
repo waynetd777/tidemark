@@ -6,7 +6,7 @@
 //! system's), each starting with a line of JSON naming the app, the time and the kind (bug_type).
 //! Reports macOS marks as simulated are faults it noted but the app survived, so they are left
 //! out. The recorder reads the folders every few minutes and keeps each report once (by file
-//! name) in the history.
+//! name) in the history. Windows notes them in its event log instead (crashes_win.rs).
 
 use crate::history;
 use serde::Deserialize;
@@ -59,9 +59,8 @@ pub fn parse_header(line: &str) -> Option<(i64, String, &'static str)> {
 }
 
 fn folders() -> Vec<PathBuf> {
-    let home = std::env::var("HOME").unwrap_or_default();
     vec![
-        Path::new(&home).join("Library/Logs/DiagnosticReports"),
+        crate::cache::home().join("Library/Logs/DiagnosticReports"),
         PathBuf::from("/Library/Logs/DiagnosticReports"),
     ]
 }
@@ -81,7 +80,14 @@ fn first_line(p: &Path) -> Option<String> {
 static SKIPPED: std::sync::Mutex<Option<std::collections::HashSet<String>>> =
     std::sync::Mutex::new(None);
 
-/// Reads any reports not yet in the history, from the last `days` days.
+/// Reads any reports not yet in the history, from the last `days` days. On Windows, from the
+/// event log (crashes_win.rs).
+#[cfg(windows)]
+pub fn collect(days: u32) {
+    crate::crashes_win::collect(days)
+}
+
+#[cfg(not(windows))]
 pub fn collect(days: u32) {
     let since = history::now() - days as i64 * 86_400;
     let known = history::crash_files();
@@ -131,9 +137,16 @@ pub fn crash_report(file: String) -> Result<String, String> {
     if !history::crash_files().contains(&file) {
         return Err("Not a report Tidemark has recorded.".into());
     }
-    let raw =
-        std::fs::read_to_string(&file).map_err(|e| format!("Couldn't read the report: {e}"))?;
-    Ok(summarise(&file, &raw))
+    #[cfg(windows)]
+    {
+        crate::crashes_win::report(&file)
+    }
+    #[cfg(not(windows))]
+    {
+        let raw =
+            std::fs::read_to_string(&file).map_err(|e| format!("Couldn't read the report: {e}"))?;
+        Ok(summarise(&file, &raw))
+    }
 }
 
 /// At most this much of a report goes to Ask.

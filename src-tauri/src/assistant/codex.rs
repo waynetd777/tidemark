@@ -37,8 +37,8 @@ pub fn find() -> Option<PathBuf> {
 /// The models the Codex CLI would offer in its picker, from the list it caches for the
 /// signed-in account. Empty if Codex has never run, so the app shows nothing to choose.
 pub fn models() -> Vec<Model> {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let Ok(s) = std::fs::read_to_string(format!("{home}/.codex/models_cache.json")) else {
+    let home = crate::cache::home();
+    let Ok(s) = std::fs::read_to_string(home.join(".codex/models_cache.json")) else {
         return Vec::new();
     };
     let Ok(v) = serde_json::from_str::<serde_json::Value>(&s) else {

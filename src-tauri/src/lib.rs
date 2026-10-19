@@ -3,31 +3,61 @@
 
 //! Puts the app together: the disk side (disk.rs, scan.rs), the recorder (monitor.rs), the
 //! history and its schedule (history.rs, schedule.rs, trends.rs), the menu bar (tray.rs) and Ask.
+//!
+//! It runs on macOS and Windows. Windows' versions of the macOS-only parts are *_win.rs, under
+//! the same module names where they stand in for one; what Windows doesn't have is stood in for
+//! by other.rs.
+
+// Windows has the app without the AppKit parts, which other.rs stands in for.
+#![cfg_attr(
+    not(target_os = "macos"),
+    allow(dead_code, unused_imports, unused_variables)
+)]
+#[cfg(not(any(target_os = "macos", windows, test)))]
+compile_error!("Tidemark runs on macOS and Windows.");
 
 #[cfg(target_os = "macos")]
 mod about;
 mod assistant;
 mod cache;
 mod crashes;
+#[cfg(windows)]
+mod crashes_win;
+mod dirlist;
 mod disk;
 mod energy;
 mod files;
 mod history;
 #[cfg(target_os = "macos")]
 mod login_item;
+#[cfg(windows)]
+#[path = "login_win.rs"]
+mod login_item;
 #[cfg(target_os = "macos")]
 mod login_launch;
 mod monitor;
+#[cfg(not(target_os = "macos"))]
+mod other;
+#[cfg(windows)]
+mod power_win;
+mod process;
 mod recorder;
+#[cfg(windows)]
+mod recorder_win;
 mod scan;
 mod scene;
 mod schedule;
 mod settings;
 mod system;
+#[cfg(windows)]
+mod system_win;
 mod tray;
 mod trends;
 mod updates;
 mod volume;
+
+#[cfg(not(target_os = "macos"))]
+use other::login_launch;
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -69,13 +99,7 @@ const WEBSITE: &str = "https://tidemark.davies.co.za/";
 /// thread; the command runs off it).
 #[tauri::command(async)]
 fn open_website() {
-    if let Ok(mut child) = std::process::Command::new("/usr/bin/open")
-        .arg(WEBSITE)
-        .spawn()
-    {
-        // Reaped off the main thread, so no zombie is left behind.
-        std::thread::spawn(move || child.wait());
-    }
+    process::open(WEBSITE);
 }
 
 /// macOS's About panel, with the website under the copyright, clickable.
@@ -100,8 +124,13 @@ fn about(app: &tauri::AppHandle) {
 }
 
 /// The standard menu bar, with Tidemark's own About item (for the website link) and Check for
-/// Updates… after it, and its help and website in the Help menu.
+/// Updates… after it, and its help and website in the Help menu. Windows has no app menu (a menu
+/// set here would be a menu bar in every window, the popover's too): there the popover and
+/// Settings carry Help, Check for Updates… and the website.
 fn help_menu(app: &tauri::App) -> tauri::Result<()> {
+    if !cfg!(target_os = "macos") {
+        return Ok(());
+    }
     use tauri::menu::{Menu, MenuItem, MenuItemKind, HELP_SUBMENU_ID};
     use tauri::Emitter;
     let menu = Menu::default(app.handle())?;
@@ -183,6 +212,14 @@ fn busy(app: &tauri::AppHandle) -> Option<String> {
     None
 }
 
+/// What quitting does: no CLI answering a question outlives the app, and the minute in hand is
+/// saved and open incidents end, if this was the recorder. Also before Windows' update
+/// installer, which closes the app itself (updates.rs).
+pub(crate) fn before_quit(app: &tauri::AppHandle) {
+    app.state::<Arc<assistant::Running>>().kill_all();
+    monitor::stop();
+}
+
 /// `Tidemark --record`: the background helper (recorder.rs) rather than the app. Some(never
 /// returns) when the arguments ask for it.
 pub fn helper(args: &[String]) -> Option<std::convert::Infallible> {
@@ -193,8 +230,39 @@ pub fn helper(args: &[String]) -> Option<std::convert::Infallible> {
 }
 
 pub fn run() {
+    // Windows' app has no console for a panic's message: it goes to crash.log instead (with
+    // panic = "abort", the hook still runs first).
+    #[cfg(windows)]
+    {
+        let log = cache::dir().join("crash.log");
+        std::panic::set_hook(Box::new(move |p| {
+            let bt = std::backtrace::Backtrace::force_capture();
+            let _ = std::fs::create_dir_all(cache::dir());
+            let _ = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log)
+                .and_then(|mut f| {
+                    use std::io::Write;
+                    writeln!(
+                        f,
+                        "{}: {p}\n{bt}\n",
+                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+                    )
+                });
+        }));
+    }
     let root = cache::load_root();
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    // Started again (any second launch on Windows; open -n on macOS), the open copy's window
+    // comes to the front instead. First, as it must be. Not in a debug build, so make dev runs
+    // beside the installed app.
+    if !cfg!(debug_assertions) {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_main(app)
+        }));
+    }
+    builder
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(STATE_FLAGS)
@@ -417,8 +485,7 @@ pub fn run() {
             // No CLI answering a question outlives the app.
             // The minute in hand is saved and open incidents end, if this was the recorder.
             if let tauri::RunEvent::Exit = ev {
-                app.state::<Arc<assistant::Running>>().kill_all();
-                monitor::stop();
+                before_quit(app);
             }
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = ev {

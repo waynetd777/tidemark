@@ -14,7 +14,19 @@
 
 use serde::{Deserialize, Serialize};
 
+// Windows reads these its own way (system_win.rs), under the same names.
+#[cfg(windows)]
+pub use crate::system_win::{chip, core_kinds, disk_rates, gpu_busy, mem_parts, pressure, thermal};
+
+/// The disk's read and write rates from the system itself; None where they are the processes'
+/// sums (macOS counts only the disk in those).
+#[cfg(target_os = "macos")]
+pub fn disk_rates() -> Option<(f64, f64)> {
+    None
+}
+
 /// The busiest GPU's utilisation, 0-100; None if no GPU reports one.
+#[cfg(target_os = "macos")]
 pub fn gpu_busy() -> Option<f64> {
     let out = std::process::Command::new("/usr/sbin/ioreg")
         .args(["-r", "-d", "1", "-c", "IOAccelerator", "-a"])
@@ -23,6 +35,7 @@ pub fn gpu_busy() -> Option<f64> {
     parse_gpu(&out.stdout)
 }
 
+#[cfg(target_os = "macos")]
 pub fn parse_gpu(xml: &[u8]) -> Option<f64> {
     let v: plist::Value = plist::from_bytes(xml).ok()?;
     v.as_array()?
@@ -43,6 +56,7 @@ pub fn parse_gpu(xml: &[u8]) -> Option<f64> {
 }
 
 /// Each core's kind, 'P' or 'E', in sysinfo's order; empty where the Mac doesn't say (Intel).
+#[cfg(target_os = "macos")]
 pub fn core_kinds() -> Vec<char> {
     std::process::Command::new("/usr/sbin/ioreg")
         .args([
@@ -62,6 +76,7 @@ pub fn core_kinds() -> Vec<char> {
         .unwrap_or_default()
 }
 
+#[cfg(target_os = "macos")]
 pub fn parse_core_kinds(xml: &[u8]) -> Vec<char> {
     let Ok(v) = plist::from_bytes::<plist::Value>(xml) else {
         return Vec::new();
@@ -98,8 +113,8 @@ pub struct MemParts {
 }
 
 /// What the memory in use is made of, from the kernel's VM statistics.
+#[cfg(target_os = "macos")]
 pub fn mem_parts() -> Option<MemParts> {
-    #[cfg(target_os = "macos")]
     unsafe {
         let mut info: libc::vm_statistics64 = std::mem::zeroed();
         let mut count = (std::mem::size_of::<libc::vm_statistics64>()
@@ -129,11 +144,74 @@ pub fn mem_parts() -> Option<MemParts> {
             compressed: pages(info.compressor_page_count as u64),
         })
     }
-    #[cfg(not(target_os = "macos"))]
-    None
 }
 
-#[cfg(test)]
+/// macOS memory pressure: 1 normal, 2 warning, 4 critical.
+#[cfg(target_os = "macos")]
+pub fn pressure() -> i64 {
+    let mut v: libc::c_int = 1;
+    let mut sz = std::mem::size_of::<libc::c_int>();
+    let ok = unsafe {
+        libc::sysctlbyname(
+            c"kern.memorystatus_vm_pressure_level".as_ptr(),
+            &mut v as *mut _ as *mut libc::c_void,
+            &mut sz,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if ok == 0 {
+        v as i64
+    } else {
+        1
+    }
+}
+
+/// 0 nominal, 1 fair, 2 serious, 3 critical.
+#[cfg(target_os = "macos")]
+pub fn thermal() -> i64 {
+    objc2_foundation::NSProcessInfo::processInfo()
+        .thermalState()
+        .0 as i64
+}
+
+#[cfg(target_os = "macos")]
+fn sysctl_string(name: &std::ffi::CStr) -> Option<String> {
+    let mut sz = 0usize;
+    unsafe {
+        if libc::sysctlbyname(
+            name.as_ptr(),
+            std::ptr::null_mut(),
+            &mut sz,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
+            return None;
+        }
+        let mut buf = vec![0u8; sz];
+        if libc::sysctlbyname(
+            name.as_ptr(),
+            buf.as_mut_ptr() as *mut _,
+            &mut sz,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
+            return None;
+        }
+        buf.truncate(sz.saturating_sub(1));
+        String::from_utf8(buf).ok()
+    }
+}
+
+/// The processor, as the Mac names it ("Apple M2 Pro").
+#[cfg(target_os = "macos")]
+pub fn chip() -> String {
+    sysctl_string(c"machdep.cpu.brand_string").unwrap_or_default()
+}
+
+#[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::*;
 

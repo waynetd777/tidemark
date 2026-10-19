@@ -11,6 +11,10 @@
 //! Each app's energy is the kernel's billed energy for its processes (proc_pid_rusage, the
 //! counter Activity Monitor's Energy tab is built on), in nanojoules; the difference between two
 //! samples over the time between them is watts. Only this user's processes can be read.
+//!
+//! Windows has neither: its battery is read from the driver (power_win.rs), and it doesn't
+//! measure what each process uses (Task Manager's "Power usage" is its own estimate, which no
+//! program can read), so there is no energy by app there.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -104,6 +108,12 @@ pub fn parse(xml: &[u8]) -> Option<Battery> {
     })
 }
 
+#[cfg(windows)]
+fn read_battery() -> Option<Battery> {
+    crate::power_win::battery()
+}
+
+#[cfg(target_os = "macos")]
 fn read_battery() -> Option<Battery> {
     let out = std::process::Command::new("/usr/sbin/ioreg")
         .args(["-rn", "AppleSmartBattery", "-a"])
@@ -228,6 +238,8 @@ mod tests {
         assert_eq!(parse(b"<plist version=\"1.0\"><array/></plist>"), None);
     }
 
+    // Windows doesn't measure each process's energy.
+    #[cfg(target_os = "macos")]
     #[test]
     fn work_shows_as_energy() {
         let pid = std::process::id() as i32;

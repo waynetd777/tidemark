@@ -9,26 +9,27 @@
 //!
 //! Two sizes are tracked for every folder:
 //!
-//! * `size` — allocated bytes on disk (`st_blocks * 512`). This is what the treemap draws,
-//!   because the question the app answers is "what is using my disk". A dataless file
-//!   (OneDrive / iCloud "online-only") has a length but no blocks, so it counts as nothing here.
+//! * `size` — allocated bytes on disk (`st_blocks * 512`, or the allocation size on Windows).
+//!   This is what the treemap draws, because the question the app answers is "what is using my
+//!   disk". A dataless file (OneDrive / iCloud "online-only") has a length but no blocks, so it
+//!   counts as nothing here.
 //! * `apparent` — logical bytes (`st_size`). For a cloud folder this is what is in the cloud,
 //!   whether or not it is also on disk, and the UI shows it beside `size`.
 //!
 //! A file with several hard links is counted once, in the first folder the walk reaches it
 //! from, as `du` does; its other links count as files but add no bytes. Spotlight's journals
 //! under ~/Library/Metadata/CoreSpotlight are linked into up to ten folders each, so counting
-//! every link put a 60 GB store on the map at 250 GB.
+//! every link put a 60 GB store on the map at 250 GB. On Windows the system's own links, from
+//! WinSxS through the Windows folder, are counted once the same way (dirlist.rs).
 //!
 //! The walk is one rayon task per directory, which keeps every core busy on an SSD and is
 //! naturally work-stealing on a lopsided tree. Progress is a handful of atomics the UI polls;
 //! cancellation is an AtomicBool checked before every directory is opened.
 
+use crate::dirlist;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::fs;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -82,7 +83,8 @@ pub struct Progress {
     pub current: Mutex<String>,
     pub cancel: AtomicBool,
     /// (device, inode) of every multiply-linked file seen so far. Only files with more than one
-    /// link go in, so the lock is rarely taken.
+    /// link go in (on Windows, every file in the Windows folder: see dirlist.rs), so the lock is
+    /// rarely taken.
     pub linked: Mutex<HashSet<(u64, u64)>>,
 }
 
@@ -102,13 +104,9 @@ impl Progress {
     }
 
     /// Whether this is the first link to the file the walk has met. Always true for a file with
-    /// one link.
-    fn first_link(&self, md: &fs::Metadata) -> bool {
-        md.nlink() <= 1
-            || self
-                .linked
-                .lock()
-                .map_or(true, |mut l| l.insert((md.dev(), md.ino())))
+    /// one link (no key).
+    fn first_link(&self, key: Option<(u64, u64)>) -> bool {
+        key.is_none_or(|k| self.linked.lock().map_or(true, |mut l| l.insert(k)))
     }
 }
 
@@ -139,11 +137,33 @@ fn is_cloud_root(p: &Path) -> bool {
 }
 
 pub fn walk(dir: &Path, name: String, cloud: bool, prog: &Progress) -> Option<Node> {
+    walk_in(dir, name, cloud, in_windows_folder(dir), prog)
+}
+
+/// The Windows folder (%SystemRoot%), where the system's hard links are: only there are file ids
+/// asked for and each counted once (dirlist.rs). Never true elsewhere.
+fn in_windows_folder(dir: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        static ROOT: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+        let root = ROOT.get_or_init(|| std::env::var("SystemRoot").ok().map(|r| r.to_lowercase()));
+        let d = dir.to_string_lossy().to_lowercase();
+        root.as_deref()
+            .is_some_and(|r| d == r || d.starts_with(&format!("{r}\\")))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = dir;
+        false
+    }
+}
+
+fn walk_in(dir: &Path, name: String, cloud: bool, sys: bool, prog: &Progress) -> Option<Node> {
     if prog.cancel.load(Ordering::Relaxed) {
         return None;
     }
     let cloud = cloud || is_cloud_root(dir);
-    let rd = match fs::read_dir(dir) {
+    let entries = match dirlist::list(dir, sys) {
         Ok(r) => r,
         Err(_) => {
             prog.denied.fetch_add(1, Ordering::Relaxed);
@@ -157,24 +177,23 @@ pub fn walk(dir: &Path, name: String, cloud: bool, prog: &Progress) -> Option<No
     };
     prog.dirs.fetch_add(1, Ordering::Relaxed);
     if let Ok(mut c) = prog.current.try_lock() {
-        *c = dir.to_string_lossy().into_owned();
+        *c = crate::volume::canonical(dir);
     }
 
-    let mut subdirs: Vec<(PathBuf, String)> = Vec::new();
+    let mut subdirs: Vec<(PathBuf, String, bool)> = Vec::new();
     let (mut files, mut ls, mut la) = (0u64, 0u64, 0u64);
-    for e in rd.flatten() {
-        let Ok(ft) = e.file_type() else { continue };
-        if ft.is_dir() {
-            let p = e.path();
+    for e in entries {
+        if e.kind == dirlist::Kind::Dir {
+            let p = dir.join(&e.name);
             if !skipped(&p) {
-                subdirs.push((p, e.file_name().to_string_lossy().into_owned()));
+                subdirs.push((p, e.name, e.cloud));
             }
-        } else if let Ok(md) = e.metadata() {
-            // DirEntry::metadata is an lstat: a symlink counts as itself, never its target.
+        } else {
+            // A link counts as itself, never its target.
             files += 1;
-            if prog.first_link(&md) {
-                la += md.len();
-                ls += md.blocks() * 512;
+            if prog.first_link(e.link_key) {
+                la += e.len;
+                ls += e.alloc;
             }
         }
     }
@@ -182,16 +201,11 @@ pub fn walk(dir: &Path, name: String, cloud: bool, prog: &Progress) -> Option<No
         .fetch_add(files + subdirs.len() as u64, Ordering::Relaxed);
     prog.bytes.fetch_add(ls, Ordering::Relaxed);
 
+    let into = |(p, n, c): (PathBuf, String, bool)| walk_in(&p, n, cloud || c, sys, prog);
     let mut kids: Vec<Node> = if subdirs.len() > 1 {
-        subdirs
-            .into_par_iter()
-            .filter_map(|(p, n)| walk(&p, n, cloud, prog))
-            .collect()
+        subdirs.into_par_iter().filter_map(into).collect()
     } else {
-        subdirs
-            .into_iter()
-            .filter_map(|(p, n)| walk(&p, n, cloud, prog))
-            .collect()
+        subdirs.into_iter().filter_map(into).collect()
     };
     if prog.cancel.load(Ordering::Relaxed) {
         return None;
@@ -273,11 +287,7 @@ pub fn view(node: &Node, path: &str, depth: u32, min_weight: u64, max_depth: u32
     let (mut more, mut more_size, mut more_apparent, mut more_weight) = (0u32, 0u64, 0u64, 0u64);
     for k in &node.kids {
         if weight(k) >= min_weight && depth < max_depth {
-            let p = if path == "/" {
-                format!("/{}", k.name)
-            } else {
-                format!("{path}/{}", k.name)
-            };
+            let p = crate::volume::join(path, &k.name);
             kids.push(view(k, &p, depth + 1, min_weight, max_depth));
         } else {
             more += 1;
@@ -310,6 +320,7 @@ pub fn view(node: &Node, path: &str, depth: u32, min_weight: u64, max_depth: u32
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn walk_sums_sizes_and_counts() {
@@ -342,6 +353,8 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
+    // On Windows only the Windows folder's links are looked for (dirlist.rs).
+    #[cfg(unix)]
     #[test]
     fn hard_links_count_once() {
         let dir = std::env::temp_dir().join(format!("duv-links-{}", std::process::id()));
@@ -358,6 +371,7 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
+    #[cfg(unix)]
     #[test]
     fn symlinks_are_not_followed() {
         let dir = std::env::temp_dir().join(format!("duv-symlinks-{}", std::process::id()));
@@ -377,11 +391,34 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
+    /// A junction (which needs no privilege to make, unlike a symbolic link) is not walked into.
+    #[cfg(windows)]
+    #[test]
+    fn junctions_are_not_followed() {
+        let dir = std::env::temp_dir().join(format!("duv-junction-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("real")).unwrap();
+        fs::write(dir.join("real/f"), vec![b'x'; 90_000]).unwrap();
+        let made = crate::process::no_window(&mut std::process::Command::new("cmd"))
+            .args(["/C", "mklink", "/J"])
+            .arg(dir.join("link"))
+            .arg(dir.join("real"))
+            .output()
+            .unwrap();
+        assert!(made.status.success());
+        let prog = Progress::default();
+        let n = walk(&dir, "root".into(), false, &prog).unwrap();
+        assert_eq!(n.kids.len(), 1, "a junction is not walked into");
+        assert_eq!(n.files, 1, "the junction counts as an entry of its own");
+        assert!(n.apparent < 90_000 + 1000);
+        let _ = fs::remove_dir_all(dir);
+    }
+
     #[test]
     fn cancel_stops_the_walk() {
         let prog = Progress::default();
         prog.cancel.store(true, Ordering::Relaxed);
-        assert!(walk(Path::new("/tmp"), "tmp".into(), false, &prog).is_none());
+        assert!(walk(&std::env::temp_dir(), "tmp".into(), false, &prog).is_none());
     }
 
     #[test]

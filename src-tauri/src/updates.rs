@@ -138,6 +138,8 @@ fn app_name(app: &AppHandle) -> String {
 
 /// Starts the background checks. Call once from setup, in the windowed app only.
 pub fn start(app: &AppHandle, busy: Busy) {
+    #[cfg(windows)]
+    remove_old_installers(&app_name(app));
     app.manage(Updates {
         pending: Mutex::new(None),
         offered: Mutex::new(None),
@@ -157,6 +159,22 @@ pub fn start(app: &AppHandle, busy: Busy) {
             std::thread::sleep(TICK);
         }
     });
+}
+
+/// The installers the updater downloaded, which it leaves in %TEMP%\<name>-<version>-updater-…
+/// once they have run.
+#[cfg(windows)]
+fn remove_old_installers(name: &str) {
+    let Ok(dir) = std::fs::read_dir(std::env::temp_dir()) else {
+        return;
+    };
+    let prefix = format!("{name}-");
+    for e in dir.flatten() {
+        let n = e.file_name().to_string_lossy().into_owned();
+        if n.starts_with(&prefix) && n.contains("-updater-") && e.path().is_dir() {
+            let _ = std::fs::remove_dir_all(e.path());
+        }
+    }
 }
 
 /// Check for Updates…: says what it found, even when there's nothing new.
@@ -221,7 +239,13 @@ async fn check(app: &AppHandle, asked: bool) {
             // A failed background check is tried again within the hour.
             eprintln!("update check failed: {e}");
             if asked {
-                tell(app, "Couldn't check for updates", &e.to_string()).await;
+                // A release whose Windows installer isn't published yet has no entry for it.
+                let text = if e.to_string().to_lowercase().contains("platform") {
+                    "Updates for this system aren't published yet.".to_string()
+                } else {
+                    e.to_string()
+                };
+                tell(app, "Couldn't check for updates", &text).await;
             }
         }
     }
@@ -364,8 +388,14 @@ async fn install(app: &AppHandle, update: Update) {
         Err(e) => return tell(app, "The update didn't download", &e.to_string()).await,
     };
     progress("installing", bytes.len() as u64, Some(bytes.len() as u64));
+    #[cfg(windows)]
+    let handle = app.clone();
     let installed = tauri::async_runtime::spawn_blocking(move || {
         let helper = crate::recorder::stop_for_update();
+        // Windows' installer closes the app as it starts, so nothing after `install` runs there:
+        // what quitting does (the minute in hand saved, Ask's CLIs ended) is done first.
+        #[cfg(windows)]
+        crate::before_quit(&handle);
         let done = update.install(bytes);
         // Loaded again whether or not the swap worked: from the new binary, or the old one.
         if helper {

@@ -104,25 +104,31 @@ impl Running {
 
 /// The CLIs start helpers of their own, so the whole process group goes.
 fn kill_group(pid: u32) {
+    #[cfg(unix)]
     unsafe {
         libc::kill(-(pid as libc::pid_t), libc::SIGTERM);
+    }
+    // Windows has no process groups: taskkill ends the CLI and everything it started (/T).
+    #[cfg(windows)]
+    {
+        let mut kill = Command::new("taskkill");
+        kill.args(["/T", "/F", "/PID", &pid.to_string()]);
+        let _ = crate::process::no_window(&mut kill).status();
     }
 }
 
 /// Where a CLI is installed: the usual places first, then the login shell's PATH.
+#[cfg(not(windows))]
 fn find(name: &str, extra: &[&str]) -> Option<PathBuf> {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let mut places: Vec<String> = vec![format!("{home}/.local/bin/{name}")];
-    places.extend(extra.iter().map(|p| format!("{home}/{p}")));
+    let home = crate::cache::home();
+    let mut places = vec![home.join(".local/bin").join(name)];
+    places.extend(extra.iter().map(|p| home.join(p)));
     places.extend([
-        format!("/opt/homebrew/bin/{name}"),
-        format!("/usr/local/bin/{name}"),
+        PathBuf::from("/opt/homebrew/bin").join(name),
+        PathBuf::from("/usr/local/bin").join(name),
     ]);
-    for p in places {
-        let p = PathBuf::from(p);
-        if p.is_file() {
-            return Some(p);
-        }
+    if let Some(p) = places.into_iter().find(|p| p.is_file()) {
+        return Some(p);
     }
     let out = Command::new("/bin/zsh")
         .args(["-lc", &format!("command -v {name}")])
@@ -132,8 +138,95 @@ fn find(name: &str, extra: &[&str]) -> Option<PathBuf> {
     (!s.is_empty() && PathBuf::from(&s).is_file()).then(|| PathBuf::from(s))
 }
 
+/// Where a CLI is installed on Windows: the native installers' places (Claude Code's,
+/// Antigravity's), npm's own folder, then whatever `where` finds on the PATH, which an app
+/// started before the install doesn't have yet. An npm .cmd shim comes last: a prompt's newlines
+/// can't be passed through one, so the program inside the npm package is run instead.
+#[cfg(windows)]
+fn find(name: &str, _extra: &[&str]) -> Option<PathBuf> {
+    let home = crate::cache::home();
+    let local = std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home.join("AppData/Local"));
+    let exe = format!("{name}.exe");
+    if let Some(p) = [
+        home.join(".local/bin").join(&exe),
+        local.join(name).join("bin").join(&exe),
+    ]
+    .into_iter()
+    .find(|p| p.is_file())
+    {
+        return Some(p);
+    }
+    // npm's own folder, which isn't on the PATH when Node was installed by another account.
+    if let Some(npm) = std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("npm")) {
+        if npm.join(format!("{name}.cmd")).is_file() {
+            if let Some(p) = in_npm_package(&npm.join("node_modules"), name) {
+                return Some(p);
+            }
+        }
+    }
+    let out = crate::process::no_window(Command::new("where").arg(name))
+        .output()
+        .ok()?;
+    let found: Vec<PathBuf> = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(|l| PathBuf::from(l.trim()))
+        .filter(|p| p.is_file())
+        .collect();
+    let ext = |p: &PathBuf, e: &str| p.extension().is_some_and(|x| x.eq_ignore_ascii_case(e));
+    if let Some(p) = found.iter().find(|p| ext(p, "exe")) {
+        return Some(p.clone());
+    }
+    let shim = found.iter().find(|p| ext(p, "cmd"))?;
+    shim.parent()
+        .and_then(|d| in_npm_package(&d.join("node_modules"), name))
+        .or_else(|| Some(shim.clone()))
+}
+
+/// The program itself inside an npm install of `name` (Codex's and Copilot's packages carry it,
+/// as codex-win32-x64\…\codex.exe), to run in place of npm's .cmd shim.
+#[cfg(windows)]
+fn in_npm_package(modules: &std::path::Path, name: &str) -> Option<PathBuf> {
+    fn walk(d: &std::path::Path, exe: &str, depth: u8) -> Option<PathBuf> {
+        let mut dirs = Vec::new();
+        for e in std::fs::read_dir(d).ok()?.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                dirs.push(p);
+            } else if p.file_name().is_some_and(|f| f.eq_ignore_ascii_case(exe)) {
+                return Some(p);
+            }
+        }
+        if depth == 0 {
+            return None;
+        }
+        dirs.into_iter().find_map(|p| walk(&p, exe, depth - 1))
+    }
+    let exe = format!("{name}.exe");
+    // The package is `name` or `@scope/name`.
+    let mut roots = vec![modules.join(name)];
+    roots.extend(
+        std::fs::read_dir(modules)
+            .ok()?
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.file_name()
+                    .is_some_and(|f| f.to_string_lossy().starts_with('@'))
+            })
+            .map(|p| p.join(name)),
+    );
+    roots
+        .into_iter()
+        .filter(|r| r.is_dir())
+        .find_map(|r| walk(&r, &exe, 6))
+}
+
 fn version(bin: &PathBuf) -> Option<String> {
-    let out = Command::new(bin).arg("--version").output().ok()?;
+    let out = crate::process::no_window(Command::new(bin).arg("--version"))
+        .output()
+        .ok()?;
     String::from_utf8_lossy(&out.stdout)
         .lines()
         .map(str::trim)
@@ -189,11 +282,12 @@ fn spawn(
     chat_id: &str,
     name: &str,
 ) -> Result<(Child, ChildStdout, std::thread::JoinHandle<String>), String> {
-    use std::os::unix::process::CommandExt;
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .process_group(0);
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(cmd, 0);
+    crate::process::no_window(cmd);
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("Couldn't start {name}: {e}"))?;

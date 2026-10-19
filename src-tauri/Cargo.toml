@@ -9,7 +9,7 @@ edition = "2021"
 [lib]
 name = "tidemark_lib"
 # rlib only. The Tauri template's ["staticlib", "cdylib", "rlib"] exists for iOS and Android;
-# this app is macOS-only, and each extra crate type is another full LTO link of the whole
+# this app is for macOS and Windows, and each extra crate type is another full LTO link of the whole
 # program on every build (measured here: 115s -> 21s incremental).
 crate-type = ["rlib"]
 
@@ -30,18 +30,48 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 tauri-plugin-window-state = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
+# A second launch brings the open copy's window to the front (every second launch is a new
+# process on Windows).
+tauri-plugin-single-instance = "2"
 # Checks the GitHub releases for a newer version (updates.rs).
 tauri-plugin-updater = "2"
 # The scan: one rayon task per directory, work-stealing across all cores.
 rayon = "1"
-# statfs for the volume's capacity and free space; sysctl for memory pressure.
-libc = "0.2"
 # The history: one SQLite file, compiled in so nothing on the Mac is assumed.
 rusqlite = { version = "0.40", features = ["bundled"] }
 # The battery controller's report (ioreg -a output is a plist).
 plist = "1"
 # CPU, memory, swap, network and per-process use for the performance monitor.
 sysinfo = { version = "0.39", default-features = false, features = ["system", "network"] }
+
+# statfs for the volume's capacity and free space; sysctl for memory pressure; the helper's
+# signals; Ask ends a CLI and everything it started by signalling its process group.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# Windows: the folder walk's sizes, the volumes, the performance counters (PDH), the battery,
+# memory, idle time and power, the Run key; and Unix sockets (AF_UNIX) for the live readings.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Devices_DeviceAndDriverInstallation",
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Console",
+  "Win32_System_IO",
+  "Win32_System_Memory",
+  "Win32_System_Performance",
+  "Win32_System_Power",
+  "Win32_System_ProcessStatus",
+  "Win32_System_Registry",
+  "Win32_System_SystemInformation",
+  "Win32_System_SystemServices",
+  "Win32_System_Threading",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+uds_windows = "1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # NSNumber and NSString for setting drawsBackground on the webview; NSProcessInfo for the

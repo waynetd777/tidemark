@@ -17,10 +17,19 @@
 
 use serde::Serialize;
 
+// Windows' helper starts from the Run key and stops on a named event (recorder_win.rs).
+#[cfg(windows)]
+use crate::recorder_win::{
+    agent_program, available, disabled, install, loaded, log_path, on_stop_signal, uninstall,
+    unload,
+};
+
 /// The launch agent's label and plist. Not the old SMAppService one's
 /// (com.wayned.tidemark.recorder): macOS keeps a background-item record under that label, and
 /// launchd refuses to start a plain agent that shares it.
+#[cfg(target_os = "macos")]
 pub const LABEL: &str = "com.wayned.tidemark.helper";
+#[cfg(target_os = "macos")]
 const AGENT_PLIST: &str = "com.wayned.tidemark.helper.plist";
 
 /// The argument the launch agent passes.
@@ -31,6 +40,10 @@ pub fn run() -> ! {
     // Before any other thread starts, so every one inherits the blocked signals.
     on_stop_signal();
     trim_log();
+    // Windows gives a program with no console nowhere to report to: the log, as launchd's
+    // StandardErrorPath is on macOS.
+    #[cfg(windows)]
+    crate::recorder_win::log_to(&log_path());
     // The build it runs, so the app's next launch doesn't restart it for nothing when something
     // other than the app started it on a new build (`make install-app` does).
     remember_build();
@@ -53,6 +66,7 @@ pub fn run() -> ! {
 /// is restarted only after an unsuccessful exit (KeepAlive SuccessfulExit = false, see
 /// `install`), so a helper quit by hand comes back, while one booted out (switched off, a
 /// reinstall) stays gone, as launchd no longer has the job.
+#[cfg(target_os = "macos")]
 fn on_stop_signal() {
     unsafe {
         let mut set: libc::sigset_t = std::mem::zeroed();
@@ -82,6 +96,7 @@ fn on_stop_signal() {
 }
 
 /// The helper's standard error, where launchd puts what it reports (see `install`).
+#[cfg(target_os = "macos")]
 fn log_path() -> std::path::PathBuf {
     crate::cache::dir().join("helper.log")
 }
@@ -107,6 +122,7 @@ pub struct Helper {
 }
 
 /// ~/Library/LaunchAgents/com.wayned.tidemark.helper.plist.
+#[cfg(target_os = "macos")]
 fn agent_path() -> Option<std::path::PathBuf> {
     Some(
         std::path::PathBuf::from(std::env::var_os("HOME")?)
@@ -116,10 +132,12 @@ fn agent_path() -> Option<std::path::PathBuf> {
 }
 
 /// The launchd domain of this user's session: gui/<uid>.
+#[cfg(target_os = "macos")]
 fn domain() -> String {
     format!("gui/{}", unsafe { libc::getuid() })
 }
 
+#[cfg(target_os = "macos")]
 fn launchctl(args: &[&str]) -> bool {
     std::process::Command::new("/bin/launchctl")
         .args(args)
@@ -131,6 +149,7 @@ fn launchctl(args: &[&str]) -> bool {
 
 /// Only an installed app: the agent points at a binary that stays where it is. Not one opened
 /// from a disk image or a translocated copy, which go away.
+#[cfg(target_os = "macos")]
 fn available() -> bool {
     std::env::current_exe().is_ok_and(|p| {
         let p = p.to_string_lossy();
@@ -145,6 +164,7 @@ fn available() -> bool {
 }
 
 /// The binary the installed agent runs, from its plist; None when there is no agent.
+#[cfg(target_os = "macos")]
 fn agent_program() -> Option<String> {
     let v: plist::Value = plist::from_file(agent_path()?).ok()?;
     let args = v.as_dictionary()?.get("ProgramArguments")?.as_array()?;
@@ -153,11 +173,13 @@ fn agent_program() -> Option<String> {
 
 /// Loaded into launchd now. Switching Tidemark off in System Settings' Login Items unloads it
 /// (and macOS lists it under the same switch as the app's old registration).
+#[cfg(target_os = "macos")]
 fn loaded() -> bool {
     launchctl(&["print", &format!("{}/{LABEL}", domain())])
 }
 
 /// Switched off in System Settings' Login Items (launchd keeps it as disabled).
+#[cfg(target_os = "macos")]
 fn disabled() -> bool {
     std::process::Command::new("/bin/launchctl")
         .args(["print-disabled", &domain()])
@@ -172,6 +194,7 @@ fn disabled() -> bool {
 }
 
 /// Writes the agent's plist for this binary and loads it (it starts at once and at each login).
+#[cfg(target_os = "macos")]
 fn install() -> bool {
     let (Some(path), Ok(exe)) = (agent_path(), std::env::current_exe()) else {
         return false;
@@ -210,7 +233,7 @@ fn install() -> bool {
     // a running helper is still going, launchd refuses again for a moment, so it is retried.
     // Not when switched off in Login Items: launchd refuses every time, and waiting out the
     // retries would only hold up Settings.
-    let _ = launchctl(&["bootout", &format!("{}/{LABEL}", domain())]);
+    unload();
     let tries = if disabled() { 1 } else { 10 };
     for _ in 0..tries {
         if launchctl(&["bootstrap", &domain(), &path.to_string_lossy()]) || loaded() {
@@ -221,11 +244,18 @@ fn install() -> bool {
     false
 }
 
+#[cfg(target_os = "macos")]
 fn uninstall() {
-    let _ = launchctl(&["bootout", &format!("{}/{LABEL}", domain())]);
+    unload();
     if let Some(path) = agent_path() {
         let _ = std::fs::remove_file(path);
     }
+}
+
+/// Stops the helper and unloads its agent, which stays installed.
+#[cfg(target_os = "macos")]
+fn unload() {
+    let _ = launchctl(&["bootout", &format!("{}/{LABEL}", domain())]);
 }
 
 fn helper() -> Helper {
@@ -244,6 +274,15 @@ fn helper() -> Helper {
         available: available(),
         on: installed && loaded() && !off_there,
         needs_approval: off_there,
+    }
+}
+
+/// The same binary: Windows' paths are the same whatever their letters' case.
+fn same_program(a: &str, b: &str) -> bool {
+    if cfg!(windows) {
+        a.eq_ignore_ascii_case(b)
+    } else {
+        a == b
     }
 }
 
@@ -288,11 +327,14 @@ pub fn refresh() {
     // Moved, or a new build in the same place (the running helper is still the old binary):
     // loaded afresh, which starts it at once. (A `kickstart -k` would be held back by the
     // ThrottleInterval when the helper had just started.)
-    let moved = exe.as_deref().ok() != Some(program.as_str());
+    let moved = !same_program(exe.as_deref().unwrap_or_default(), &program);
     let rebuilt = std::fs::read_to_string(build_file()).ok() != build_id();
     // Reloaded only while it runs (not when switched off in Login Items); the build is kept
     // once the helper is running it, so a reload that didn't take is tried at the next launch.
-    if !(moved || rebuilt) || (loaded() && install()) {
+    // On Windows the installer of an update ends the helper with the app, so one that is on
+    // but not running is started again too.
+    let stopped = cfg!(windows) && !loaded() && !disabled();
+    if !(moved || rebuilt || stopped) || ((loaded() || stopped) && install()) {
         remember_build();
     }
 }
@@ -302,10 +344,13 @@ pub fn refresh() {
 /// nor leaves it on the old build. True when it was loaded, for `start_after_update`.
 pub fn stop_for_update() -> bool {
     let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned());
-    if agent_program() != exe.ok() || !loaded() {
+    let ours = agent_program()
+        .zip(exe.ok())
+        .is_some_and(|(a, e)| same_program(&e, &a));
+    if !ours || !loaded() {
         return false;
     }
-    let _ = launchctl(&["bootout", &format!("{}/{LABEL}", domain())]);
+    unload();
     true
 }
 
@@ -335,9 +380,9 @@ pub fn set_background_helper(on: bool) -> Helper {
         if install() {
             remember_build();
         }
-        // Switched off in Login Items, which only the user can switch back on.
+        // Switched off in Login Items (Startup apps on Windows), which only the user can switch
+        // back on.
         if disabled() {
-            #[cfg(target_os = "macos")]
             crate::login_item::open_settings();
         }
     } else {

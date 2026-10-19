@@ -38,13 +38,28 @@ pub struct Recent {
 
 pub const RECENT_MAX: usize = 5;
 
+/// The user's home folder (USERPROFILE where there is no HOME, as on Windows).
+pub fn home() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+}
+
+/// Where the app keeps its history, scans and settings: ~/Library/Application Support/Tidemark,
+/// or on Windows %LOCALAPPDATA%\com.wayned.tidemark. Local, not roaming: the record is this
+/// PC's, and a roaming profile would carry a history of another machine to the next. The folder
+/// is the one Tauri's uninstaller clears when "Delete the application data" is ticked.
 pub fn dir() -> PathBuf {
     // The screenshot tool points this at its demo (tools/screenshots.py).
     if let Some(d) = std::env::var_os("TIDEMARK_DATA").filter(|d| !d.is_empty()) {
         return PathBuf::from(d);
     }
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
-    Path::new(&home).join("Library/Application Support/Tidemark")
+    #[cfg(windows)]
+    if let Some(d) = std::env::var_os("LOCALAPPDATA") {
+        return PathBuf::from(d).join("com.wayned.tidemark");
+    }
+    home().join("Library/Application Support/Tidemark")
 }
 
 fn hash(s: &str) -> String {

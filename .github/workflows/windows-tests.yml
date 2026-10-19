@@ -1,0 +1,43 @@
+# Copyright (c) 2026 Wayne Davies
+# SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
+
+# The Rust tests, clippy and the TypeScript check on Windows, so code that only builds on macOS
+# (an AppKit call without its cfg, a Unix-only API) is caught on the push that adds it.
+name: Windows tests
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src-tauri/**"
+      - "src/**"
+      - "package*.json"
+      - "tsconfig*.json"
+      - ".github/workflows/windows-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-tests
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: clippy }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      # tauri::generate_context! wants the frontend's output folder to exist.
+      - run: mkdir -p dist
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: src-tauri
+      - run: cargo test --lib
+        working-directory: src-tauri
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit -p tsconfig.json

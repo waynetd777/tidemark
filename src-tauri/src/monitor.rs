@@ -17,12 +17,16 @@ use crate::history::{self, AppUse, By, Minute};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Write};
+#[cfg(unix)]
 use std::os::unix::net::{UnixListener, UnixStream};
+// Windows has Unix sockets too (AF_UNIX, since Windows 10 1803); std has them only on Unix.
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use sysinfo::{Networks, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+#[cfg(windows)]
+use uds_windows::{UnixListener, UnixStream};
 
 /// How much of the recent past the live charts get.
 const LIVE_SECS: i64 = 15 * 60;
@@ -129,7 +133,14 @@ const FRIENDLY: [(&str, &str); 6] = [
     ("mdworker_shared", "Spotlight (mdworker)"),
 ];
 
-/// The app a process belongs to: the outermost bundle in its path, else its own name.
+/// The app a process belongs to: the outermost bundle in its path, else its own name. On
+/// Windows, its program's description (system_win.rs).
+#[cfg(windows)]
+fn app_of(exe: Option<&std::path::Path>, name: &str) -> String {
+    crate::system_win::app_name(exe, name)
+}
+
+#[cfg(not(windows))]
 fn app_of(exe: Option<&std::path::Path>, name: &str) -> String {
     if let Some((_, f)) = FRIENDLY.iter().find(|(n, _)| *n == name) {
         return f.to_string();
@@ -141,67 +152,6 @@ fn app_of(exe: Option<&std::path::Path>, name: &str) -> String {
         }
     }
     name.to_string()
-}
-
-/// macOS memory pressure: 1 normal, 2 warning, 4 critical.
-fn pressure() -> i64 {
-    let mut v: libc::c_int = 1;
-    let mut sz = std::mem::size_of::<libc::c_int>();
-    let ok = unsafe {
-        libc::sysctlbyname(
-            c"kern.memorystatus_vm_pressure_level".as_ptr(),
-            &mut v as *mut _ as *mut libc::c_void,
-            &mut sz,
-            std::ptr::null_mut(),
-            0,
-        )
-    };
-    if ok == 0 {
-        v as i64
-    } else {
-        1
-    }
-}
-
-/// 0 nominal, 1 fair, 2 serious, 3 critical.
-fn thermal() -> i64 {
-    #[cfg(target_os = "macos")]
-    {
-        objc2_foundation::NSProcessInfo::processInfo()
-            .thermalState()
-            .0 as i64
-    }
-    #[cfg(not(target_os = "macos"))]
-    0
-}
-
-fn sysctl_string(name: &std::ffi::CStr) -> Option<String> {
-    let mut sz = 0usize;
-    unsafe {
-        if libc::sysctlbyname(
-            name.as_ptr(),
-            std::ptr::null_mut(),
-            &mut sz,
-            std::ptr::null_mut(),
-            0,
-        ) != 0
-        {
-            return None;
-        }
-        let mut buf = vec![0u8; sz];
-        if libc::sysctlbyname(
-            name.as_ptr(),
-            buf.as_mut_ptr() as *mut _,
-            &mut sz,
-            std::ptr::null_mut(),
-            0,
-        ) != 0
-        {
-            return None;
-        }
-        buf.truncate(sz.saturating_sub(1));
-        String::from_utf8(buf).ok()
-    }
 }
 
 /// One condition watched for incidents.
@@ -460,8 +410,7 @@ fn try_lock() -> bool {
     else {
         return false;
     };
-    use std::os::fd::AsRawFd;
-    if unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+    if f.try_lock().is_err() {
         return false;
     }
     // Held for the rest of the process's life.
@@ -498,18 +447,24 @@ struct Follower {
 
 static FOLLOWERS: Mutex<Vec<Follower>> = Mutex::new(Vec::new());
 
-/// A write to a follower that has gone fails rather than raising SIGPIPE.
+/// A write to a follower that has gone fails rather than raising SIGPIPE (which Windows doesn't
+/// have).
 fn no_sigpipe(s: &UnixStream) {
-    use std::os::fd::AsRawFd;
-    let on: libc::c_int = 1;
-    unsafe {
-        libc::setsockopt(
-            s.as_raw_fd(),
-            libc::SOL_SOCKET,
-            libc::SO_NOSIGPIPE,
-            &on as *const _ as *const libc::c_void,
-            std::mem::size_of::<libc::c_int>() as libc::socklen_t,
-        );
+    #[cfg(windows)]
+    let _ = s;
+    #[cfg(unix)]
+    {
+        use std::os::fd::AsRawFd;
+        let on: libc::c_int = 1;
+        unsafe {
+            libc::setsockopt(
+                s.as_raw_fd(),
+                libc::SOL_SOCKET,
+                libc::SO_NOSIGPIPE,
+                &on as *const _ as *const libc::c_void,
+                std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+            );
+        }
     }
 }
 
@@ -889,6 +844,10 @@ fn run() {
             let mut by_app: HashMap<String, AppUse> = HashMap::new();
             let (mut rd, mut wr) = (0u64, 0u64);
             for p in sys.processes().values() {
+                // Windows' System Idle Process (pid 0) is the time no process ran.
+                if cfg!(windows) && p.pid().as_u32() == 0 {
+                    continue;
+                }
                 let d = p.disk_usage();
                 rd += d.read_bytes;
                 wr += d.written_bytes;
@@ -914,6 +873,8 @@ fn run() {
         if procs_due {
             gpu_then = crate::system::gpu_busy();
         }
+        // Windows counts the disk itself; the processes' counters there take in the network too.
+        let disk = crate::system::disk_rates().unwrap_or(io_then);
         let battery = meter.battery();
         battery_then = battery.as_ref().map(|b| b.percent);
         let (mut nin, mut nout) = (0u64, 0u64);
@@ -934,12 +895,12 @@ fn run() {
             cpu: (sys.global_cpu_usage() as f64).clamp(0.0, 100.0),
             mem: sys.used_memory() as f64,
             swap: sys.used_swap() as f64,
-            pressure: pressure(),
-            disk_r: io_then.0,
-            disk_w: io_then.1,
+            pressure: crate::system::pressure(),
+            disk_r: disk.0,
+            disk_w: disk.1,
             net_in: nin as f64 / dt,
             net_out: nout as f64 / dt,
-            thermal: thermal(),
+            thermal: crate::system::thermal(),
             power: battery.as_ref().and_then(|b| b.watts),
             battery: battery.as_ref().map(|b| b.percent),
             gpu: gpu_then,
@@ -1669,7 +1630,7 @@ pub async fn mac_info() -> MacInfo {
     let mut sys = System::new();
     sys.refresh_memory();
     MacInfo {
-        chip: sysctl_string(c"machdep.cpu.brand_string").unwrap_or_default(),
+        chip: crate::system::chip(),
         cores: std::thread::available_parallelism().map_or(1, |n| n.get()),
         memory: sys.total_memory() as f64,
         uptime_secs: System::uptime(),
@@ -1681,6 +1642,7 @@ mod tests {
     use super::*;
     use std::path::Path;
 
+    #[cfg(not(windows))]
     #[test]
     fn helpers_count_as_their_app() {
         let p = Path::new("/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)");

@@ -28,10 +28,16 @@ fn idle_secs() -> f64 {
         // kCGEventSourceStateHIDSystemState, kCGAnyInputEventType.
         CGEventSourceSecondsSinceLastEventType(1, u32::MAX)
     }
-    #[cfg(not(target_os = "macos"))]
-    0.0
+    #[cfg(windows)]
+    crate::power_win::idle_secs()
 }
 
+#[cfg(windows)]
+fn on_power() -> bool {
+    crate::power_win::on_ac()
+}
+
+#[cfg(target_os = "macos")]
 fn on_power() -> bool {
     std::process::Command::new("/usr/bin/pmset")
         .args(["-g", "ps"])

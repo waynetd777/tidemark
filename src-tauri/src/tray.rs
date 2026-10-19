@@ -3,7 +3,8 @@
 
 //! The menu bar: an icon (with a mark when something needs attention) that opens a small
 //! window under it, the "tray" window (src/Tray.tsx), rather than a native menu. With the main
-//! window closed the app leaves the Dock and lives here.
+//! window closed the app leaves the Dock and lives here. On Windows the icon is in the
+//! notification area, and the window opens above it.
 
 use crate::monitor;
 use std::sync::atomic::Ordering;
@@ -16,8 +17,17 @@ use tauri_plugin_window_state::AppHandleExt;
 /// The popover's width in points; Tray.tsx sizes its height to what it shows.
 const WIDTH: f64 = 360.0;
 
+// A black template image on macOS, which the menu bar tints; the colour icon in Windows'
+// notification area, where nothing tints it.
+#[cfg(target_os = "macos")]
 const ICON: &[u8] = include_bytes!("../icons/tray@2x.png");
+#[cfg(target_os = "macos")]
 const ICON_ALERT: &[u8] = include_bytes!("../icons/tray-alert@2x.png");
+#[cfg(not(target_os = "macos"))]
+const ICON: &[u8] = include_bytes!("../icons/tray-win.png");
+#[cfg(not(target_os = "macos"))]
+const ICON_ALERT: &[u8] = include_bytes!("../icons/tray-win-alert.png");
+const TEMPLATE: bool = cfg!(target_os = "macos");
 
 #[cfg(target_os = "macos")]
 pub fn set_in_dock(app: &AppHandle, shown: bool) {
@@ -69,6 +79,10 @@ static BLURRED_AT: Mutex<Option<Instant>> = Mutex::new(None);
 /// the focus: it closes the popover rather than opening it again.
 const CLICK_AFTER_BLUR: Duration = Duration::from_millis(400);
 
+/// Opened above the icon (a taskbar at the foot of the screen, as Windows' usually is): the
+/// popover's left edge and the bottom it keeps to as its page sizes it, in points.
+static ABOVE: Mutex<Option<(f64, f64)>> = Mutex::new(None);
+
 /// Where the icon was that the popover last opened under. With two screens each menu bar has
 /// the icon, and a click on the other screen's takes the focus too: that one opens it there.
 static OPENED_UNDER: Mutex<Option<(f64, f64)>> = Mutex::new(None);
@@ -113,7 +127,12 @@ fn toggle(app: &AppHandle, rect: tauri::Rect) {
             && x < left + sz.width as f64 / k
             && y >= top - slack
             && y < top + sz.height as f64 / k;
-        inside.then_some((k, left, left + sz.width as f64 / k))
+        inside.then_some((
+            k,
+            left,
+            left + sz.width as f64 / k,
+            top + sz.height as f64 / k / 2.0,
+        ))
     };
     let screen = monitors.iter().find_map(in_points);
     let k = screen.map_or_else(|| w.scale_factor().unwrap_or(2.0), |s| s.0);
@@ -124,10 +143,17 @@ fn toggle(app: &AppHandle, rect: tauri::Rect) {
         icon_size.height / k,
     );
     let mut left = x + iw / 2.0 - WIDTH / 2.0;
-    if let Some((_, screen_left, screen_right)) = screen {
+    if let Some((_, screen_left, screen_right, _)) = screen {
         left = left.min(screen_right - WIDTH - 8.0).max(screen_left + 8.0);
     }
-    let place = tauri::LogicalPosition::new(left, y + ih + 6.0);
+    // Under the icon in a menu bar at the top; above it in a taskbar at the foot, growing
+    // upwards as the page sizes the window (the Resized handler in `setup`).
+    let below = screen.is_none_or(|s| y < s.3);
+    *ABOVE.lock().unwrap() = (!below).then_some((left, y - 6.0));
+    let h = w
+        .outer_size()
+        .map_or(0.0, |s| s.height as f64 / w.scale_factor().unwrap_or(k));
+    let place = tauri::LogicalPosition::new(left, if below { y + ih + 6.0 } else { y - 6.0 - h });
     let _ = w.set_position(place);
     let _ = w.show();
     // Once on that screen, place it again, in case macOS moved it while showing it.
@@ -143,7 +169,7 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
     let icon = tauri::image::Image::from_bytes(ICON).expect("tray icon is a valid png");
     TrayIconBuilder::with_id("main")
         .icon(icon)
-        .icon_as_template(true)
+        .icon_as_template(TEMPLATE)
         .tooltip("Tidemark")
         .on_tray_icon_event(|tray, ev| {
             if let TrayIconEvent::Click {
@@ -159,14 +185,28 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
         .build(app)?;
 
     if let Some(t) = app.get_webview_window("tray") {
+        // macOS draws the config's shadow softly; Windows draws it on a window without a title
+        // bar as a 1px rectangle around the popover's rounded card, so it goes there.
+        #[cfg(windows)]
+        let _ = t.set_shadow(false);
         let t2 = t.clone();
-        t.on_window_event(move |ev| {
-            if let tauri::WindowEvent::Focused(false) = ev {
+        t.on_window_event(move |ev| match ev {
+            tauri::WindowEvent::Focused(false) => {
                 if t2.is_visible().unwrap_or(false) {
                     *BLURRED_AT.lock().unwrap() = Some(Instant::now());
                 }
                 let _ = t2.hide();
             }
+            // Above a taskbar, the bottom stays put as the page sizes the window.
+            tauri::WindowEvent::Resized(size) => {
+                if let (Some((left, bottom)), Ok(k)) = (*ABOVE.lock().unwrap(), t2.scale_factor()) {
+                    let _ = t2.set_position(tauri::LogicalPosition::new(
+                        left,
+                        bottom - size.height as f64 / k,
+                    ));
+                }
+            }
+            _ => {}
         });
     }
 
@@ -191,7 +231,7 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
                         tauri::image::Image::from_bytes(if alert { ICON_ALERT } else { ICON })
                     {
                         let _ = t.set_icon(Some(img));
-                        let _ = t.set_icon_as_template(true);
+                        let _ = t.set_icon_as_template(TEMPLATE);
                     }
                 }
             }
@@ -225,12 +265,16 @@ pub fn open_ask(app: AppHandle) {
     let _ = app.emit("open-ask", ());
 }
 
-/// Off the main thread (async), so waiting for `open` holds nothing up.
+/// Activity Monitor, or Task Manager on Windows. Off the main thread (async), so waiting for
+/// `open` holds nothing up.
 #[tauri::command(async)]
 pub fn open_activity_monitor() {
+    #[cfg(target_os = "macos")]
     let _ = std::process::Command::new("/usr/bin/open")
         .args(["-a", "Activity Monitor"])
         .status();
+    #[cfg(windows)]
+    let _ = std::process::Command::new("taskmgr.exe").spawn();
 }
 
 /// Whether the main window was closed when the quit question came up: Cancel closes it again.
@@ -282,31 +326,18 @@ pub fn login_item() -> (bool, bool) {
     if crate::scene::active() {
         return (true, true);
     }
-    #[cfg(target_os = "macos")]
-    {
-        (
-            crate::login_item::available(),
-            crate::login_item::status().is_on(),
-        )
-    }
-    #[cfg(not(target_os = "macos"))]
-    (false, false)
+    (
+        crate::login_item::available(),
+        crate::login_item::status().is_on(),
+    )
 }
 
 #[tauri::command]
 pub fn set_login_item(on: bool) -> bool {
-    #[cfg(target_os = "macos")]
-    {
-        use crate::login_item::Status;
-        let s = crate::login_item::set(on);
-        if s == Status::RequiresApproval {
-            crate::login_item::open_settings();
-        }
-        s.is_on()
+    use crate::login_item::Status;
+    let s = crate::login_item::set(on);
+    if s == Status::RequiresApproval {
+        crate::login_item::open_settings();
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = on;
-        false
-    }
+    s.is_on()
 }
