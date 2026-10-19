@@ -9,7 +9,7 @@
 //! computer use, sub-agents and goals. What is left can't read or change anything: a clock, and
 //! apply_patch, which the read-only sandbox refuses.
 
-use super::{finish, silent, spawn, system, Done, Model, Running};
+use super::{finish, silent, spawn, system, Done, Model, Running, PROMPT_ON_STDIN};
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Command;
@@ -101,8 +101,19 @@ pub fn ask(
     if let Some(s) = &session {
         cmd.arg(s);
     }
-    cmd.arg(&prompt);
-    let (child, stdout, stderr) = spawn(&mut cmd, &running, &chat_id, "Codex")?;
+    // "-" reads the prompt from stdin.
+    cmd.arg(if PROMPT_ON_STDIN {
+        "-"
+    } else {
+        prompt.as_str()
+    });
+    let (child, stdout, stderr) = spawn(
+        &mut cmd,
+        &running,
+        &chat_id,
+        "Codex",
+        PROMPT_ON_STDIN.then(|| prompt.clone()),
+    )?;
 
     std::thread::spawn(move || {
         let mut text = String::new();

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-// Now: how the Mac is doing, in a sentence; CPU, memory and disk with their tidemarks; the
+// Now: how the computer is doing, in a sentence; CPU, memory and disk with their tidemarks; the
 // week's high-water marks and incidents; what grew on the disk; and questions for Ask.
 
 import { useAssistant } from "./assistant";
@@ -24,6 +24,7 @@ import { Area, Cores, Legend, Meter, type Pt } from "./charts";
 import { crashGroups, crashTitle, incidentTitle, incidentWhy } from "./incidents";
 import { gapsOf, now, startOfToday, upToNow, usePoll } from "./perf";
 import type { AppUse, Crash, GrowthInfo, Incident, Live, Screen } from "./types";
+import { isMac, MACHINE, OS } from "./keys";
 import {
   abbrev,
   batteryLine,
@@ -140,7 +141,12 @@ export default function Now({
     ...crashGroups(crashes ?? []).map((g) => ({
       t: g.last,
       what: crashTitle(g),
-      why: g.n > 1 ? `${g.n} reports this week.` : "From the report macOS wrote.",
+      why:
+        g.n > 1
+          ? `${g.n} reports this week.`
+          : isMac
+            ? "From the report macOS wrote."
+            : "From Windows' event log.",
       incident: false,
       crash: g.kind,
       group: g,
@@ -309,7 +315,7 @@ export default function Now({
       sub: live?.battery
         ? `Battery ${batteryLine(live.battery)}`
         : live
-          ? "No battery on this Mac"
+          ? `No battery on this ${MACHINE}`
           : "",
       pts: upToNow(
         (hour?.points ?? [])
@@ -331,9 +337,16 @@ export default function Now({
       mark: tm.power
         ? { v: tm.power.value, label: `Tidemark ${fmtW(tm.power.value)} · ${fmtAt(tm.power.at)}` }
         : null,
-      high: live?.apps_energy[0]?.energy
-        ? `Using the most: ${live.apps_energy[0].app}`
-        : "Energy appears after a few readings",
+      // Windows measures no app's energy, and the PC's power only on battery.
+      high: !isMac
+        ? !live?.battery
+          ? "Windows gives no power figure without a battery"
+          : live.battery.on_ac
+            ? "Measured while on battery only"
+            : "On battery"
+        : live?.apps_energy[0]?.energy
+          ? `Using the most: ${live.apps_energy[0].app}`
+          : "Energy appears after a few readings",
       fmt: fmtW,
       to: "performance" as Screen,
     },
@@ -365,11 +378,11 @@ export default function Now({
 
   const questions = [
     marks.find((m) => m.incident)
-      ? `Why was my Mac slow ${(() => {
+      ? `Why was my ${MACHINE} slow ${(() => {
           const d = fmtAt(marks.filter((m) => m.incident).slice(-1)[0].t, false);
           return d === "today" || d === "yesterday" ? d : `on ${d}`;
         })()}?`
-      : "Is anything slowing my Mac down?",
+      : `Is anything slowing my ${MACHINE} down?`,
     landed[0]
       ? `What can I clear in ${abbrev(landed[0].path, home)}?`
       : "Where can I free space safely?",
@@ -407,7 +420,7 @@ export default function Now({
           title={
             m.inc
               ? "Ask why this happened, with what the 12 busiest apps were using at its peak"
-              : "Ask what went wrong, with the reports macOS wrote"
+              : `Ask what went wrong, with the reports ${OS} ${isMac ? "wrote" : "logged"}`
           }
           onAsk={async () => {
             if (m.inc) ask(incidentQuestion(m.inc), incidentDetail(m.inc));
@@ -585,14 +598,15 @@ export default function Now({
             fmtRate,
             (a) => `${pct(a.cpu)} CPU`,
           )}
-          {appsCard(
-            "Energy",
-            live,
-            live?.apps_energy,
-            (a) => a.energy,
-            fmtW,
-            (a) => `${pct(a.cpu)} CPU`,
-          )}
+          {isMac &&
+            appsCard(
+              "Energy",
+              live,
+              live?.apps_energy,
+              (a) => a.energy,
+              fmtW,
+              (a) => `${pct(a.cpu)} CPU`,
+            )}
         </div>
 
         <div className="cards2 thirds">

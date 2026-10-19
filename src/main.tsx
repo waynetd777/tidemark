@@ -10,8 +10,9 @@ import { api } from "./api";
 import { sceneMode } from "./remember";
 import { applyTheme, followTheme } from "./theme";
 import "./splash";
+import { isMac } from "./keys";
 
-// WebKit's own right-click menu offers Reload, which throws away the app's state. Keep it only
+// The web view's own right-click menu (WebKit's, or WebView2's) offers Reload, which throws away the app's state. Keep it only
 // where it's useful — in text fields and on selected text — and leave custom menus to their owners.
 document.addEventListener("contextmenu", (e) => {
   const t = e.target as HTMLElement | null;
@@ -21,6 +22,9 @@ document.addEventListener("contextmenu", (e) => {
 });
 
 followTheme();
+
+// macOS's window has no title bar: the page leaves room for its traffic lights (styles.css .mac).
+document.documentElement.classList.toggle("mac", isMac);
 
 // Endless animations cost a wakeup and a repaint each frame: the Now dots' breathing ring stops
 // while the window is behind others, and everything stops while it's hidden.

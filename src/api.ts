@@ -3,6 +3,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { setSystemDrive } from "./util";
 import type {
   AppInfo,
   AppsAt,
@@ -56,7 +57,12 @@ export const api = {
     invoke<void>("ask", { chatId, prompt, model, session }),
   askCancel: (chatId: string) => invoke<void>("ask_cancel", { chatId }),
   files: (path: string) => invoke<FileEntry[]>("get_files", { path }),
-  state: () => invoke<AppInfo>("get_state"),
+  // Each one tells util.ts the system drive, for showing paths on Windows.
+  state: () =>
+    invoke<AppInfo>("get_state").then((s) => {
+      setSystemDrive(s.drive);
+      return s;
+    }),
   progress: () => invoke<Progress>("get_progress"),
   /// The subtree under `path`, with folders smaller than `minFraction` of it folded away.
   tree: (path: string, minFraction = 1 / 4000) => invoke<View>("get_tree", { path, minFraction }),
@@ -67,6 +73,10 @@ export const api = {
   openPrivacySettings: () => invoke<void>("open_privacy_settings"),
   /// Opens tidemark.davies.co.za in the browser.
   openWebsite: () => invoke<void>("open_website"),
+  /// The main window with the help open (the menu-bar window's Help on Windows).
+  openHelp: () => invoke<void>("open_help"),
+  /// Check for Updates…, from Settings or (on Windows, with no app menu) the menu-bar window.
+  checkForUpdates: () => invoke<void>("check_for_updates"),
 
   live: () => invoke<Live>("perf_live"),
   /// The last `secs` seconds of minutes, folded into at most `points` points.

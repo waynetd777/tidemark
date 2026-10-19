@@ -1,10 +1,12 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-// The menu-bar window: how the Mac is doing in a sentence, CPU, memory, network, energy and disk
+// The menu-bar window (above the notification area's icon on Windows): how the computer is doing
+// in a sentence, CPU, memory, network, energy and disk
 // I/O with their sparklines, what is using the most of the tightest one, the week's line, and
 // the few things worth doing from the menu bar. Built the way Keepr's is: it re-reads everything
-// each time it opens (System Settings can change Open at Login behind its back), every item
+// each time it opens (System Settings, or Windows' Startup apps, can change Open at Login behind
+// its back), every item
 // closes it, the shortcuts it shows work while it is open, and it sizes its window to what it
 // shows.
 
@@ -21,6 +23,7 @@ import Tooltips from "./Tooltips";
 import { startOfToday, upToNow } from "./perf";
 import type { AppUse, GrowthInfo, Live, Minute, PerfHistory, Sleep } from "./types";
 import { abbrev, batteryLine, fmt, fmtAt, fmtDelta, fmtMem, fmtRate, fmtW, pct } from "./util";
+import { cmdKey, isMac, shortcut } from "./keys";
 
 const WIDTH = 360;
 const hide = () => void getCurrentWindow().hide();
@@ -48,7 +51,7 @@ function Item({
       }}
     >
       <span className="grow">{label}</span>
-      {keys && <span className="k">{keys}</span>}
+      {keys && <span className="k">{shortcut(keys)}</span>}
     </button>
   );
 }
@@ -204,10 +207,11 @@ export default function Tray() {
       q: () => api.quit(),
       "2": () => api.showMain("performance"),
       "4": () => api.showMain("disk"),
+      "?": () => api.openHelp(),
     };
     const k = (e: KeyboardEvent) => {
       if (e.key === "Escape") return hide();
-      if (!e.metaKey) return;
+      if (!cmdKey(e)) return;
       const f = keys[e.key.toLowerCase()];
       if (f) {
         e.preventDefault();
@@ -370,7 +374,9 @@ export default function Tray() {
         />
       ),
     },
-  ];
+    // A PC without a battery says nothing of its energy: Windows measures no app's, and only a
+    // battery's driver what the PC draws.
+  ].filter((r) => r.name !== "Energy" || isMac || live.battery);
 
   // What the list ranks by: the measure needing attention, if it has apps; otherwise whichever
   // of CPU and memory is nearer its limit. Disk I/O and energy have no limit to be near.
@@ -379,7 +385,7 @@ export default function Tray() {
       ? "cpu"
       : about === "memory" || about === "swap"
         ? "memory"
-        : about === "energy"
+        : about === "energy" && isMac
           ? "energy"
           : latest && live.mem_total && latest.cpu / 100 > latest.mem / live.mem_total
             ? "cpu"
@@ -510,6 +516,22 @@ export default function Tray() {
           onClick={() => api.showMain("settings")}
           tip="History, disk scans, appearance and Open at Login"
         />
+        {/* Windows has no app menu: its Help and Check for Updates… are here. */}
+        {!isMac && (
+          <>
+            <Item
+              label="Tidemark Help"
+              keys="⌘?"
+              onClick={() => api.openHelp()}
+              tip="The user guide, beside the screen you're on"
+            />
+            <Item
+              label="Check for Updates…"
+              onClick={() => api.checkForUpdates()}
+              tip="See whether a newer Tidemark is out"
+            />
+          </>
+        )}
         <Item
           label="Quit Tidemark"
           keys="⌘Q"

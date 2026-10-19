@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-// Ask: a chat about the Mac, answered by an AI CLI already signed in on it. The first message
+// Ask: a chat about the computer, answered by an AI CLI already signed in on it. The first message
 // carries what Tidemark knows (the folder on screen, what grew, the performance record); a
 // follow-up resumes the CLI's session, and carries it again only if the folder has changed. An Ask
 // button elsewhere seeds a question with its own details (an incident, a crash, a chart).
@@ -20,11 +20,12 @@ import {
   type Provider,
 } from "./assistant";
 import type { Context } from "./context";
+import { MACHINE } from "./keys";
 import { mdToHtml } from "./md";
 
 const SUGGESTIONS = [
-  "Is anything slowing my Mac down?",
-  "Why was my Mac busiest this week?",
+  `Is anything slowing my ${MACHINE} down?`,
+  `Why was my ${MACHINE} busiest this week?`,
   "Where can I free space safely?",
   "What are the biggest folders here for?",
 ];
@@ -240,7 +241,7 @@ export default function AskPanel({
     <aside
       className="ask"
       hidden={!open}
-      aria-label="Ask about your Mac"
+      aria-label={`Ask about your ${MACHINE}`}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.stopPropagation()}
       onMouseMove={(e) => e.stopPropagation()}
@@ -282,10 +283,10 @@ export default function AskPanel({
         {messages.length === 0 ? (
           <div className="ask-intro">
             <p>
-              Ask about your Mac: why it was slow, what an app was doing, or what is safe to clear
-              in {where ? <code>{where}</code> : "the folder on screen"}. The AI sees Tidemark's
-              figures, the scan and the crash reports you ask about, not your files, and nothing is
-              changed. It runs through the AI tool already signed in on this Mac.
+              Ask about your {MACHINE}: why it was slow, what an app was doing, or what is safe to
+              clear in {where ? <code>{where}</code> : "the folder on screen"}. The AI sees
+              Tidemark's figures, the scan and the crash reports you ask about, not your files, and
+              nothing is changed. It runs through the AI tool already signed in on this {MACHINE}.
             </p>
             <div className="ask-chips">
               {SUGGESTIONS.map((s) => (
@@ -358,7 +359,7 @@ export default function AskPanel({
           ref={box}
           rows={2}
           value={q}
-          placeholder={messages.length ? "Ask a follow-up…" : "Ask about your Mac…"}
+          placeholder={messages.length ? "Ask a follow-up…" : `Ask about your ${MACHINE}…`}
           aria-label="Your question"
           onChange={(e) => setQ(e.target.value)}
           onCompositionEnd={(e) => {

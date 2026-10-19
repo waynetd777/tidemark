@@ -10,5 +10,5 @@
 | ⌘R | Scan again (the disk, or the folder you chose) |
 | ⌘O | Choose a folder to scan |
 | Esc or ⌘↑ | Up one level on Disk Map (Esc first closes a menu or panel) |
-| ⌘⇧R | Reveal the folder on screen in Finder |
-| ⌘-click a block | Reveal that folder in Finder |
+| ⌘⇧R | Reveal the folder on screen in <!-- mac -->Finder<!-- /mac --><!-- github --> or <!-- /github --><!-- windows -->File Explorer<!-- /windows --> |
+| ⌘-click a block | Reveal that folder in <!-- mac -->Finder<!-- /mac --><!-- github --> or <!-- /github --><!-- windows -->File Explorer<!-- /windows --> |

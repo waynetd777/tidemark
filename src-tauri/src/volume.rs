@@ -34,6 +34,14 @@ fn system_drive() -> &'static str {
     })
 }
 
+/// The system drive ("C:") on Windows, for the page to show paths with; empty elsewhere.
+pub fn drive() -> String {
+    #[cfg(windows)]
+    return system_drive().to_string();
+    #[cfg(not(windows))]
+    String::new()
+}
+
 /// What the file system opens for an app path: on Windows "/" is the system drive's root, and
 /// every `/` is a `\`; elsewhere the path as it is.
 pub fn native(path: &str) -> PathBuf {

@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
+import { isMac } from "./keys";
+
 /// Decimal units, as macOS reports them. Three significant figures at most. For disk sizes.
 export function fmt(b: number): string {
   return sized(b, 1e3);
@@ -37,8 +39,25 @@ export function fmtN(n: number): string {
   return n.toLocaleString("en-GB");
 }
 
-/// "/Users/alex/Projects" -> "~/Projects" when the path is under the home folder.
+/// The system drive, for showing paths on Windows: the app writes them as macOS does, with "/"
+/// the system drive's root (src-tauri/src/volume.rs).
+let systemDrive = "C:";
+export function setSystemDrive(d: string | undefined) {
+  if (d) systemDrive = d;
+}
+
+/// A path as the system writes it: as it is on macOS; on Windows with its drive and backslashes,
+/// "/Users/alex" as "C:\Users\alex" and "D:/Photos" as "D:\Photos".
+export function shown(path: string): string {
+  if (isMac) return path;
+  const p = path.startsWith("/") && !path.startsWith("//") ? systemDrive + path : path;
+  return p.replace(/\//g, "\\");
+}
+
+/// "/Users/alex/Projects" -> "~/Projects" when the path is under the home folder. Windows has no
+/// "~": there the whole path, as Windows writes it.
 export function abbrev(path: string, home: string): string {
+  if (!isMac) return shown(path);
   if (path === home) return "~";
   if (home && path.startsWith(home + "/")) return "~" + path.slice(home.length);
   return path;
@@ -65,10 +84,19 @@ export function fmtWhen(iso: string): string {
   return `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} ${hm}`;
 }
 
+/// The folder a path is in; null at a volume's root ("/", or a drive's on Windows: "D:/").
 export function parentPath(path: string): string | null {
-  if (path === "/" || !path.includes("/")) return null;
+  if (path === "/" || /^[A-Za-z]:\/$/.test(path) || !path.includes("/")) return null;
   const i = path.lastIndexOf("/");
-  return i === 0 ? "/" : path.slice(0, i);
+  if (i === 0) return "/";
+  // "D:/Photos" is in "D:/", not "D:".
+  return i === 2 && path[1] === ":" ? path.slice(0, 3) : path.slice(0, i);
+}
+
+/// A volume's root rather than a folder on it: "/", or a drive's on Windows ("D:/"), or macOS's
+/// "/Volumes/<name>".
+export function isVolumeRoot(path: string): boolean {
+  return path === "/" || /^[A-Za-z]:\/$/.test(path) || /^\/Volumes\/[^/]+$/.test(path);
 }
 
 /// A percentage, whole.

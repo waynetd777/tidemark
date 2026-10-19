@@ -1,13 +1,15 @@
 // Copyright (c) 2026 Wayne Davies
 // SPDX-License-Identifier: GPL-3.0-or-later (see LICENSE at the repository root)
 
-// Tooltips everywhere in the app, in place of macOS's plain ones. Any element with a title gets
+// Tooltips everywhere in the app, in place of the system's plain ones. Any element with a title gets
 // one: the title moves to data-tip on first hover so the native tooltip never shows as well.
 // Shown after a short pause, below the element and centred on it; above when there is no room
 // below, beside it when there is room neither way; always kept inside the window. Gone on
-// leaving, pressing, scrolling or the window losing focus. Keyboard focus shows it too.
+// leaving, pressing, scrolling or the window losing focus. Keyboard focus shows it too. The
+// shortcuts in a title are written as macOS writes them, and shown in Windows' words there.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { shortcut } from "./keys";
 
 const GAP = 6;
 const EDGE = 8;
@@ -16,7 +18,7 @@ const DELAY = 450;
 /** The element's text for a tooltip: its title (moved to data-tip), or an icon-only control's label. */
 function tipText(t: HTMLElement): string | null {
   if (t.title) {
-    t.dataset.tip = t.title;
+    t.dataset.tip = shortcut(t.title);
     // The title was an icon-only control's only name; keep it for VoiceOver. A label set here is
     // marked, so a new title replaces it, where a label the element brought is left alone.
     if (
@@ -25,7 +27,7 @@ function tipText(t: HTMLElement): string | null {
         !t.hasAttribute("aria-label") &&
         !t.hasAttribute("aria-labelledby"))
     ) {
-      t.setAttribute("aria-label", t.title);
+      t.setAttribute("aria-label", shortcut(t.title));
       t.dataset.tipLabel = "";
     }
     t.removeAttribute("title");

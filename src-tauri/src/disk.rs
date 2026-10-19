@@ -73,6 +73,8 @@ pub struct AppInfo {
     /// Whether the app can read a folder that only Full Disk Access opens.
     full_disk_access: bool,
     home: String,
+    /// The system drive ("C:") on Windows, where "/" is its root; empty on macOS.
+    drive: String,
 }
 
 #[derive(Serialize)]
@@ -130,6 +132,7 @@ pub fn get_state(state: State<AppState>) -> AppInfo {
         recent: cache::load_recent(),
         full_disk_access: has_full_disk_access(),
         home: home(),
+        drive: volume::drive(),
         root,
     }
 }

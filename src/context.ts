@@ -4,7 +4,7 @@
 // What Ask is told about the disk: the folder on screen and its biggest folders, as text.
 
 import type { AppInfo, View } from "./types";
-import { fmt, fmtN } from "./util";
+import { fmt, fmtN, shown as native } from "./util";
 
 /** What the chat is looking at: the folder on screen and the scan behind it, as text. */
 export interface Context {
@@ -27,7 +27,7 @@ export function describeView(v: View, info: AppInfo): string {
   }
   const cloud = v.cloud ? ` (${fmt(v.apparent)} counting files kept only in the cloud)` : "";
   lines.push(
-    `Folder on screen: ${v.path} — ${fmt(v.size)} on disk${cloud}, ${fmtN(v.items)} items, ` +
+    `Folder on screen: ${native(v.path)} — ${fmt(v.size)} on disk${cloud}, ${fmtN(v.items)} items, ` +
       `${fmt(v.loose_size)} in ${fmtN(v.files)} files directly inside it.`,
   );
   lines.push("");
@@ -49,7 +49,7 @@ export function describeView(v: View, info: AppInfo): string {
       if (k.cloud)
         bits.push(`cloud folder: ${fmt(k.apparent)} in the cloud, ${fmt(k.size)} kept locally`);
       if (k.denied > 0) bits.push(`${fmtN(k.denied)} unreadable folders`);
-      lines.push(`${pad}- ${depth === 0 ? k.path : k.name + "/"} — ${bits.join(", ")}`);
+      lines.push(`${pad}- ${depth === 0 ? native(k.path) : k.name + "/"} — ${bits.join(", ")}`);
       walk(k, depth + 1);
     }
     const folded = kids.length - shown.length + node.more;

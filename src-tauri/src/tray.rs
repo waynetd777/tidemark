@@ -258,6 +258,23 @@ pub fn show_main_window(app: AppHandle, screen: Option<String>, focus: Option<St
     }
 }
 
+/// Opens the main window with the help open: the menu-bar window's Help on Windows, which has
+/// no app menu to carry it.
+#[tauri::command]
+pub fn open_help(app: AppHandle) {
+    show_main_window(app.clone(), None, None);
+    let _ = app.emit("open-help", ());
+}
+
+/// Check for Updates…, from Settings or the menu-bar window (Windows has no app menu).
+#[tauri::command]
+pub fn check_for_updates(app: AppHandle) {
+    if let Some(t) = app.get_webview_window("tray") {
+        let _ = t.hide();
+    }
+    crate::updates::check_now(&app);
+}
+
 /// Opens the main window with Ask open.
 #[tauri::command]
 pub fn open_ask(app: AppHandle) {

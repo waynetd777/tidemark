@@ -5,7 +5,8 @@ import { createPortal } from "react-dom";
 import FileTable from "./FileTable";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { View } from "./types";
-import { fmt, fmtDelta, fmtN } from "./util";
+import { fmt, fmtDelta, fmtN, shown } from "./util";
+import { cmdKey, FILES_APP, isMac, shortcut } from "./keys";
 
 /// What one block stands for. Folders are `dir`; the files directly inside a folder are one
 /// `files` block, and folders too small to draw are one `more` block, so a folder's area is
@@ -162,13 +163,14 @@ function draw(b: Block, x: number, y: number, w: number, h: number, out: HTMLEle
       : `blk ${b.kind}`;
   el.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
   el.dataset.id = id;
-  // Folders and files blocks take keyboard focus: Enter zooms in, ⌘Enter reveals in Finder.
+  // Folders and files blocks take keyboard focus: Enter zooms in, ⌘Enter reveals in Finder (Ctrl
+  // and File Explorer on Windows).
   // A folder holds its own blocks and a Reveal button, which a button may not, so it's a group.
   if (b.kind === "dir" || b.kind === "files") {
     el.tabIndex = 0;
     el.setAttribute("role", b.kind === "dir" ? "group" : "button");
     el.setAttribute("aria-label", `${blockTitle(b)}, ${fmt(blockSize(b))}`);
-    el.setAttribute("aria-keyshortcuts", "Enter Meta+Enter");
+    el.setAttribute("aria-keyshortcuts", isMac ? "Enter Meta+Enter" : "Enter Control+Enter");
   }
   const grew = b.kind === "dir" ? growthNow?.landed.get(v.path) : undefined;
   if (grew) {
@@ -207,8 +209,8 @@ function draw(b: Block, x: number, y: number, w: number, h: number, out: HTMLEle
     if (b.kind === "dir") {
       const rv = document.createElement("button");
       rv.className = "rv";
-      rv.title = "Reveal in Finder";
-      rv.setAttribute("aria-label", "Reveal in Finder");
+      rv.title = `Reveal in ${FILES_APP}`;
+      rv.setAttribute("aria-label", `Reveal in ${FILES_APP}`);
       rv.innerHTML = REVEAL;
       rv.dataset.reveal = id;
       hd.appendChild(rv);
@@ -331,7 +333,7 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
     }
     const hit = blockAt(e.target);
     if (!hit || hit.b.kind === "free") return;
-    if (e.metaKey) {
+    if (cmdKey(e)) {
       cbs.current.onReveal(hit.b.view.path);
       return;
     }
@@ -347,7 +349,7 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
     const hit = blockAt(el);
     if (!hit || hit.b.kind === "free") return;
     e.preventDefault();
-    if (e.metaKey) cbs.current.onReveal(hit.b.view.path);
+    if (cmdKey(e)) cbs.current.onReveal(hit.b.view.path);
     else if (hit.b.kind === "files" || hit.el.classList.contains("zoom"))
       cbs.current.onZoom(hit.b.view.path);
   };
@@ -379,19 +381,19 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
         `<div class="hint">Room left on the disk. Hide it with the Free space button.</div>`;
     } else if (b.kind === "files") {
       html =
-        `<b>${blockTitle(b)} directly in ${esc(v.name)}</b><div class="p">${esc(v.path)}</div><div class="r"><span>On disk</span><b>${fmt(v.loose_size)}</b>` +
+        `<b>${blockTitle(b)} directly in ${esc(v.name)}</b><div class="p">${esc(shown(v.path))}</div><div class="r"><span>On disk</span><b>${fmt(v.loose_size)}</b>` +
         (v.cloud ? `<span>In cloud</span><b>${fmt(v.loose_apparent)}</b>` : "") +
         `<span>Share of ${esc(v.name)}</span><b>${v.size ? Math.round((100 * v.loose_size) / v.size) : 0}%</b></div>` +
-        `<div class="hint">Click to zoom in · ⌘-click or right-click to reveal ${esc(v.name)} in Finder</div>`;
+        `<div class="hint">Click to zoom in · ${shortcut("⌘-click")} or right-click to reveal ${esc(v.name)} in ${FILES_APP}</div>`;
     } else if (b.kind === "more") {
       html =
-        `<b>${blockTitle(b)} in ${esc(v.name)}</b><div class="p">${esc(v.path)}</div><div class="r"><span>On disk</span><b>${fmt(v.more_size)}</b>` +
+        `<b>${blockTitle(b)} in ${esc(v.name)}</b><div class="p">${esc(shown(v.path))}</div><div class="r"><span>On disk</span><b>${fmt(v.more_size)}</b>` +
         `<span>Share of ${esc(v.name)}</span><b>${v.size ? Math.round((100 * v.more_size) / v.size) : 0}%</b></div>` +
         `<div class="hint">Each is too small to draw at this zoom. Zoom into ${esc(v.name)} to see them.</div>`;
     } else {
       const zoomable = hit.el.classList.contains("zoom");
       html =
-        `<b>${esc(v.name)}</b><div class="p">${esc(v.path)}</div><div class="r"><span>On disk</span><b>${fmt(v.size)}</b>` +
+        `<b>${esc(v.name)}</b><div class="p">${esc(shown(v.path))}</div><div class="r"><span>On disk</span><b>${fmt(v.size)}</b>` +
         (v.cloud ? `<span>In cloud</span><b>${fmt(v.apparent)}</b>` : "") +
         `<span>Items</span><b>${fmtN(v.items)}</b>` +
         (growth?.all.has(v.path)
@@ -405,7 +407,7 @@ export default function Treemap({ tree, free, onZoom, onReveal, onContext, growt
         (v.cloud && v.weight > v.size
           ? `<div class="hint">Drawn by cloud size: little or nothing of this is on disk.</div>`
           : "") +
-        `<div class="hint">${zoomable ? "Click to zoom in · " : ""}⌘-click or right-click to reveal in Finder</div>`;
+        `<div class="hint">${zoomable ? "Click to zoom in · " : ""}${shortcut("⌘-click")} or right-click to reveal in ${FILES_APP}</div>`;
     }
     tip.innerHTML = html;
     tip.hidden = false;

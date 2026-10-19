@@ -15,6 +15,8 @@ import ask from "./help/ask.md?raw";
 import menu_bar from "./help/menu-bar.md?raw";
 import keyboard from "./help/keyboard.md?raw";
 
+import { isMac, shortcut } from "./keys";
+
 export interface HelpSection {
   title: string;
   /** The `##` heading's anchor, as GitHub makes it, for links within the guide. */
@@ -61,7 +63,23 @@ const PAGES = [
   keyboard,
 ];
 
-export const GUIDE = parseGuide(PAGES.join("\n\n"));
+/** Mac-only and Windows-only parts of a guide, between `<!-- mac -->` and `<!-- /mac -->` or
+ *  `<!-- windows -->` and `<!-- /windows -->`: the help shows only this computer's. Words that join
+ *  the two for GitHub, which shows both ("Finder<!-- github --> (Mac) or <!-- /github -->File
+ *  Explorer"), go between `<!-- github -->` and `<!-- /github -->`, which the help never shows.
+ *  src-tauri/src/assistant/mod.rs filters Ask's copy the same way. */
+export const forPlatform = (md: string) =>
+  md
+    .replace(/<!-- github -->[\s\S]*?<!-- \/github -->/g, "")
+    .replace(
+      isMac ? /<!-- windows -->[\s\S]*?<!-- \/windows -->/g : /<!-- mac -->[\s\S]*?<!-- \/mac -->/g,
+      "",
+    )
+    .replace(/<!-- \/?(?:mac|windows) -->/g, "")
+    .replace(/\n{3,}/g, "\n\n");
+
+// The guide is written with macOS's keys; Windows reads its own.
+export const GUIDE = parseGuide(shortcut(forPlatform(PAGES.join("\n\n"))));
 
 /** Sections with every word of the query, those with words in their heading first. */
 export function searchHelp(q: string): HelpSection[] {
@@ -98,12 +116,13 @@ function inline(text: string): string {
   return t.replace(/\u0000(\d+)\u0000/g, (_, i: string) => `<code>${esc(codes[Number(i)])}</code>`);
 }
 
+// A pipe escaped as \| (in `irm … \| iex`) is a pipe in the cell, as GitHub reads it.
 const cells = (row: string) =>
   row
     .trim()
-    .replace(/^\||\|$/g, "")
-    .split("|")
-    .map((c) => c.trim());
+    .replace(/^\||(?<!\\)\|$/g, "")
+    .split(/(?<!\\)\|/)
+    .map((c) => c.trim().replace(/\\\|/g, "|"));
 
 /** The guide's Markdown as HTML: paragraphs, `###` headings, lists, tables and quotes. */
 export function helpHtml(md: string): string {

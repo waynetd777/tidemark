@@ -9,6 +9,7 @@ import { api } from "./api";
 import { incidentTitle } from "./incidents";
 import { statusFor } from "./status";
 import type { AppUse, Crash, Incident, Live } from "./types";
+import { isMac, MACHINE, OS } from "./keys";
 import { fmtAt, fmtMem, fmtW, pct } from "./util";
 
 /// A moment in full, so the assistant can place it: "Wed 8 Oct 2026, 14:57".
@@ -42,7 +43,7 @@ export function incidentDetail(i: Incident): AskDetail {
     i.kind === "cpu"
       ? "CPU above 90% for 30 seconds or more"
       : i.kind === "pressure"
-        ? "macOS's memory pressure turned red"
+        ? `${OS}'s memory pressure turned red`
         : "swap grew by 1 GB or more within 10 minutes";
   return {
     label: `${incidentTitle(i)}, ${fmtAt(i.started)}`,
@@ -50,7 +51,7 @@ export function incidentDetail(i: Incident): AskDetail {
       `An incident Tidemark recorded: ${rule}.`,
       `Started ${when(i.started)}; ${mins == null ? "still going on" : `lasted ${mins} minute${mins === 1 ? "" : "s"}, ended ${when(i.ended!)}`}.`,
       `Peak ${peak} at ${when(i.peak_at)}.`,
-      "What the busiest apps were using at the peak, busiest first (CPU is a share of the whole Mac):",
+      `What the busiest apps were using at the peak, busiest first (CPU is a share of the whole ${MACHINE}):`,
       ...i.snapshot.slice(0, 15).map(appLine),
     ].join("\n"),
   };
@@ -80,7 +81,7 @@ export async function crashDetail(
   return {
     label: `${g.app} ${g.kind === "hang" ? "hang" : "crash"} report${g.n > 1 ? "s" : ""}, ${fmtAt(g.last)}`,
     text: [
-      `macOS wrote ${g.n} ${g.kind === "hang" ? "hang" : "crash"} report${g.n > 1 ? "s" : ""} for ${g.app} this week, at: ${mine.map((c) => when(c.ts)).join("; ")}.`,
+      `${OS} ${isMac ? "wrote" : "logged"} ${g.n} ${g.kind === "hang" ? "hang" : "crash"} report${g.n > 1 ? "s" : ""} for ${g.app} this week, at: ${mine.map((c) => when(c.ts)).join("; ")}.`,
       `The latest ${reports.length === 1 ? "one" : reports.length}, summarised:`,
       ...reports.map((r) => `---\n${r}`),
     ].join("\n"),

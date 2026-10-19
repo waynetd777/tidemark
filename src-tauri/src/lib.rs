@@ -308,6 +308,8 @@ pub fn run() {
             settings::save_settings,
             tray::show_main_window,
             tray::open_ask,
+            tray::open_help,
+            tray::check_for_updates,
             tray::quit,
             tray::quit_now,
             tray::quit_cancelled,

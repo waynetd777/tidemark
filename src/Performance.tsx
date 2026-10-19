@@ -29,6 +29,7 @@ import type {
   Screen,
   Settings,
 } from "./types";
+import { isMac, MACHINE, MONITOR_APP, OS, UNREACHED } from "./keys";
 import {
   abbrev,
   batteryLine,
@@ -72,7 +73,13 @@ function peakOf(points: Minute[], k: "cpu_max" | "mem_max"): { t: number; v: num
   return best ? { t: best.ts, v: best[k] } : null;
 }
 
-const THERMAL = ["Nominal", "Fair", "Serious", "Critical"];
+// macOS's thermal states; on Windows, whether it has slowed the processor to cool it (2: by up
+// to half, 3: by more).
+const THERMAL = isMac
+  ? ["Nominal", "Fair", "Serious", "Critical"]
+  : ["Not slowed", "Not slowed", "Slowed to cool", "Slowed by half"];
+/// What macOS calls the kernel's memory that is never moved to disk; Windows' word for it.
+const WIRED = isMac ? "Wired" : "Non-paged";
 
 /// One chart card's measure: what Performance draws for CPU, memory, a direction of traffic...
 interface ChartSpec {
@@ -97,7 +104,7 @@ const PRESSURE = (v: number) => (v >= 4 ? "Critical" : v >= 2 ? "Raised" : "Norm
 
 /// What the snapshot says about a chart's measure at a moment: the average the line shows, the
 /// moment's peak where there is one, and which apps to list. macOS splits CPU, memory, energy
-/// and disk by app; for the GPU and the network the apps are the busiest by CPU, and the
+/// and disk by app (Windows all but energy); for the GPU and the network the apps are the busiest by CPU, and the
 /// snapshot says so.
 interface Measure {
   what: string;
@@ -110,7 +117,7 @@ interface Measure {
   avgLabel?: string;
 }
 const BY_CPU = (what: string) =>
-  `macOS doesn't say which apps use the ${what}: these were the busiest by CPU then.`;
+  `${OS} doesn't say which apps use the ${what}: these were the busiest by CPU then.`;
 const MEASURES: Record<string, Measure> = {
   CPU: { what: "CPU", avg: (m) => m.cpu, peak: (m) => m.cpu_max, fmt: pct, by: "cpu" },
   "Performance cores": { what: "performance cores", avg: (m) => m.cpu_p, fmt: pct, by: "cpu" },
@@ -131,7 +138,12 @@ const MEASURES: Record<string, Measure> = {
     by: "mem",
   },
   "App memory": { what: "app memory", avg: (m) => m.mem_app, fmt: fmtMem, by: "mem" },
-  Wired: { what: "wired memory", avg: (m) => m.mem_wired, fmt: fmtMem, by: "mem" },
+  [WIRED]: {
+    what: `${WIRED.toLowerCase()} memory`,
+    avg: (m) => m.mem_wired,
+    fmt: fmtMem,
+    by: "mem",
+  },
   Compressed: { what: "compressed memory", avg: (m) => m.mem_comp, fmt: fmtMem, by: "mem" },
   Swap: { what: "swap", avg: (m) => m.swap, peak: (m) => m.swap_max, fmt: fmtMem, by: "mem" },
   Pressure: {
@@ -183,14 +195,16 @@ const MEASURES: Record<string, Measure> = {
     avg: (m) => m.power,
     peak: (m) => m.power_max,
     fmt: fmtW,
-    by: "energy",
+    by: isMac ? "energy" : "cpu",
+    note: isMac ? undefined : BY_CPU("energy"),
   },
 };
 MEASURES.Battery = {
   what: "battery charge",
   avg: (m) => m.battery,
   fmt: (v) => `${Math.round(v)}%`,
-  by: "energy",
+  by: isMac ? "energy" : "cpu",
+  note: isMac ? undefined : BY_CPU("energy"),
 };
 MEASURES["Disk reads"] = MEASURES.Reads;
 MEASURES["Disk writes"] = MEASURES.Writes;
@@ -496,7 +510,7 @@ export default function Performance({
       sub:
         `${total > 1 ? `of ${fmtMem(total)} · ` : ""}pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}` +
         (latest?.mem_parts
-          ? ` · apps ${fmtMem(latest.mem_parts.app)}, wired ${fmtMem(latest.mem_parts.wired)}, compressed ${fmtMem(latest.mem_parts.compressed)}`
+          ? ` · apps ${fmtMem(latest.mem_parts.app)}, ${WIRED.toLowerCase()} ${fmtMem(latest.mem_parts.wired)}, compressed ${fmtMem(latest.mem_parts.compressed)}`
           : ""),
       brief: `${total > 1 ? `of ${fmtMem(total)} · ` : ""}pressure ${latest && latest.pressure >= 4 ? "critical" : latest && latest.pressure >= 2 ? "raised" : "normal"}`,
       pts: ser("mem"),
@@ -517,8 +531,8 @@ export default function Performance({
             </span>
             {m.mem_app != null && (
               <span>
-                Apps {fmtMem(m.mem_app)} · wired {fmtMem(m.mem_wired ?? 0)} · compressed{" "}
-                {fmtMem(m.mem_comp ?? 0)}
+                Apps {fmtMem(m.mem_app)} · {WIRED.toLowerCase()} {fmtMem(m.mem_wired ?? 0)} ·
+                compressed {fmtMem(m.mem_comp ?? 0)}
               </span>
             )}
           </>
@@ -713,7 +727,9 @@ export default function Performance({
     <section className="card chart" data-focus="crashes">
       <div className="row base wrap">
         <b className="cname">Crashes and hangs</b>
-        <span className="muted small">last 14 days, from the reports macOS keeps</span>
+        <span className="muted small">
+          last 14 days, from {isMac ? "the reports macOS keeps" : "Windows' event log"}
+        </span>
       </div>
       <div className="crashlist">
         {crashGroups(crashList ?? []).length === 0 && (
@@ -971,7 +987,9 @@ export default function Performance({
       <b className="tv">{latest ? (THERMAL[latest.thermal] ?? "Nominal") : "–"}</b>
       <span className="muted small">
         {points.some((m) => m.thermal >= 2)
-          ? "Ran hot in this range"
+          ? isMac
+            ? "Ran hot in this range"
+            : "Slowed to cool in this range"
           : "No throttling in this range"}
       </span>
     </section>
@@ -1187,7 +1205,7 @@ export default function Performance({
                   },
                 ),
                 partSpec(
-                  "Wired",
+                  WIRED,
                   series((m) => m.mem_wired, latest?.mem_parts?.wired),
                   partsTop,
                   fmtMem,
@@ -1211,7 +1229,9 @@ export default function Performance({
             4,
             PRESSURE,
             {
-              sub: "how macOS rates the memory",
+              sub: isMac
+                ? "how macOS rates the memory"
+                : "worked out from the memory committed and free",
               peak: null,
             },
           ),
@@ -1288,12 +1308,13 @@ export default function Performance({
             : undefined,
         ],
         {
-          why: "The CPU and the GPU draw most of the power: what the Mac drew follows them.",
+          why: `The CPU and the GPU draw most of the power: what the ${MACHINE} drew follows them.`,
           charts: [cpuChart, gpuChart],
         },
       )}
       <div className="cards2">
-        {energyAppsCard}
+        {/* Windows doesn't measure apps' energy. */}
+        {isMac && energyAppsCard}
         {batteryCard}
       </div>
       <div className="cards2">
@@ -1451,8 +1472,7 @@ export default function Performance({
       </div>
       {unseen > 1e9 && (
         <span className="muted small">
-          And {fmt(unseen)} the scan can't see: local Time Machine snapshots, purgeable caches, swap
-          and folders macOS didn't let it read.
+          And {fmt(unseen)} the scan can't see: {UNREACHED}.
         </span>
       )}
       {info?.scan && (
@@ -1680,7 +1700,7 @@ export default function Performance({
                   ask(
                     at
                       ? `Why was the ${measure.what} ${atAvg != null ? `at ${measure.fmt(atAvg)}` : "high"} at ${fmtAt(at.t)}${top ? `, with ${top.app} on top` : ""}?`
-                      : "Is anything slowing my Mac down?",
+                      : `Is anything slowing my ${MACHINE} down?`,
                   )
                 }
               >
@@ -1689,9 +1709,9 @@ export default function Performance({
               <button
                 className="btn"
                 onClick={() => void api.activityMonitor()}
-                title="Open macOS's Activity Monitor for every process, live"
+                title={`Open ${OS}'s ${MONITOR_APP} for every process, live`}
               >
-                Activity Monitor
+                {MONITOR_APP}
               </button>
             </div>
           </aside>

@@ -18,6 +18,7 @@ use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager};
 
+#[cfg(not(windows))]
 const SYSTEM: &str = "You are an adviser inside Tidemark, a macOS app that records what is using a Mac's disk and how hard the Mac is working, over time. \
 The user's message carries what the app knows: the folder on screen and the biggest folders inside it (sizes on disk, item counts, loose files), what grew on the disk recently, and the performance record (CPU, memory, swap and memory pressure now, today's highs, the week's high-water marks, incidents with the apps that were busiest at each, and the apps that used the most). \
 Answer the question asked. For questions about Tidemark itself (what a screen, figure or setting means, how to do something in the app), answer from the user guide below. For disk questions, find where space can be reclaimed safely: say in plain language what each big folder is for, which ones are safe to clear or shrink and how (an app's own clear-cache or empty-trash command, a Finder step, a Terminal command), roughly how much each would free, and what to leave alone: system folders, cloud placeholders that take no local space, and anything the user would have to recreate by hand; rank by space reclaimed against risk. \
@@ -25,6 +26,17 @@ For performance questions, explain what happened from the record: which resource
 Be honest when a folder's or process's purpose is unclear from its name, and ask before guessing. \
 The app deletes and changes nothing and you have no tools and no files to read, so answer from the message alone, run no commands, and never claim to have checked or removed anything; if a Terminal command would help the user, give it exactly, and warn when it is destructive. \
 The app's figures are measured facts, not faults. The disk's used figure is larger than the scan total, and that gap is expected: the guide below says why (local snapshots, purgeable space, swap, folders the scan skips or cannot read). Never suggest the app is wrong or broken. Mention the gap or skipped folders only when the user asks or it changes the advice, briefly, and when folders could not be read end with the Full Disk Access step. \
+Write tightly: short paragraphs or bullets, headings only when they help, paths and app names as written in the message.";
+/// The same, for Windows: its words, its tools (File Explorer, PowerShell), and why its disk's
+/// used figure is larger than the scan (no Full Disk Access to suggest).
+#[cfg(windows)]
+const SYSTEM: &str = "You are an adviser inside Tidemark, a Windows app that records what is using a PC's disk and how hard the PC is working, over time. \
+The user's message carries what the app knows: the folder on screen and the biggest folders inside it (sizes on disk, item counts, loose files), what grew on the disk recently, and the performance record (CPU, memory, swap and memory pressure now, today's highs, the week's high-water marks, incidents with the apps that were busiest at each, and the apps that used the most). \
+Answer the question asked. For questions about Tidemark itself (what a screen, figure or setting means, how to do something in the app), answer from the user guide below. For disk questions, find where space can be reclaimed safely: say in plain language what each big folder is for, which ones are safe to clear or shrink and how (an app's own clear-cache or empty-trash command, a File Explorer step, Windows' Disk Cleanup or Storage Sense, a PowerShell command), roughly how much each would free, and what to leave alone: system folders, cloud placeholders that take no local space, and anything the user would have to recreate by hand; rank by space reclaimed against risk. \
+For performance questions, explain what happened from the record: which resource ran short, when, and which apps were responsible, in terms of the figures given; say what would help (quitting or limiting an app, stopping a VM, closing tabs) and when something is normal and not worth acting on. \
+Be honest when a folder's or process's purpose is unclear from its name, and ask before guessing. \
+The app deletes and changes nothing and you have no tools and no files to read, so answer from the message alone, run no commands, and never claim to have checked or removed anything; if a PowerShell command would help the user, give it exactly, and warn when it is destructive. \
+The app's figures are measured facts, not faults. The disk's used figure is larger than the scan total, and that gap is expected: the guide below says why (System Restore points and shadow copies, the file system's own records, folders the scan cannot read). Never suggest the app is wrong or broken. Mention the gap or skipped folders only when the user asks or it changes the advice, briefly, and when folders could not be read say they are mostly ones only an administrator can open. \
 Write tightly: short paragraphs or bullets, headings only when they help, paths and app names as written in the message.";
 
 /// The in-app help's pages (src/help/), in the order the drawer shows them (src/guides.ts): the
@@ -49,10 +61,42 @@ const HELP: [(&str, &str); 10] = help_pages![
     "keyboard",
 ];
 
-/// The system prompt: SYSTEM, then the whole guide, built once.
+/// A guide page as the help shows it on this platform (src/guides.ts forPlatform): the other
+/// platform's parts and the words joining the two for GitHub gone, the markers too.
+fn for_platform(md: &str) -> String {
+    let other = if cfg!(windows) { "mac" } else { "windows" };
+    let cut = |s: String, name: &str| {
+        let (open, close) = (format!("<!-- {name} -->"), format!("<!-- /{name} -->"));
+        let mut out = String::new();
+        let mut rest = s.as_str();
+        while let Some(a) = rest.find(&open) {
+            out.push_str(&rest[..a]);
+            rest = rest[a..]
+                .find(&close)
+                .map_or("", |b| &rest[a + b + close.len()..]);
+        }
+        out.push_str(rest);
+        out
+    };
+    let mut s = cut(cut(md.to_string(), "github"), other);
+    for m in [
+        "<!-- mac -->",
+        "<!-- /mac -->",
+        "<!-- windows -->",
+        "<!-- /windows -->",
+    ] {
+        s = s.replace(m, "");
+    }
+    while s.contains("\n\n\n") {
+        s = s.replace("\n\n\n", "\n\n");
+    }
+    s
+}
+
+/// The system prompt: SYSTEM, then the whole guide as this platform's help has it, built once.
 fn system() -> &'static str {
     static PROMPT: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-        let guide: Vec<&str> = HELP.iter().map(|(_, p)| p.trim()).collect();
+        let guide: Vec<String> = HELP.iter().map(|(_, p)| for_platform(p.trim())).collect();
         format!(
             "{SYSTEM}\n\nThe app's user guide:\n\n{}",
             guide.join("\n\n")
@@ -276,15 +320,26 @@ pub async fn assistant_status() -> Result<Status, String> {
     .map_err(|e| e.to_string())
 }
 
+/// Windows holds a command line to 32,767 characters, which the guide in the instructions and a
+/// long question together pass: there the question goes in on stdin, which Claude Code (`-p`
+/// with no prompt), Codex (`-`) and Copilot (no `-p`) read when it is piped.
+pub(crate) const PROMPT_ON_STDIN: bool = cfg!(windows);
+
+/// Starts the CLI, with `input` written to its stdin when there is any.
 fn spawn(
     cmd: &mut Command,
     running: &Running,
     chat_id: &str,
     name: &str,
+    input: Option<String>,
 ) -> Result<(Child, ChildStdout, std::thread::JoinHandle<String>), String> {
-    cmd.stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    cmd.stdin(if input.is_some() {
+        Stdio::piped()
+    } else {
+        Stdio::null()
+    })
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(cmd, 0);
     crate::process::no_window(cmd);
@@ -292,6 +347,13 @@ fn spawn(
         .spawn()
         .map_err(|e| format!("Couldn't start {name}: {e}"))?;
     let stdout = child.stdout.take().ok_or("no stdout")?;
+    // Written on a thread of its own and then closed, so the CLI sees the end of it.
+    if let (Some(text), Some(mut stdin)) = (input, child.stdin.take()) {
+        std::thread::spawn(move || {
+            use std::io::Write;
+            let _ = stdin.write_all(text.as_bytes());
+        });
+    }
     let stderr = child.stderr.take();
     let err = std::thread::spawn(move || {
         let mut s = String::new();
@@ -378,11 +440,41 @@ mod tests {
         let p = system();
         assert!(p.starts_with(SYSTEM));
         for (_, page) in HELP {
-            assert!(p.contains(page.trim()));
+            assert!(p.contains(&for_platform(page.trim())));
         }
         // Help's sections on the app's own figures among them.
-        for title in ["Free space", "Full Disk Access", "Trends"] {
+        let unread = if cfg!(windows) {
+            "Folders the scan can't read"
+        } else {
+            "Full Disk Access"
+        };
+        for title in ["Free space", unread, "Trends"] {
             assert!(p.contains(&format!("## {title}\n")), "missing {title}");
+        }
+    }
+
+    /// Every platform part of the guide is closed, so the help and Ask drop only what they should.
+    #[test]
+    fn platform_markers_are_balanced() {
+        for (name, page) in HELP {
+            for m in ["mac", "windows", "github"] {
+                assert_eq!(
+                    page.matches(&format!("<!-- {m} -->")).count(),
+                    page.matches(&format!("<!-- /{m} -->")).count(),
+                    "{name}.md has an unclosed <!-- {m} --> part"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn keeps_this_platforms_parts() {
+        let md = "Show in <!-- mac -->Finder<!-- /mac --><!-- github --> (Mac) or <!-- /github --><!-- windows -->File Explorer<!-- /windows -->.\n\n<!-- windows -->\nOnly Windows.\n<!-- /windows -->\n\nEnd.";
+        let s = for_platform(md);
+        if cfg!(windows) {
+            assert_eq!(s, "Show in File Explorer.\n\nOnly Windows.\n\nEnd.");
+        } else {
+            assert_eq!(s, "Show in Finder.\n\nEnd.");
         }
     }
 

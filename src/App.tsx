@@ -35,8 +35,15 @@ import {
   fmtN,
   fmtUptime,
   fmtWhen,
+  isVolumeRoot,
   parentPath,
+  shown,
 } from "./util";
+import { cmdKey, DENIED, FILES_APP, isMac, MACHINE, shortcut, UNREACHED } from "./keys";
+
+/// The window is dragged by its top bar and sidebar on macOS, whose window has no title bar of
+/// its own. Windows' window has one, and a drag area there takes the clicks that would scroll.
+const DRAG = isMac ? "deep" : undefined;
 
 const RELOAD_ICON = (
   <svg
@@ -433,7 +440,7 @@ export default function App() {
     (path: string) => {
       api
         .reveal(path)
-        .then(() => say(`Revealed in Finder: ${path}`))
+        .then(() => say(`Revealed in ${FILES_APP}: ${shown(path)}`))
         .catch((e) => say(String(e)));
     },
     [say],
@@ -598,7 +605,7 @@ export default function App() {
     const picked = await pickFolder({
       directory: true,
       multiple: false,
-      defaultPath: info?.root ?? "/",
+      defaultPath: shown(info?.root ?? "/"),
       title: "Choose a folder to scan",
     }).catch((e: unknown) => {
       say(String(e));
@@ -615,12 +622,12 @@ export default function App() {
   // screen, ⌘K Ask.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey && ["1", "2", "3", "4"].includes(e.key)) {
+      if (cmdKey(e) && ["1", "2", "3", "4"].includes(e.key)) {
         e.preventDefault();
         show(NAV[Number(e.key) - 1].id);
         return;
       }
-      if (e.metaKey && e.key === ",") {
+      if (cmdKey(e) && e.key === ",") {
         e.preventDefault();
         show("settings");
         return;
@@ -642,6 +649,18 @@ export default function App() {
           up();
         return;
       }
+      // Ctrl+? opens and closes the help on Windows, from a text box too (⌘? is the Help menu's
+      // on macOS).
+      if (
+        !isMac &&
+        e.ctrlKey &&
+        !e.altKey &&
+        (e.key === "?" || (e.shiftKey && e.code === "Slash"))
+      ) {
+        e.preventDefault();
+        openHelp(!helpOpen);
+        return;
+      }
       // ? outside a text box opens and closes the help, with or without ⌘.
       if (e.key === "?" && !e.ctrlKey && !e.altKey) {
         if ((e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
@@ -649,7 +668,7 @@ export default function App() {
         openHelp(!helpOpen);
         return;
       }
-      if (!e.metaKey) return;
+      if (!cmdKey(e)) return;
       if (e.key === "k") {
         e.preventDefault();
         if (assistant.available) openAsk(!askOpen);
@@ -713,10 +732,10 @@ export default function App() {
   if (info && viewPath) {
     crumbs.push({ name: info.root_name, path: root });
     if (viewPath !== root) {
-      const rel = root === "/" ? viewPath.slice(1) : viewPath.slice(root.length + 1);
+      const rel = viewPath.slice(root.length);
       let p = root;
       for (const part of rel.split("/").filter(Boolean)) {
-        p = p === "/" ? `/${part}` : `${p}/${part}`;
+        p = p.endsWith("/") ? `${p}${part}` : `${p}/${part}`;
         crumbs.push({ name: part, path: p });
       }
     }
@@ -731,8 +750,8 @@ export default function App() {
   const notScanned =
     info && root === "/" && info.scan ? Math.max(0, info.volume.used - info.scan.size) : 0;
   // Free space only means something beside a whole volume, so it is drawn at the top of a scan of
-  // `/` or of a disk under /Volumes, never inside a folder.
-  const volumeRoot = root === "/" || /^\/Volumes\/[^/]+$/.test(root);
+  // `/` or of a disk under /Volumes (a drive's root on Windows), never inside a folder.
+  const volumeRoot = isVolumeRoot(root);
   const freeHere = volumeRoot && viewPath === root && info ? info.volume.free : 0;
   const showFdaBanner = info && !info.full_disk_access && (info.scan?.denied ?? 0) > 0;
   // What Ask puts to Claude: the folder on screen, as it is when the question is sent.
@@ -746,7 +765,7 @@ export default function App() {
           ? `What grew on the disk between the scans of ${new Date(growth.from * 1000).toDateString()} and ${new Date(growth.to * 1000).toDateString()}, where the growth landed:\n` +
               landed
                 .slice(0, 12)
-                .map((g) => `- ${g.path}: ${fmtDelta(g.delta)} (now ${fmt(g.size)})`)
+                .map((g) => `- ${shown(g.path)}: ${fmtDelta(g.delta)} (now ${fmt(g.size)})`)
                 .join("\n")
           : "Nothing on the disk grew by more than 100 MB this week.",
       );
@@ -813,7 +832,7 @@ export default function App() {
     </div>
   );
   const bar = (left: ReactNode) => (
-    <div className="topbar" data-tauri-drag-region="deep">
+    <div className="topbar" data-tauri-drag-region={DRAG}>
       {navBtns}
       <div className="barleft">{left}</div>
       {askHelp}
@@ -823,7 +842,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <aside className="sidebar" data-tauri-drag-region="deep">
+      <aside className="sidebar" data-tauri-drag-region={DRAG}>
         <div className="brand">
           <Mark size={24} />
           <span>Tidemark</span>
@@ -839,15 +858,15 @@ export default function App() {
             >
               {n.icon}
               <span>{n.label}</span>
-              <span className="k">{n.key}</span>
+              <span className="k">{shortcut(n.key)}</span>
             </button>
           ))}
         </nav>
         {screen !== "settings" && mac && (
           <>
-            <div className="sec">This Mac</div>
+            <div className="sec">This {MACHINE}</div>
             <div className="macinfo">
-              <span>{mac.chip || "This Mac"}</span>
+              <span>{mac.chip || `This ${MACHINE}`}</span>
               <span className="muted">
                 {mac.cores} cores · {fmtMem(mac.memory)} memory
               </span>
@@ -911,7 +930,7 @@ export default function App() {
                 {notScanned > 0 && (
                   <div
                     className="unscanned"
-                    title="Space the disk reports as used that the folder walk cannot reach: local Time Machine snapshots, purgeable caches, swap, the recovery volume, and folders macOS denied access to."
+                    title={`Space the disk reports as used that the folder walk cannot reach: ${UNREACHED}.`}
                   >
                     incl. {fmt(notScanned)} not scanned
                   </div>
@@ -927,10 +946,7 @@ export default function App() {
                   {fmtN(info.scan.items)} items in {fmtDuration(info.scan.duration_ms)}
                   <br />
                   {info.scan.denied > 0 ? (
-                    <span
-                      className="warnt"
-                      title="Mostly system folders owned by root (e.g. /private/var/folders, /System/Library/Templates). Full Disk Access opens your own protected folders, not those."
-                    >
+                    <span className="warnt" title={DENIED}>
                       {fmtN(info.scan.denied)} folder{info.scan.denied === 1 ? "" : "s"} not
                       readable
                     </span>
@@ -970,7 +986,7 @@ export default function App() {
                     onClick={() => {
                       if (r.path !== root) startScan(r.path);
                     }}
-                    title={`${r.path}\nScanned ${fmtWhen(r.when)}`}
+                    title={`${shown(r.path)}\nScanned ${fmtWhen(r.when)}`}
                   >
                     <span className="nm">{r.path === "/" ? r.name : abbrev(r.path, home)}</span>
                     <span className="sz">{fmt(r.size)}</span>
@@ -991,7 +1007,7 @@ export default function App() {
           >
             {SETTINGS_ICON}
             <span>Settings</span>
-            <span className="k">⌘,</span>
+            <span className="k">{shortcut("⌘,")}</span>
           </button>
         </nav>
         <div className="foot">
@@ -1035,7 +1051,7 @@ export default function App() {
         )}
         {screen === "disk" && (
           <>
-            <div className="topbar" data-tauri-drag-region="deep">
+            <div className="topbar" data-tauri-drag-region={DRAG}>
               {navBtns}
               <div className="crumbs">
                 {crumbs.map((c, i) => (
@@ -1057,7 +1073,7 @@ export default function App() {
                     </span>
                     <button
                       className="rvc"
-                      title={`Reveal ${tree.name} in Finder (⌘⇧R)`}
+                      title={`Reveal ${tree.name} in ${FILES_APP} (⌘⇧R)`}
                       onClick={() => reveal(tree.path)}
                     >
                       <RevealIcon />
@@ -1124,7 +1140,7 @@ export default function App() {
                   <b>
                     {info?.scan ? "Rescanning" : "Scanning"} {progress.root_name || info?.root_name}
                   </b>
-                  <span className="path">{progress.current}</span>
+                  <span className="path">{shown(progress.current)}</span>
                 </div>
                 <div className="nums">
                   {fmtN(progress.items)}
@@ -1226,14 +1242,15 @@ function ContextMenu({
   };
   return (
     <div className="menu" style={style}>
-      <div className="mh">{v.path}</div>
+      <div className="mh">{shown(v.path)}</div>
       <button
         onClick={() => {
           onClose();
           onReveal(v.path);
         }}
       >
-        Reveal in Finder<span className="k">⌘-click</span>
+        Reveal in {FILES_APP}
+        <span className="k">{shortcut("⌘-click")}</span>
       </button>
       <button
         disabled={!zoomable}
@@ -1246,8 +1263,8 @@ function ContextMenu({
       <button
         onClick={() => {
           onClose();
-          writeText(v.path)
-            .then(() => say(`Copied ${v.path}`))
+          writeText(shown(v.path))
+            .then(() => say(`Copied ${shown(v.path)}`))
             .catch((e: unknown) => say(String(e)));
         }}
       >
@@ -1260,7 +1277,7 @@ function ContextMenu({
           api.getInfo(v.path).catch((e: unknown) => say(String(e)));
         }}
       >
-        Get Info…
+        {isMac ? "Get Info…" : "Properties…"}
       </button>
     </div>
   );

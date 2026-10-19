@@ -27,7 +27,7 @@ pub fn models() -> Vec<Model> {
     let Some(bin) = find() else {
         return Vec::new();
     };
-    let Ok(out) = Command::new(bin).arg("models").output() else {
+    let Ok(out) = crate::process::no_window(Command::new(bin).arg("models")).output() else {
         return Vec::new();
     };
     String::from_utf8_lossy(&out.stdout)
@@ -78,7 +78,7 @@ pub fn ask(
     if let Some(s) = &session {
         cmd.args(["--conversation", s]);
     }
-    let (child, stdout, stderr) = spawn(&mut cmd, &running, &chat_id, "Antigravity")?;
+    let (child, stdout, stderr) = spawn(&mut cmd, &running, &chat_id, "Antigravity", None)?;
 
     std::thread::spawn(move || {
         let mut text = String::new();

@@ -9,7 +9,7 @@
 //! routes to whatever the account allows. It takes no system prompt, so the instructions open the
 //! first message.
 
-use super::{finish, silent, spawn, system, Chunk, Done, Model, Running};
+use super::{finish, silent, spawn, system, Chunk, Done, Model, Running, PROMPT_ON_STDIN};
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Command;
@@ -48,28 +48,35 @@ pub fn ask(
         format!("<instructions>\n{}\n</instructions>\n\n{prompt}", system())
     };
     let mut cmd = Command::new(bin);
-    cmd.current_dir(&cwd)
-        .arg("-p")
-        .arg(&prompt)
-        .args([
-            "--model",
-            model.strip_prefix(PREFIX).unwrap_or(&model),
-            "--output-format",
-            "json",
-            "--stream",
-            "on",
-        ])
-        .args([
-            "--no-custom-instructions",
-            "--disable-builtin-mcps",
-            "--no-auto-update",
-            "--disallow-temp-dir",
-            "--available-tools=tidemark-ask-has-no-tools",
-        ]);
+    cmd.current_dir(&cwd);
+    if !PROMPT_ON_STDIN {
+        cmd.arg("-p").arg(&prompt);
+    }
+    cmd.args([
+        "--model",
+        model.strip_prefix(PREFIX).unwrap_or(&model),
+        "--output-format",
+        "json",
+        "--stream",
+        "on",
+    ])
+    .args([
+        "--no-custom-instructions",
+        "--disable-builtin-mcps",
+        "--no-auto-update",
+        "--disallow-temp-dir",
+        "--available-tools=tidemark-ask-has-no-tools",
+    ]);
     if let Some(s) = &session {
         cmd.arg(format!("--resume={s}"));
     }
-    let (child, stdout, stderr) = spawn(&mut cmd, &running, &chat_id, "GitHub Copilot")?;
+    let (child, stdout, stderr) = spawn(
+        &mut cmd,
+        &running,
+        &chat_id,
+        "GitHub Copilot",
+        PROMPT_ON_STDIN.then(|| prompt.clone()),
+    )?;
 
     std::thread::spawn(move || {
         let mut text = String::new();

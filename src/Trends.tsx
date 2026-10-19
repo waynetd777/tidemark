@@ -17,6 +17,10 @@ import { now, usePoll, usePolled } from "./perf";
 import { isTab, TABS, tabFor, type Tab } from "./perfTabs";
 import { useRemembered } from "./remember";
 import type { AppUse, DiskPoint, Growth, PerfDay, Screen } from "./types";
+import { isMac, MACHINE, OS } from "./keys";
+
+const WIN_ENERGY =
+  "Windows doesn't say which apps use energy: these were the day's busiest by CPU.";
 import { abbrev, fmt, fmtDelta, fmtMem, fmtRate, fmtW, pct } from "./util";
 
 const RANGES = [
@@ -140,7 +144,7 @@ const M: Record<string, Measure> = {
     fmt: pct,
     by: "cpu",
     avgLabel: "the day's average",
-    note: "macOS doesn't say which apps use the GPU: these were the day's busiest by CPU.",
+    note: `${OS} doesn't say which apps use the GPU: these were the day's busiest by CPU.`,
     hour: "gpu",
   },
   Memory: {
@@ -196,7 +200,7 @@ const M: Record<string, Measure> = {
     fmt,
     by: "cpu",
     avgLabel: "downloaded that day",
-    note: "macOS doesn't say which apps use the network: these were the day's busiest by CPU.",
+    note: `${OS} doesn't say which apps use the network: these were the day's busiest by CPU.`,
     hour: "down",
   },
   Uploaded: {
@@ -206,7 +210,7 @@ const M: Record<string, Measure> = {
     fmt,
     by: "cpu",
     avgLabel: "uploaded that day",
-    note: "macOS doesn't say which apps use the network: these were the day's busiest by CPU.",
+    note: `${OS} doesn't say which apps use the network: these were the day's busiest by CPU.`,
     hour: "up",
   },
   Energy: {
@@ -214,8 +218,10 @@ const M: Record<string, Measure> = {
     what: "energy used",
     avg: (d) => d.energy,
     fmt: wh,
-    by: "energy",
-    avgLabel: "used that day",
+    // Windows measures no app's energy, and the PC's power only on battery.
+    by: isMac ? "energy" : "cpu",
+    note: isMac ? undefined : WIN_ENERGY,
+    avgLabel: isMac ? "used that day" : "used on battery that day",
     hour: "power",
   },
   Power: {
@@ -224,8 +230,9 @@ const M: Record<string, Measure> = {
     avg: (d) => d.power,
     peak: (d) => d.power_max,
     fmt: fmtW,
-    by: "energy",
-    avgLabel: "the day's average",
+    by: isMac ? "energy" : "cpu",
+    note: isMac ? undefined : WIN_ENERGY,
+    avgLabel: isMac ? "the day's average" : "the day's average on battery",
     hour: "power",
   },
 };
@@ -861,7 +868,7 @@ export default function Trends({
             {[
               "Will I run out of disk this year?",
               `What grew most in the last ${RANGES[range].label}?`,
-              "When is my Mac usually busiest, and why?",
+              `When is my ${MACHINE} usually busiest, and why?`,
             ].map((q) => (
               <button
                 className="chip"

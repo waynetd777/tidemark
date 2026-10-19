@@ -36,6 +36,8 @@ export interface AppInfo {
   recent: Recent[];
   full_disk_access: boolean;
   home: string;
+  /// The system drive ("C:") on Windows, where "/" in a path is its root; "" on macOS.
+  drive: string;
 }
 
 export interface Progress {

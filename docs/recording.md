@@ -1,20 +1,21 @@
 # Recording
 
-How Tidemark reads your Mac, and what it keeps.
+How Tidemark reads your computer, and what it keeps.
 
 ## Sampling
 
 | When | How often |
 |---|---|
-| The window is in front, or the menu-bar window is open | Every 2 seconds |
+| The window is in front, or the <!-- mac -->menu-bar<!-- /mac --><!-- github --> or <!-- /github --><!-- windows -->notification-area<!-- /windows --> window is open | Every 2 seconds |
 | Otherwise | Every 5 seconds; each app every 15 |
 | The window is behind others | The screen refreshes at most once a minute |
 
 - Each minute keeps the average and the peak, and the busiest apps, so a short spike is never averaged away.
-- Apps are grouped with their helpers (Chrome's helpers count as Google Chrome). CPU is a share of the whole Mac.
+- Apps are grouped with their helpers (Chrome's helpers count as Google Chrome). CPU is a share of the whole computer.
 
 ## Sources
 
+<!-- mac -->
 | Measure | From |
 |---|---|
 | CPU, memory, swap, network, per-app use | The kernel, via `sysinfo` |
@@ -26,12 +27,34 @@ How Tidemark reads your Mac, and what it keeps.
 | Power, battery, health | The battery's controller (`ioreg`), every 10 seconds; a Mac without a battery has none of these |
 | Per-app energy | The kernel's energy count per process, shown as shares |
 | Crashes and hangs | macOS's reports in DiagnosticReports, every 5 minutes; survived faults left out |
+<!-- /mac -->
+<!-- windows -->
+On Windows:
+
+| Measure | From |
+|---|---|
+| CPU, memory, network, per-app use | Windows, via `sysinfo`; the loopback adapter left out |
+| Performance and efficiency cores | The processor's core types, on processors with both (Intel's 12th generation and later) |
+| GPU | Windows' performance counters (PDH, as Task Manager uses): the busiest engine, as Task Manager's GPU figure is. No per-app GPU |
+| Disk I/O | The performance counters' reads and writes for all disks; each app's figure counts all its reads and writes (files, network and devices), which Windows doesn't split |
+| Disk space | `GetDiskFreeSpaceEx` on the system drive, hourly |
+| Memory split (apps and system, non-paged, compressed) and swap | Windows' memory counters; compressed is the Memory Compression store, swap the page file in use |
+| Memory pressure | Worked out on macOS's three levels from the commit charge against the commit limit (memory plus page file), free memory and Windows' low-memory signal. Critical means Windows is about to trim programs or run out of commit |
+| Power, battery, health | The battery's driver: the power drawn only while on battery (its discharge rate), charge, capacity against design, cycles where the battery reports them, time left. A PC with no battery has none of these |
+| Per-app energy | None: Windows doesn't measure it for programs |
+| Thermal | Whether Windows slowed the processor to cool it: the thermal zones' passive limit, read as macOS's serious when under 100% and critical under half |
+| Crashes and hangs | Windows' Application event log (what Reliability Monitor shows), read with `wevtutil`: apps that crashed, or stopped responding and were closed |
+<!-- /windows -->
 
 ## The history
 
-One SQLite file: `~/Library/Application Support/Tidemark/history.sqlite`, on this Mac only. Beside it in the same folder: the saved scans (`scans/`), the folder last scanned and the recent ones (`root.txt`, `recent.json`), `settings.json`, the helper's log (`helper.log`, emptied once it passes 1 MB: the place to look when the helper fails), and the locks the app and helper share (`recorder.lock`, `scan.lock`), with `recorder.build` noting the build the helper last started on. While the helper records and the app is open, the app follows its live readings over a socket in the same folder (`live.sock`), which writes nothing to disk.
+One SQLite file: <!-- mac -->`~/Library/Application Support/Tidemark/history.sqlite`<!-- /mac --><!-- github --> on a Mac, or <!-- /github --><!-- windows -->`%LOCALAPPDATA%\com.wayned.tidemark\history.sqlite`<!-- /windows --><!-- github --> on Windows<!-- /github -->, on this computer only. Beside it in the same folder: the saved scans (`scans/`), the folder last scanned and the recent ones (`root.txt`, `recent.json`), `settings.json`, the helper's log (`helper.log`, emptied once it passes 1 MB: the place to look when the helper fails), and the locks the app and helper share (`recorder.lock`, `scan.lock`), with `recorder.build` noting the build the helper last started on. While the helper records and the app is open, the app follows its live readings over a socket in the same folder (`live.sock`), which writes nothing to disk.
 
-Ask runs each AI tool in an empty folder of its own, `~/Library/Application Support/com.wayned.tidemark/<tool>`.
+Ask runs each AI tool in an empty folder of its own, <!-- mac -->`~/Library/Application Support/com.wayned.tidemark/<tool>`<!-- /mac --><!-- github --> on a Mac or <!-- /github --><!-- windows -->`%APPDATA%\com.wayned.tidemark\<tool>`<!-- /windows --><!-- github --> on Windows<!-- /github -->.
+
+<!-- windows -->
+On Windows, uninstalling Tidemark in Windows Settings › Apps with **Delete the application data** ticked removes the history.
+<!-- /windows -->
 
 | What | Kept for |
 |---|---|
@@ -43,14 +66,24 @@ Ask runs each AI tool in an empty folder of its own, `~/Library/Application Supp
 
 ## Sleep and gaps
 
-- Nothing runs while the Mac sleeps, so sleep is a gap, never a dip to zero.
+- Nothing runs while the computer sleeps, so sleep is a gap, never a dip to zero.
 - Tidemark notes the battery either side of a sleep, so it knows what the sleep cost.
 - Charts shade gaps **Asleep** or **Not recording** (Tidemark quit or not yet started).
 
 ## The background helper
 
+<!-- mac -->
 - **Keep recording when quit** (Settings) runs the app's own binary as `Tidemark --record` from a plain launch agent: the app writes `~/Library/LaunchAgents/com.wayned.tidemark.helper.plist`, pointing at the installed app, and loads it with `launchctl`. It is listed in System Settings › General › Login Items › Allow in the Background, where it can be switched off.
 - If it stops, quit or crashed, launchd starts it again, at most every 5 minutes. Each launch of the installed app points the agent at its binary again if the app has moved, and restarts the helper after an update.
 - It used to be registered with `SMAppService`, but macOS would not start a helper registered that way for an app with a self-signed certificate. The plain agent has a label of its own, because launchd refuses to start one that shares the old registration's label (macOS keeps a record under it).
 - The app and the helper share a lock (`recorder.lock`): whichever holds it records, and the other takes over within seconds if it stops. When the helper is recording, the app follows its live readings over a Unix socket (`live.sock`), with nothing written to disk, and tells it when a window is on screen so it samples faster; if the helper stops, the connection drops and the app takes over at once. The helper, which shows nothing, just waits to take over.
 - Whichever process is recording also does the upkeep: the hourly disk space, crash reports, pruning and the scheduled disk scans. When the helper scans, the app picks up the scan it saves.
+<!-- /mac -->
+
+<!-- windows -->
+On Windows:
+
+- **Keep recording when quit** puts `Tidemark.exe --record` in the user's Run key, as "Tidemark Helper", so it starts at each sign-in, and starts it at once. Windows lists it in Windows Settings › Apps › Startup, where switching it off is the user's to undo; Tidemark's Settings then says so. **Open at Login** is the Run key's "Tidemark", and a launch at sign-in stays in the notification area.
+- The helper waits on a named event: the app sets it to stop the helper (switching it off, an update), and the helper saves the minute in hand and ends open incidents before it exits. The event existing is also how the app knows a helper is running.
+- The lock, the live readings over `live.sock` and the upkeep work as on macOS.
+<!-- /windows -->

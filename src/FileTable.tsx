@@ -4,6 +4,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import type { FileEntry } from "./types";
+import { FILES_APP } from "./keys";
 import { fmt, fmtN } from "./util";
 
 const columns = [
@@ -126,7 +127,7 @@ export default function FileTable({
                 </th>
               ))}
               <th>
-                <span className="file-action-label">Finder</span>
+                <span className="file-action-label">{FILES_APP}</span>
               </th>
             </tr>
           </thead>
@@ -141,7 +142,7 @@ export default function FileTable({
                 <td>
                   <button
                     className="file-reveal"
-                    aria-label={`Reveal ${f.name} in Finder`}
+                    aria-label={`Reveal ${f.name} in ${FILES_APP}`}
                     onClick={() => onReveal(f.path)}
                   >
                     ↗
@@ -169,7 +170,9 @@ export default function FileTable({
           </div>
         ) : null}
       </div>
-      <div className="file-note">Current files · Double-click a file to reveal it in Finder</div>
+      <div className="file-note">
+        Current files · Double-click a file to reveal it in {FILES_APP}
+      </div>
     </section>
   );
 }

@@ -13,6 +13,12 @@ import { saveTheme } from "./theme";
 import { Switch } from "./Tray";
 import type { AppInfo, Settings as S } from "./types";
 import { fmt } from "./util";
+import { DATA_DIR, isMac, LOG_IN, MACHINE, MENU_BAR, OS } from "./keys";
+
+/// Why a switch that needs the installed app is off in a development build.
+const NOT_INSTALLED = isMac
+  ? "Available in the installed app (make install-app), not in a development build."
+  : "Available in the installed app, not in a development build.";
 
 export default function Settings({
   info,
@@ -66,10 +72,12 @@ export default function Settings({
                 <span>Keep recording when quit</span>
                 <span className="muted">
                   {!helper?.available
-                    ? "Available in the installed app (make install-app), not in a development build."
+                    ? NOT_INSTALLED
                     : helper.needs_approval
-                      ? "Switched off in System Settings › General › Login Items › Allow in the Background. Switch Tidemark on there to keep recording."
-                      : "A small background helper records while Tidemark is quit, and starts when you log in."}
+                      ? isMac
+                        ? "Switched off in System Settings › General › Login Items › Allow in the Background. Switch Tidemark on there to keep recording."
+                        : "Switched off in Windows Settings › Apps › Startup. Switch Tidemark Helper on there to keep recording."
+                      : `A small background helper records while Tidemark is quit, and starts when you ${LOG_IN}.`}
                 </span>
               </span>
               <span className={helper?.available ? "" : "disabled"}>
@@ -93,9 +101,9 @@ export default function Settings({
                 <span className="muted">
                   {login[0]
                     ? helper?.on
-                      ? "Opens Tidemark in the menu bar when you log in. The background helper records either way."
-                      : "Tidemark records only while it is running, so this keeps it recording from login."
-                    : "Available in the installed app (make install-app), not in a development build."}
+                      ? `Opens Tidemark in the ${MENU_BAR} when you ${LOG_IN}. The background helper records either way.`
+                      : `Tidemark records only while it is running, so this keeps it recording from the moment you ${LOG_IN}.`
+                    : NOT_INSTALLED}
                 </span>
               </span>
               <span className={login[0] ? "" : "disabled"}>
@@ -137,7 +145,7 @@ export default function Settings({
                 <span>Scan the disk</span>
                 <span className="muted">
                   {settings.scan === "daily"
-                    ? "Once a day, when the Mac is idle and on power (on battery too once the last scan is two days old), and at launch if the last scan is over an hour old."
+                    ? `Once a day, when the ${MACHINE} is idle and on power (on battery too once the last scan is two days old), and at launch if the last scan is over an hour old.`
                     : settings.scan === "hourly"
                       ? "Every hour. A full scan takes about a minute of hard work, so this costs some battery."
                       : "Only when you press Reload. Growth is shown between the scans you run."}
@@ -166,12 +174,12 @@ export default function Settings({
             <div className="set">
               <span className="t">
                 <span>Appearance</span>
-                <span className="muted">Match the Mac, or always light or dark.</span>
+                <span className="muted">Match {OS}, or always light or dark.</span>
               </span>
               <div className="seg" role="group" aria-label="Appearance">
                 {(
                   [
-                    ["system", "Match the Mac"],
+                    ["system", `Match ${OS}`],
                     ["light", "Light"],
                     ["dark", "Dark"],
                   ] as const
@@ -186,7 +194,7 @@ export default function Settings({
                     }}
                     title={
                       v === "system"
-                        ? "Follow the Mac's light or dark appearance"
+                        ? `Follow ${OS}'s light or dark appearance`
                         : `Always ${label.toLowerCase()}`
                     }
                   >
@@ -203,7 +211,7 @@ export default function Settings({
             <span className="about-name">
               Tidemark{version && <span className="muted"> {version}</span>}
             </span>
-            <span className="muted">The high-water marks of your Mac.</span>
+            <span className="muted">The high-water marks of your {MACHINE}.</span>
           </div>
           <button
             className="btn"
@@ -213,12 +221,23 @@ export default function Settings({
             <Globe />
             Website
           </button>
+          {/* Windows has no app menu to carry it. */}
+          {!isMac && (
+            <button
+              className="btn"
+              title="See whether a newer Tidemark is out"
+              onClick={() => void api.checkForUpdates()}
+            >
+              Check for Updates…
+            </button>
+          )}
         </div>
         <div className="setfoot muted small">
           <span>
-            History uses {hist ? fmt(hist.bytes) : "…"} in ~/Library/Application Support/Tidemark
+            History uses {hist ? fmt(hist.bytes) : "…"} in {DATA_DIR}
           </span>
-          {info && (
+          {/* Windows has no Full Disk Access to give. */}
+          {info && isMac && (
             <span className="row">
               <span className={`sdot${info.full_disk_access ? "" : " warn"}`} />
               {info.full_disk_access ? (

@@ -4,7 +4,7 @@
 //! Claude Code in print mode, streaming JSON: text arrives as deltas while it is written. Run
 //! with no tools at all and no MCP servers.
 
-use super::{finish, silent, spawn, system, Chunk, Done, Model, Running};
+use super::{finish, silent, spawn, system, Chunk, Done, Model, Running, PROMPT_ON_STDIN};
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::Command;
@@ -47,7 +47,11 @@ pub fn ask(
         "Claude Code isn't installed, or couldn't be found. Install it and sign in, then try again.",
     )?;
     let mut cmd = Command::new(bin);
-    cmd.current_dir(&cwd).arg("-p").arg(&prompt).args([
+    cmd.current_dir(&cwd).arg("-p");
+    if !PROMPT_ON_STDIN {
+        cmd.arg(&prompt);
+    }
+    cmd.args([
         "--model",
         model.strip_prefix(PREFIX).unwrap_or(&model),
         "--output-format",
@@ -63,7 +67,13 @@ pub fn ask(
     if let Some(s) = &session {
         cmd.args(["--resume", s]);
     }
-    let (child, stdout, stderr) = spawn(&mut cmd, &running, &chat_id, "Claude Code")?;
+    let (child, stdout, stderr) = spawn(
+        &mut cmd,
+        &running,
+        &chat_id,
+        "Claude Code",
+        PROMPT_ON_STDIN.then(|| prompt.clone()),
+    )?;
     std::thread::spawn(move || {
         let mut text = String::new();
         let mut session_id = None;

@@ -28,6 +28,9 @@ use sysinfo::{Networks, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKin
 #[cfg(windows)]
 use uds_windows::{UnixListener, UnixStream};
 
+/// What the app's words call the computer.
+const MACHINE: &str = if cfg!(windows) { "PC" } else { "Mac" };
+
 /// How much of the recent past the live charts get.
 const LIVE_SECS: i64 = 15 * 60;
 /// Apps kept per minute, by CPU and by memory (the union is stored).
@@ -1173,7 +1176,11 @@ pub fn status() -> Status {
             "warn",
             "Getting tight",
             "Memory is getting tight".into(),
-            "macOS has started compressing memory.".into(),
+            if cfg!(windows) {
+                "Little memory is free, or most of what can be committed is.".into()
+            } else {
+                "macOS has started compressing memory.".into()
+            },
         ));
     }
     // One flag a measure: the worst of it, which comes first.
@@ -1219,7 +1226,7 @@ pub fn status() -> Status {
         severity: "",
         label: "",
         headline: if latest.is_some() {
-            "Your Mac is calm".into()
+            format!("Your {MACHINE} is calm")
         } else {
             "Starting to record".into()
         },

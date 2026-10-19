@@ -9,6 +9,7 @@ import { useAssistant } from "./assistant";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { Screen } from "./types";
 import { GUIDE, type HelpSection, helpHtml, searchHelp } from "./guides";
+import { FILES_APP, isMac } from "./keys";
 
 const CHEVRON = (
   <svg
@@ -71,23 +72,29 @@ function Section({
 
 /// The guide's sections for each screen, in the order the help shows them. Search still covers
 /// the whole guide, and "The whole guide" at the foot shows every section.
+const MENU_BAR = isMac ? "Menu bar" : "Notification area";
 const FOR_SCREEN: Record<Screen, string[]> = {
-  now: ["Now", "Reading the charts", "Ask", "Menu bar", "Keyboard shortcuts"],
+  now: ["Now", "Reading the charts", "Ask", MENU_BAR, "Keyboard shortcuts"],
   performance: ["Recent", "Reading the charts", "History", "Ask", "Keyboard shortcuts"],
   disk: [
     "Disk Map",
     "The map",
     "Getting around",
-    "Finder and the right-click menu",
+    `${FILES_APP} and the right-click menu`,
     "Files in a folder",
     "Free space",
     "Cloud folders",
     "Scanning",
-    "Full Disk Access",
+    isMac ? "Full Disk Access" : "Folders the scan can't read",
     "Keyboard shortcuts",
   ],
   trends: ["Trends", "Reading the charts", "History", "Ask", "Keyboard shortcuts"],
-  settings: ["Settings", "History", "Menu bar", "Full Disk Access"],
+  settings: [
+    "Settings",
+    "History",
+    MENU_BAR,
+    isMac ? "Full Disk Access" : "Folders the scan can't read",
+  ],
 };
 
 export default function HelpDrawer({

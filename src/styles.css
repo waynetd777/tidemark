@@ -20,7 +20,7 @@
   --warn: #c47600;
   --warn-soft: #fff3e0;
   --bad: #b0141c;
-  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", Consolas, monospace;
   /* The map's nesting levels in the tide colour: deepest at level 1, lighter going in, then a
      greyer set for levels 5-8 so neighbours stay apart. Nesting itself is shown by blocks inside
      blocks, so colour never has to separate siblings. Header text is white on 1, 2, 5, 6 and ink
@@ -49,7 +49,9 @@
   --hover: #e3e3e8;
   --sunk: #f3f3f6;
   --grid: #ececf0;
-  --display: "SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif;
+  --display:
+    "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI",
+    sans-serif;
   color-scheme: light dark;
 }
 /* Dark: with the Mac unless Settings chose Light, and always when it chose Dark. */
@@ -149,6 +151,8 @@ body {
     BlinkMacSystemFont,
     "SF Pro Text",
     "Helvetica Neue",
+    "Segoe UI Variable Text",
+    "Segoe UI",
     sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -176,7 +180,8 @@ pre,
   font-size: 12px;
 }
 
-/* Chrome: sidebar + content. The sidebar's top padding leaves room for the traffic lights. */
+/* Chrome: sidebar + content. The sidebar's top padding leaves room for the traffic lights, on
+   macOS only: Windows' window has a title bar of its own. */
 .app {
   display: grid;
   grid-template-columns: 212px 1fr;
@@ -187,12 +192,15 @@ pre,
 .sidebar {
   background: var(--sidebar);
   border-right: 1px solid var(--border);
-  padding: 50px 12px 12px;
+  padding: 14px 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-height: 0;
   overflow: hidden;
+}
+.mac .sidebar {
+  padding-top: 50px;
 }
 .brand {
   display: flex;
@@ -1960,6 +1968,10 @@ pre,
 /* Two by two: Now's "Using the most" cards, one wide each on a narrow window. */
 .cards2.halves {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+/* Three cards (Windows has no energy by app): the last spans the row. */
+.cards2.halves > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 @media (max-width: 760px) {
   .cards2.halves {
