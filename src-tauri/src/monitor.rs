@@ -15,7 +15,7 @@
 use crate::energy::{Battery, Meter};
 use crate::history::{self, AppUse, By, Minute};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufReader, Write};
 #[cfg(unix)]
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -24,7 +24,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use sysinfo::{Networks, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+use sysinfo::{Networks, Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 #[cfg(windows)]
 use uds_windows::{UnixListener, UnixStream};
 
@@ -729,6 +729,10 @@ fn run() {
     refresh(&mut sys, &mut nets);
     refresh_procs(&mut sys);
     let mut last_procs = Instant::now();
+    // The processes the last per-process pass saw. One that started since has no earlier reading
+    // to measure from, and sysinfo gives it about 0%: a build's compilers, each a few seconds
+    // long, all but vanished while the long-lived apps beside them took the top of the list.
+    let mut seen: HashSet<Pid> = sys.processes().keys().copied().collect();
     // The last per-process pass: every app, and the disk's read and write rates it gave.
     let mut apps_then: Vec<AppUse> = Vec::new();
     let mut io_then = (0.0f64, 0.0f64);
@@ -784,6 +788,7 @@ fn run() {
             // the whole pause.
             refresh(&mut sys, &mut nets);
             refresh_procs(&mut sys);
+            seen = sys.processes().keys().copied().collect();
             // The energy counters too, or the first reading after the pause would count the
             // whole pause's energy as a few seconds'.
             let pdt = last_procs.elapsed().as_secs_f64();
@@ -830,6 +835,7 @@ fn run() {
             battery_then = after;
             // The per-process counters span the gap too: start them afresh.
             refresh_procs(&mut sys);
+            seen = sys.processes().keys().copied().collect();
             let pdt = last_procs.elapsed().as_secs_f64();
             last_procs = Instant::now();
             for p in sys.processes().keys() {
@@ -859,12 +865,19 @@ fn run() {
                     app: name,
                     ..Default::default()
                 });
-                e.cpu += p.cpu_usage() as f64 / cores;
+                e.cpu += if seen.contains(&p.pid()) {
+                    p.cpu_usage() as f64 / cores
+                } else {
+                    // New since the last pass: its whole CPU time over the time it has run.
+                    let ran = (p.run_time() as f64).clamp(1.0, dt.max(1.0));
+                    (p.accumulated_cpu_time() as f64 / 10.0 / ran / cores).min(100.0)
+                };
                 e.mem += p.memory() as f64;
                 e.energy += meter.watts(p.pid().as_u32() as i32, dt).unwrap_or(0.0);
                 e.disk += (d.read_bytes + d.written_bytes) as f64 / dt;
             }
             meter.keep_only(&sys.processes().keys().map(|p| p.as_u32() as i32).collect());
+            seen = sys.processes().keys().copied().collect();
             let mut apps: Vec<AppUse> = by_app.into_values().collect();
             apps.sort_by(|a, b| b.cpu.total_cmp(&a.cpu));
             apps_then = apps;
