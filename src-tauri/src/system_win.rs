@@ -372,25 +372,38 @@ pub fn kinds_from(bytes: &[u8]) -> Vec<char> {
 
 /// The app a program belongs to, as Task Manager names it: its version information's
 /// description ("Google Chrome", "Windows Explorer"), read once per program; else its file name
-/// without .exe. Chrome's many chrome.exe processes are then one app, as on macOS.
+/// without .exe. Chrome's many chrome.exe processes are then one app, as on macOS. A process
+/// whose path can't be read (elevated, a service's) takes the description another program of
+/// the same file name gave, so its svchost.exe is counted with the others.
 pub fn app_name(exe: Option<&std::path::Path>, name: &str) -> String {
-    static NAMES: Mutex<Option<std::collections::HashMap<std::path::PathBuf, Option<String>>>> =
-        Mutex::new(None);
+    type Names = (
+        std::collections::HashMap<std::path::PathBuf, Option<String>>,
+        std::collections::HashMap<String, String>,
+    );
+    static NAMES: Mutex<Option<Names>> = Mutex::new(None);
     let plain = || {
         name.strip_suffix(".exe")
             .or_else(|| name.strip_suffix(".EXE"))
             .unwrap_or(name)
             .to_string()
     };
-    let Some(exe) = exe.filter(|p| p.is_absolute()) else {
-        return plain();
-    };
     let mut g = NAMES.lock().unwrap_or_else(|e| e.into_inner());
-    let names = g.get_or_insert_with(Default::default);
-    let found = names
+    let (by_path, by_name) = g.get_or_insert_with(Default::default);
+    let Some(exe) = exe.filter(|p| p.is_absolute()) else {
+        return by_name
+            .get(&name.to_lowercase())
+            .cloned()
+            .unwrap_or_else(plain);
+    };
+    let found = by_path
         .entry(exe.to_path_buf())
         .or_insert_with(|| description(exe))
         .clone();
+    if let Some(d) = &found {
+        by_name
+            .entry(name.to_lowercase())
+            .or_insert_with(|| d.clone());
+    }
     found.unwrap_or_else(plain)
 }
 
@@ -466,6 +479,101 @@ pub fn chip() -> String {
     }
     let n = buf.iter().position(|&c| c == 0).unwrap_or(0);
     String::from_utf16_lossy(&buf[..n]).trim().to_string()
+}
+
+/// SYSTEM_PROCESS_INFORMATION as ntdll fills it (winternl.h names most of it Reserved).
+#[repr(C)]
+struct ProcessInfo {
+    next: u32,
+    threads: u32,
+    private_working_set: i64,
+    hard_faults: u32,
+    threads_high: u32,
+    cycle_time: u64,
+    create_time: i64,
+    user_time: i64,
+    kernel_time: i64,
+    name_len: u16,
+    name_max: u16,
+    name: *const u16,
+    base_priority: i32,
+    pid: usize,
+    parent: usize,
+    handles: u32,
+    session: u32,
+    key: usize,
+    peak_virtual: usize,
+    virtual_size: usize,
+    page_faults: u32,
+    peak_working_set: usize,
+    working_set: usize,
+    quota: [usize; 4],
+    pagefile: usize,
+    peak_pagefile: usize,
+    private_pages: usize,
+    reads: i64,
+    writes: i64,
+    others: i64,
+    read_bytes: i64,
+    write_bytes: i64,
+    other_bytes: i64,
+}
+
+#[link(name = "ntdll")]
+extern "system" {
+    fn NtQuerySystemInformation(class: u32, info: *mut u8, len: u32, ret: *mut u32) -> i32;
+}
+
+/// Every process's totals, by pid, from the list of every process Windows keeps
+/// (NtQuerySystemInformation): the figures Task Manager shows. Read this way they need no handle
+/// to the process, which an app running as the user can't open on an elevated program, another
+/// session's or a protected one's (Defender's): sysinfo, which reads each through its handle,
+/// gives those 0% CPU, no memory and no I/O. Empty if Windows won't give the list.
+pub fn process_totals() -> std::collections::HashMap<u32, crate::monitor::Totals> {
+    const SYSTEM_PROCESS_INFORMATION: u32 = 5;
+    const STATUS_INFO_LENGTH_MISMATCH: i32 = 0xC000_0004_u32 as i32;
+    let mut out = std::collections::HashMap::new();
+    // u64s, so the entries are aligned as ntdll writes them.
+    let mut buf: Vec<u64> = vec![0; 64 * 1024];
+    loop {
+        let mut need = 0u32;
+        let rc = unsafe {
+            NtQuerySystemInformation(
+                SYSTEM_PROCESS_INFORMATION,
+                buf.as_mut_ptr() as *mut u8,
+                (buf.len() * 8) as u32,
+                &mut need,
+            )
+        };
+        if rc == STATUS_INFO_LENGTH_MISMATCH {
+            // Processes start between the two calls: room for some more.
+            buf = vec![0; need as usize / 8 + 16 * 1024];
+            continue;
+        }
+        if rc < 0 {
+            return out;
+        }
+        break;
+    }
+    let base = buf.as_ptr() as *const u8;
+    let mut at = 0usize;
+    loop {
+        let p = unsafe { &*(base.add(at) as *const ProcessInfo) };
+        out.insert(
+            p.pid as u32,
+            crate::monitor::Totals {
+                started: p.create_time as u64,
+                cpu: (p.user_time + p.kernel_time) as f64 / 1e7,
+                mem: p.working_set as u64,
+                read: p.read_bytes as u64,
+                written: p.write_bytes as u64,
+            },
+        );
+        if p.next == 0 {
+            return out;
+        }
+        at += p.next as usize;
+    }
 }
 
 #[cfg(test)]
