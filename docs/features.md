@@ -26,7 +26,7 @@ Every live measure in detail, over 1 hour to 14 days (up to the history kept).
 - Click any moment, or a peak dot, to see the busiest apps then: by their average, at their busiest, or an incident's own snapshot. Apps are sorted by the chart's measure; GPU and network, which <!-- mac -->macOS<!-- /mac --><!-- github --> or <!-- /github --><!-- windows -->Windows<!-- /windows --> doesn't split by app, by CPU.
 - Disk space: used and free over the range, what grew this week, and what's using the space.
 - Energy: the power drawn<!-- windows --> (on Windows, while on battery)<!-- /windows -->, the battery's charge, its health and cycles, and what the last sleep cost.
-- **Incidents**: CPU above 90% for 30 seconds, memory pressure red, or swap up 1 GB in 10 minutes, each with a snapshot of the 12 busiest apps.
+- **Incidents**: CPU above 90% for 10 seconds, memory pressure red, or swap up 1 GB in 10 minutes, each with a snapshot of the 12 busiest apps.
 - Apps that crashed or hung, from <!-- mac -->macOS's own reports<!-- /mac --><!-- github --> or <!-- /github --><!-- windows -->Windows' Application event log<!-- /windows -->.
 
 The CPU tab and the Memory tab:

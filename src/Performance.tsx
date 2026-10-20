@@ -1180,7 +1180,7 @@ export default function Performance({
         {incidentsCard(
           "CPU incidents",
           ["cpu"],
-          "None: the CPU never stayed above 90% for 30 seconds.",
+          "None: the CPU never stayed above 90% for 10 seconds.",
         )}
       </div>
       <div className="tiles">{thermalTile}</div>
@@ -1673,7 +1673,7 @@ export default function Performance({
             {measure === MEASURES.CPU && atPeak != null && (
               <div className="note">
                 {atPeak >= 90
-                  ? "It went above 90%, so if it lasted 30 seconds it was recorded as an incident."
+                  ? "It went above 90%, so if it lasted 10 seconds it was recorded as an incident."
                   : "It stayed under 90%, so it isn't an incident."}
               </div>
             )}

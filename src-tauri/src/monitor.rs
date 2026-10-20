@@ -4,7 +4,7 @@
 //! The performance recorder. A thread samples the Mac every few seconds (2 s while a window is
 //! open, 5 s otherwise), keeps the last 15 minutes in memory for the live charts, writes one row
 //! a minute (averages and maxima) with the busiest apps of that minute to the history, and opens
-//! an incident when something crosses a line: CPU above 90% for 30 s, memory pressure critical,
+//! an incident when something crosses a line: CPU above 90% for 10 s, memory pressure critical,
 //! or swap growing by 1 GB within 10 minutes. Each incident keeps what the busiest apps were
 //! doing at its peak.
 //!
@@ -91,7 +91,16 @@ struct Live {
     /// Each core's use at the latest sample, 0-100, in the order of `core_kinds`.
     #[serde(default)]
     cores: Vec<f64>,
+    /// Since when the CPU has been flat out (FULL, and never under 90% since); past FULL_FOR it
+    /// is critical.
+    #[serde(default)]
+    full_since: Option<i64>,
 }
+
+/// The CPU flat out: every core busy, as near 100% as the readings come.
+const FULL: f64 = 98.0;
+/// How long flat out before the busy CPU is critical, seconds.
+const FULL_FOR: i64 = 120;
 
 /// Each core's kind, 'P' or 'E', read once; empty where the Mac doesn't say.
 fn core_kinds() -> &'static [char] {
@@ -266,6 +275,7 @@ fn end_all(at: i64, watches: &mut [Watch]) {
     for (id, _, _) in live(|l| l.open.drain().map(|(_, v)| v).collect::<Vec<_>>()) {
         history::close_incident(id, at);
     }
+    live(|l| l.full_since = None);
     for w in watches.iter_mut() {
         w.since_on = None;
         w.since_off = None;
@@ -590,6 +600,7 @@ fn share() {
                         paused_until: l.paused_until,
                         open: l.open.clone(),
                         cores: l.cores.clone(),
+                        full_since: l.full_since,
                     })
                 })
             })
@@ -796,7 +807,7 @@ fn run() {
     // The battery when the last sample was taken, for what a sleep cost.
     let mut battery_then: Option<f64> = None;
     let mut watches = [
-        Watch::new("cpu", 30, 30, false),
+        Watch::new("cpu", 10, 30, false),
         Watch::new("pressure", 5, 30, true),
         Watch::new("swap", 0, 0, true),
     ];
@@ -867,7 +878,7 @@ fn run() {
         // Asleep in between: the counters span the sleep, so this sample says nothing about
         // any moment. The gap stays a gap. Only time asleep counts: with every core busy the
         // samples can come 10-15 s apart, and taken for sleep, each of those ended the busy
-        // CPU's incident before it had held for its 30 s.
+        // CPU's incident before it had held long enough.
         if wall_dt - awake_dt > every as f64 * 3.0 + 5.0 {
             // The minute in hand is saved when the next one starts (see the pause above).
             since_gap = now;
@@ -1016,6 +1027,14 @@ fn run() {
                 .all(|x| x.swap >= s.swap - MIB)
         });
         watches[0].step(now, s.cpu >= 90.0, s.cpu < 80.0, s.cpu, &apps);
+        // Flat out from the first reading at FULL, and still while it only dips (readings at
+        // full load wander between 94 and 100); over once it is no longer busy.
+        live(|l| {
+            l.full_since = match l.full_since {
+                Some(t) if s.cpu >= 90.0 => Some(t),
+                _ => (s.cpu >= FULL).then_some(now),
+            }
+        });
         watches[1].step(now, s.pressure >= 4, s.pressure < 4, s.mem, &apps);
         watches[2].step(
             now,
@@ -1142,12 +1161,13 @@ fn mem_gb(b: f64) -> String {
 
 /// How things stand, in a sentence: the tray's and the Now page's headline.
 pub fn status() -> Status {
-    let (latest, open, mem_total, top) = live(|l| {
+    let (latest, open, mem_total, top, full_since) = live(|l| {
         (
             l.samples.back().cloned(),
             l.open.clone(),
             l.mem_total,
             l.apps.first().map(|a| a.app.clone()),
+            l.full_since,
         )
     });
     // statfs only: the menu bar asks every few seconds, and the volume's name isn't needed.
@@ -1203,6 +1223,22 @@ pub fn status() -> Status {
             "Almost full",
             "The disk is almost full".into(),
             format!("{} free of {}.", gb(vol_free as f64), gb(vol_total as f64)),
+        ));
+    }
+    // Flat out for minutes: the CPU's own critical, after the ones that harm more.
+    if let Some(since) = full_since.filter(|t| history::now() - t >= FULL_FOR) {
+        let mins = (history::now() - since) / 60;
+        found.push(attention(
+            "cpu",
+            "critical",
+            "Flat out",
+            "The CPU is flat out".into(),
+            format!(
+                "Every core busy for {mins} min{}.",
+                top.as_ref()
+                    .map(|t| format!(", mostly {t}"))
+                    .unwrap_or_default()
+            ),
         ));
     }
     // Warnings after anything critical, so a busy CPU never heads the list over a flat battery.

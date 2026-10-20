@@ -28,7 +28,7 @@ The card on the right:
 - Apps are sorted by the chart's measure: CPU, memory, energy or disk. <!-- mac -->macOS<!-- /mac --><!-- github --> or <!-- /github --><!-- windows -->Windows<!-- /windows --> doesn't split the GPU or the network<!-- windows --> (or energy)<!-- /windows --> by app, so those list the busiest apps by CPU, and say so. Helpers count as their app, so Chrome's are Google Chrome. CPU is a share of the whole computer.
 - On the **Disk space** tab the card shows what's using the space instead: the scanned folder's largest folders (click one to open it in Disk Map), the space the scan can't see, and the last scan. Click the disk chart there for that hour's used and free space.
 - **Ask why this happened** puts the moment to Ask; **<!-- mac -->Activity Monitor<!-- /mac --><!-- github --> (Mac) or <!-- /github --><!-- windows -->Task Manager<!-- /windows --><!-- github --> (Windows)<!-- /github -->** opens <!-- mac -->macOS's<!-- /mac --><!-- github --> or <!-- /github --><!-- windows -->Windows'<!-- /windows --> own.
-- **Incidents** are recorded when CPU stays above 90% for 30 seconds, memory pressure turns red, or swap grows by 1 GB in 10 minutes. Each keeps a snapshot of the 12 busiest apps at its peak; click one to see it.
+- **Incidents** are recorded when CPU stays above 90% for 10 seconds, memory pressure turns red, or swap grows by 1 GB in 10 minutes. Each keeps a snapshot of the 12 busiest apps at its peak; click one to see it.
 - While the record is shorter than the history setting, the sidebar's **Record** says how far back it goes.
 
 How often Tidemark reads:

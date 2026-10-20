@@ -41,7 +41,7 @@ export function incidentDetail(i: Incident): AskDetail {
   const peak = i.kind === "cpu" ? pct(i.peak) : i.kind === "swap" ? fmtMem(i.peak) : "red";
   const rule =
     i.kind === "cpu"
-      ? "CPU above 90% for 30 seconds or more"
+      ? "CPU above 90% for 10 seconds or more"
       : i.kind === "pressure"
         ? `${OS}'s memory pressure turned red`
         : "swap grew by 1 GB or more within 10 minutes";
