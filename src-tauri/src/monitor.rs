@@ -807,7 +807,7 @@ fn run() {
     // The battery when the last sample was taken, for what a sleep cost.
     let mut battery_then: Option<f64> = None;
     let mut watches = [
-        Watch::new("cpu", 10, 30, false),
+        Watch::new("cpu", 10, 10, false),
         Watch::new("pressure", 5, 30, true),
         Watch::new("swap", 0, 0, true),
     ];
