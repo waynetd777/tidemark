@@ -481,6 +481,18 @@ pub fn chip() -> String {
     String::from_utf16_lossy(&buf[..n]).trim().to_string()
 }
 
+/// Seconds the PC has been awake since it started: the interrupt time without sleep and
+/// hibernation in it (Instant, Windows' performance counter, keeps counting through them).
+pub fn awake() -> f64 {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn QueryUnbiasedInterruptTime(t: *mut u64) -> i32;
+    }
+    let mut t = 0u64;
+    unsafe { QueryUnbiasedInterruptTime(&mut t) };
+    t as f64 / 1e7
+}
+
 /// SYSTEM_PROCESS_INFORMATION as ntdll fills it (winternl.h names most of it Reserved).
 #[repr(C)]
 struct ProcessInfo {

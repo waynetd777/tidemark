@@ -742,6 +742,16 @@ pub fn start() {
 }
 
 fn run() {
+    // Above the apps it measures, as Task Manager is: with every core busy at their priority, a
+    // sample came 10-40 s late, and the busy CPU never held long enough between them to warn.
+    // Each pass is a few milliseconds of work.
+    #[cfg(windows)]
+    unsafe {
+        use windows::Win32::System::Threading::{
+            GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_ABOVE_NORMAL,
+        };
+        let _ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+    }
     let cores = std::thread::available_parallelism().map_or(1, |n| n.get()) as f64;
     let mut sys = System::new();
     let mut nets = Networks::new_with_refreshed_list();
@@ -773,9 +783,10 @@ fn run() {
     let mut io_then = (0.0f64, 0.0f64);
     let mut gpu_then: Option<f64> = None;
     let mut last = Instant::now();
-    // Instant stops while the Mac sleeps (CLOCK_UPTIME_RAW), so sleep shows only in wall-clock
-    // time: gaps are measured with this, rates with `last`.
+    // Sleep shows as wall-clock time the computer wasn't awake for (system::awake): gaps are
+    // measured with these, rates with `last`.
     let mut last_wall = history::now();
+    let mut last_awake = crate::system::awake();
     // The end of the last sleep or pause: nothing before it is compared with what follows.
     let mut since_gap = last_wall;
     // A sleep or a pause left the last per-process pass's apps, disk rates and GPU behind: the
@@ -834,6 +845,7 @@ fn run() {
             last = Instant::now();
             last_procs = last;
             last_wall = now;
+            last_awake = crate::system::awake();
             since_gap = now;
             procs_stale = true;
             // The minute in hand is saved when the next one starts, not here: saved now, a
@@ -844,14 +856,19 @@ fn run() {
         let dt = last.elapsed().as_secs_f64();
         last = Instant::now();
         let wall_dt = (now - last_wall) as f64;
+        let awake = crate::system::awake();
+        let awake_dt = awake - last_awake;
+        last_awake = awake;
         let before_gap = last_wall;
         last_wall = now;
         refresh(&mut sys, &mut nets);
         let procs_due =
             every == 2 || procs_stale || last_procs.elapsed() >= Duration::from_secs(15);
         // Asleep in between: the counters span the sleep, so this sample says nothing about
-        // any moment. The gap stays a gap.
-        if wall_dt.max(dt) > every as f64 * 3.0 + 5.0 {
+        // any moment. The gap stays a gap. Only time asleep counts: with every core busy the
+        // samples can come 10-15 s apart, and taken for sleep, each of those ended the busy
+        // CPU's incident before it had held for its 30 s.
+        if wall_dt - awake_dt > every as f64 * 3.0 + 5.0 {
             // The minute in hand is saved when the next one starts (see the pause above).
             since_gap = now;
             procs_stale = true;

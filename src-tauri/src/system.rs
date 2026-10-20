@@ -16,7 +16,20 @@ use serde::{Deserialize, Serialize};
 
 // Windows reads these its own way (system_win.rs), under the same names.
 #[cfg(windows)]
-pub use crate::system_win::{chip, core_kinds, disk_rates, gpu_busy, mem_parts, pressure, thermal};
+pub use crate::system_win::{
+    awake, chip, core_kinds, disk_rates, gpu_busy, mem_parts, pressure, thermal,
+};
+
+/// Seconds the computer has been awake, from some fixed point: macOS's Instant stops while the
+/// Mac sleeps (CLOCK_UPTIME_RAW).
+#[cfg(not(windows))]
+pub fn awake() -> f64 {
+    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    START
+        .get_or_init(std::time::Instant::now)
+        .elapsed()
+        .as_secs_f64()
+}
 
 /// The disk's read and write rates from the system itself; None where they are the processes'
 /// sums (macOS counts only the disk in those).
