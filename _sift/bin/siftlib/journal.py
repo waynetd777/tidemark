@@ -11,6 +11,7 @@ record per line fixes that, and `sift decisions` renders the markdown back.
 """
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -125,7 +126,8 @@ def next_decision_id(ctx: Ctx, day: Optional[str] = None) -> str:
     Sequential and readable because decisions get cited in prose and commit
     messages. Two clones deciding on the same day still pick the same number --
     union merge keeps both records now rather than merging them into one, so
-    nothing is lost, and lint W21 reports the clash so it can be renumbered.
+    nothing is lost, lint W21 reports the clash, and `sift decisions
+    --renumber` gives the later records numbers of their own.
     """
     day = day or util.today_utc().replace("-", "")
     used = set()
@@ -137,6 +139,98 @@ def next_decision_id(ctx: Ctx, day: Optional[str] = None) -> str:
     while n in used:
         n += 1
     return "D-{}-{:02d}".format(day, n)
+
+
+def renumber_decisions(ctx: Ctx, dry_run: bool = False) -> Dict[str, Any]:
+    """Give every duplicate decision id but one a number of its own.
+
+    Two clones deciding on the same day both take the next number, and the
+    union merge keeps both records (lint W21). Of each set sharing an id, the
+    earliest by `ts` keeps it (file order breaks a tie); the rest take that
+    day's next free numbers, and the `decision-ref` journal entry each one wrote
+    follows it. A citation elsewhere -- a comment, a doc, another decision's
+    text -- could mean either record, so it is listed for a person to read,
+    never rewritten.
+
+    Returns {"moved": [{old, new, title}], "citations": [{id, where, text}]}.
+    """
+    lines = util.read_text(ctx.decisions).split("\n") if ctx.decisions.exists() else []
+    recs: List[Optional[dict]] = []
+    for line in lines:
+        try:
+            rec = json.loads(line) if line.strip() else None
+        except ValueError:
+            rec = None
+        recs.append(rec if isinstance(rec, dict) and rec.get("id") else None)
+    groups: Dict[str, List[int]] = {}
+    for i, rec in enumerate(recs):
+        if rec:
+            groups.setdefault(str(rec["id"]), []).append(i)
+    used: Dict[str, set] = {}
+    for did in groups:
+        m = _DECISION_ID.match(did)
+        if m:
+            used.setdefault(m.group(1), set()).add(int(m.group(2)))
+    moved: List[Dict[str, str]] = []
+    for did, idxs in sorted(groups.items()):
+        m = _DECISION_ID.match(did)
+        if len(idxs) < 2 or not m:
+            continue
+        day = m.group(1)
+        idxs = sorted(idxs, key=lambda i: (str(recs[i].get("ts", "")), i))
+        for i in idxs[1:]:
+            n = 1
+            while n in used[day]:
+                n += 1
+            used[day].add(n)
+            new = "D-{}-{:02d}".format(day, n)
+            rec = dict(recs[i])
+            rec["id"] = new
+            lines[i] = util.jdump(rec)
+            moved.append({"old": did, "new": new, "title": str(rec.get("title", "")), "line": i})
+    if not moved:
+        return {"moved": [], "citations": []}
+
+    # Each moved record's journal entry, matched by its id and title.
+    jlines = util.read_text(ctx.journal).split("\n") if ctx.journal.exists() else []
+    taken = set()
+    for mv in moved:
+        want = "{} - {}".format(mv["old"], mv["title"])
+        for k, line in enumerate(jlines):
+            if k in taken or want not in line:
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if entry.get("kind") == "decision-ref" and entry.get("detail") == want:
+                entry["detail"] = "{} - {}".format(mv["new"], mv["title"])
+                jlines[k] = util.jdump(entry)
+                taken.add(k)
+                break
+
+    # Citations of a moved id, which only a person can attribute.
+    citations: List[Dict[str, str]] = []
+    moved_lines = {mv["line"] for mv in moved}
+    for old in sorted({mv["old"] for mv in moved}):
+        exclude = [ctx.rel(ctx.decisions), ctx.rel(ctx.journal)]
+        for path, number, text in gitutil.grep(ctx.root, re.escape(old), exclude=exclude,
+                                               ignore_case=False):
+            citations.append({"id": old, "where": "{}:{}".format(path, number), "text": text})
+        for i, rec in enumerate(recs):
+            if not rec or rec.get("id") == old or i in moved_lines:
+                continue
+            for field in FIELDS + ("supersedes",):
+                if old in str(rec.get(field, "")):
+                    citations.append({"id": old, "where": "{} ({})".format(rec["id"], field),
+                                      "text": str(rec.get("title", ""))})
+    if not dry_run:
+        util.atomic_write(ctx.decisions, "\n".join(lines))
+        if taken:
+            util.atomic_write(ctx.journal, "\n".join(jlines))
+    for mv in moved:
+        mv.pop("line")
+    return {"moved": moved, "citations": citations}
 
 
 def add_decision(ctx: Ctx, title: str, context: str = "", decision: str = "",

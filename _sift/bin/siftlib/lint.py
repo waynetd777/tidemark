@@ -187,7 +187,8 @@ def run(ctx: Ctx, cfg: Config,
     # --- W21: two clones, one decision id ----------------------------------
     # Union merge keeps both records now instead of merging them into one, so
     # nothing is lost -- but two records answering to `D-20260916-01` make every
-    # citation of it ambiguous, and only a person can say which keeps the number.
+    # citation of it ambiguous, and `sift decisions --renumber`
+    # keeps the earliest on it and lists the citations only a person can attribute.
     if want("W21"):
         from . import journal as journal_mod
         seen: Dict[str, int] = {}
@@ -199,8 +200,8 @@ def run(ctx: Ctx, cfg: Config,
                 issues.append(Issue("W21", SEV_WARNING, ctx.rel(ctx.decisions), 1,
                                     "{} records share the id {} - two clones decided on "
                                     "the same day".format(count, did),
-                                    "renumber all but one to the next free id for that "
-                                    "date and fix any reference to it"))
+                                    "run `sift decisions --renumber`, then check the "
+                                    "citations it lists"))
 
     # --- every document in the sift directory, as text -------------------------------
     # Not "every page": there are no pages. Anything committed under the sift directory

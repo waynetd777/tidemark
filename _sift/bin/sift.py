@@ -208,10 +208,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--files", nargs="+", default=[])
     s.add_argument("--supersedes", default="")
 
-    s = cmd("decisions", "read recorded decisions back",
-            "sift decisions", "sift decisions D-20260917-03 --markdown")
+    s = cmd("decisions", "read recorded decisions back, or renumber duplicate ids",
+            "sift decisions", "sift decisions D-20260917-03 --markdown",
+            "sift decisions --renumber --dry-run")
     s.add_argument("id", nargs="?")
     s.add_argument("--markdown", action="store_true")
+    s.add_argument("--renumber", action="store_true",
+                   help="give each id two clones both took (lint W21) a number of its own")
+    s.add_argument("--dry-run", action="store_true",
+                   help="with --renumber: say what would change, change nothing")
 
     s = cmd("ledger", "what the index and governor saved this period, and "
             "whether the knowledge is read",
@@ -922,6 +927,8 @@ class App:
         return EXIT_OK
 
     def cmd_decisions(self) -> int:
+        if self.args.renumber:
+            return self._renumber_decisions()
         rows = journal_mod.decisions(self.ctx)
         if self.args.id:
             rows = [r for r in rows if r.get("id") == self.args.id]
@@ -944,6 +951,27 @@ class App:
                         "" if r.get("status") == "accepted"
                         else "  [{}]".format(r.get("status", ""))))
         self.out.emit(rows[0] if self.args.id else rows)
+        return EXIT_OK
+
+    def _renumber_decisions(self) -> int:
+        """`decisions --renumber`: the repair lint W21 asks for, done the one
+        way that needs no judgement; what does need one is listed."""
+        dry = self.args.dry_run
+        res = journal_mod.renumber_decisions(self.ctx, dry_run=dry)
+        if not self.out.json_mode:
+            if not res["moved"]:
+                self.out.line("no duplicate decision ids")
+            for mv in res["moved"]:
+                self.out.line("{} -> {}  {}".format(mv["old"], mv["new"], mv["title"]))
+            if res["citations"]:
+                self.out.line("")
+                self.out.line("cited elsewhere; check which record each means and update it by hand:")
+                for c in res["citations"]:
+                    self.out.line("  {}  {}  {}".format(c["id"], c["where"], c["text"]))
+            if dry and res["moved"]:
+                self.out.line("")
+                self.out.line("dry run: nothing changed; run without --dry-run to renumber")
+        self.out.emit(dict(res, dry_run=dry))
         return EXIT_OK
 
     # -- fleet helpers ------------------------------------------------------
