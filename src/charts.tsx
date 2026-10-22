@@ -6,6 +6,7 @@
 // lines stay 2px and markers round.
 
 import {
+  useEffect,
   useId,
   useLayoutEffect,
   useMemo,
@@ -833,5 +834,28 @@ export function Alongside({ why }: { why: string }) {
       <span className="lbl">For comparison</span>
       <span>{why}</span>
     </div>
+  );
+}
+
+/// The snapshot card beside the charts: pinned while they scroll past when it fits in the page's
+/// view (under the tab strip, above the page's bottom padding), and scrolling with the page when it
+/// is taller, rather than scrolling on its own inside a scrolling page.
+export function Snap({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  const [tall, setTall] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    const page = el?.closest(".page");
+    if (!el || !page) return;
+    const check = () => setTall(el.offsetHeight > page.clientHeight - 62 - 28);
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    ro.observe(page);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <aside ref={ref} className={tall ? "card snap tall" : "card snap"}>
+      {children}
+    </aside>
   );
 }

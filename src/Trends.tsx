@@ -12,7 +12,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { AllIcon, Labelled, MetricIcon } from "./icons";
 import { metricOf } from "./metrics";
 import { api } from "./api";
-import { Alongside, Area, Heatmap, Legend, Spark, type Pt } from "./charts";
+import { Alongside, Area, Heatmap, Legend, Snap, Spark, type Pt } from "./charts";
 import { now, usePoll, usePolled } from "./perf";
 import { isTab, TABS, tabFor, type Tab } from "./perfTabs";
 import { useRemembered } from "./remember";
@@ -646,7 +646,7 @@ export default function Trends({
     m.by === "mem" ? fmtMem : m.by === "energy" ? fmtW : m.by === "disk" ? fmtRate : pct;
   const side =
     shown === "disk" ? (
-      <aside className="card snap">
+      <Snap>
         {diskPicked && (
           <div>
             <span className="eyebrow">Disk space</span>
@@ -690,9 +690,9 @@ export default function Trends({
               : "It is still near there."}
           </span>
         )}
-      </aside>
+      </Snap>
     ) : (
-      <aside className="card snap">
+      <Snap>
         <div>
           <span className="eyebrow">
             {measure.what.charAt(0).toUpperCase() + measure.what.slice(1)}
@@ -758,7 +758,7 @@ export default function Trends({
             </span>
           </>
         )}
-      </aside>
+      </Snap>
     );
 
   const tabsShown = TABS.filter(

@@ -2589,7 +2589,7 @@ pre,
   flex-direction: column;
   gap: 12px;
   /* Pinned at the top while the charts scroll past, under the pinned tab strip; when it is taller
-     than the page's view it scrolls with the page instead (Snap in Performance.tsx), so there is
+     than the page's view it scrolls with the page instead (Snap in charts.tsx), so there is
      only ever the one scrollbar. */
   position: sticky;
   top: 62px;
