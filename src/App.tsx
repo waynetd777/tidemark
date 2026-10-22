@@ -862,7 +862,7 @@ export default function App() {
             </button>
           ))}
         </nav>
-        {screen !== "settings" && mac && (
+        {mac && (
           <>
             <div className="sec">This {MACHINE}</div>
             <div className="macinfo">
