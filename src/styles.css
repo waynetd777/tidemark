@@ -2588,13 +2588,14 @@ pre,
   display: flex;
   flex-direction: column;
   gap: 12px;
-  /* Pinned at the top while the charts scroll past, and scrolling on its own when it is taller
-     than the window (the top bar and the page's padding left out). */
+  /* Pinned at the top while the charts scroll past, under the pinned tab strip; when it is taller
+     than the page's view it scrolls with the page instead (Snap in Performance.tsx), so there is
+     only ever the one scrollbar. */
   position: sticky;
-  /* Under the pinned tab strip. */
   top: 62px;
-  max-height: calc(100vh - 154px);
-  overflow-y: auto;
+}
+.snap.tall {
+  position: static;
 }
 .blame {
   display: flex;

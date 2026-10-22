@@ -6,7 +6,7 @@
 // moment (the peak, or wherever the chart is clicked).
 
 import { useAssistant } from "./assistant";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AllIcon, Labelled, MetricIcon } from "./icons";
 import { metricOf } from "./metrics";
 import type { AskDetail } from "./Ask";
@@ -54,6 +54,29 @@ const RANGES = [
   { label: "7 days", secs: 7 * 86400 },
   { label: "14 days", secs: 14 * 86400 },
 ];
+
+/// The snapshot card beside the charts: pinned while they scroll past when it fits in the page's
+/// view (under the tab strip, above the page's bottom padding), and scrolling with the page when it
+/// is taller, rather than scrolling on its own inside a scrolling page.
+function Snap({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  const [tall, setTall] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    const page = el?.closest(".page");
+    if (!el || !page) return;
+    const check = () => setTall(el.offsetHeight > page.clientHeight - 62 - 28);
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    ro.observe(page);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <aside ref={ref} className={tall ? "card snap tall" : "card snap"}>
+      {children}
+    </aside>
+  );
+}
 
 function xLabels(secs: number, n = 6): string[] {
   const t1 = now(),
@@ -1415,7 +1438,7 @@ export default function Performance({
   const unseen =
     info && info.root === "/" && info.scan ? Math.max(0, info.volume.used - info.scan.size) : 0;
   const diskAside = (
-    <aside className="card snap">
+    <Snap>
       {diskAt && (
         <div>
           <span className="eyebrow">Disk space</span>
@@ -1490,7 +1513,7 @@ export default function Performance({
               : ""}
         </span>
       )}
-    </aside>
+    </Snap>
   );
 
   // A remembered GPU tab on a Mac that reports no GPU shows everything.
@@ -1612,7 +1635,7 @@ export default function Performance({
         {shown === "disk" ? (
           diskAside
         ) : (
-          <aside className="card snap">
+          <Snap>
             <div>
               <div className="row between">
                 <span className="eyebrow">
@@ -1714,7 +1737,7 @@ export default function Performance({
                 {MONITOR_APP}
               </button>
             </div>
-          </aside>
+          </Snap>
         )}
       </div>
     </>
