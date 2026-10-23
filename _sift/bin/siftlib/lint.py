@@ -98,7 +98,10 @@ def _without_allowed(line: str) -> str:
 # vocabulary that is almost never about code -- an HR process, or money
 # attached to a person -- and says where that material belongs instead.
 HR_PATTERNS = [
-    re.compile(r"(?i)\b(performance review|performance improvement plan|\bPIP\b|"
+    # PIP, but not the Python installer: "pip install numpy" in a bug log is
+    # the first thing it cried wolf at. Any other "pip" still counts.
+    re.compile(r"(?i)\b(performance review|performance improvement plan|"
+               r"\bPIP\b(?!\s+(?:install|uninstall|freeze|list|show|download|wheel)\b)|"
                r"disciplinary|grievance|probation review|redundanc|severance|"
                r"succession plan|talent review|calibration session)\b"),
     # An amount, not any digit: "W20" sitting near the word "compensation" is
