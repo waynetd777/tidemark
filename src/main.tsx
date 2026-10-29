@@ -23,8 +23,10 @@ document.addEventListener("contextmenu", (e) => {
 
 followTheme();
 
-// macOS's window has no title bar: the page leaves room for its traffic lights (styles.css .mac).
+// The main window has no title bar: the page leaves room for macOS's traffic lights (styles.css
+// .mac) or for the buttons it draws itself on Windows (.win, WindowControls.tsx).
 document.documentElement.classList.toggle("mac", isMac);
+document.documentElement.classList.toggle("win", !isMac);
 
 // Endless animations cost a wakeup and a repaint each frame: the Now dots' breathing ring stops
 // while the window is behind others, and everything stops while it's hidden.

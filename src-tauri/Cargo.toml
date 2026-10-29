@@ -50,15 +50,19 @@ sysinfo = { version = "0.39", default-features = false, features = ["system", "n
 libc = "0.2"
 
 # Windows: the folder walk's sizes, the volumes, the performance counters (PDH), the battery,
-# memory, idle time and power, the Run key; and Unix sockets (AF_UNIX) for the live readings.
+# memory, idle time and power, the Run key; the one-copy lock (single_instance_win.rs) and the
+# maximise button's snap layouts (snap_win.rs); and Unix sockets (AF_UNIX) for the live readings.
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [
   "Win32_Devices_DeviceAndDriverInstallation",
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
   "Win32_Security",
   "Win32_Storage_FileSystem",
   "Win32_System_Console",
+  "Win32_System_DataExchange",
   "Win32_System_IO",
+  "Win32_System_LibraryLoader",
   "Win32_System_Memory",
   "Win32_System_Performance",
   "Win32_System_Power",

@@ -137,4 +137,10 @@ export const api = {
   updateInstall: () => invoke<void>("update_install"),
   updateLater: () => invoke<void>("update_later"),
   updateSkip: () => invoke<void>("update_skip"),
+  /// Where the main window's own maximise button is, in physical pixels, for Windows 11's snap
+  /// layouts (src-tauri/src/snap_win.rs); null when it isn't shown.
+  windowMaxButton: (rect: [number, number, number, number] | null) =>
+    invoke<void>("window_max_button", { rect }),
+  /// The pointer went over (true) or off the maximise button's snap-layout window.
+  onMaxButtonHover: (f: (over: boolean) => void) => on<boolean>("window-controls-hover", f),
 };

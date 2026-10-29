@@ -48,6 +48,10 @@ mod scan;
 mod scene;
 mod schedule;
 mod settings;
+#[cfg(windows)]
+mod single_instance_win;
+#[cfg(windows)]
+mod snap_win;
 mod system;
 #[cfg(windows)]
 mod system_win;
@@ -64,10 +68,13 @@ use std::time::Instant;
 use tauri::{Manager, State};
 use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
-/// Everything except VISIBLE. The window is deliberately created hidden and shown once it
-/// carries the theme colour, so restoring a saved "visible" would put it back on screen too
-/// early and reintroduce the white flash.
-pub(crate) const STATE_FLAGS: StateFlags = StateFlags::all().difference(StateFlags::VISIBLE);
+/// Everything except VISIBLE and DECORATIONS. The window is deliberately created hidden and
+/// shown once it carries the theme colour, so restoring a saved "visible" would put it back on
+/// screen too early and reintroduce the white flash. Decorations are the app's to decide (none
+/// on Windows, set in `run`), and a state file saved while the window still had them would put
+/// the native title bar back.
+pub(crate) const STATE_FLAGS: StateFlags =
+    StateFlags::all().difference(StateFlags::VISIBLE.union(StateFlags::DECORATIONS));
 
 /// Startup timing, printed when TIDEMARK_TIMING is set. Run the binary inside the bundle to see it:
 ///   TIDEMARK_TIMING=1 "/Applications/Tidemark.app/Contents/MacOS/Tidemark"
@@ -229,6 +236,23 @@ pub fn helper(args: &[String]) -> Option<std::convert::Infallible> {
     None
 }
 
+/// Whether this copy takes part in the one-copy-per-session lock: not a debug build, so make dev
+/// runs beside the installed app.
+fn shares_instance_lock() -> bool {
+    !cfg!(debug_assertions)
+}
+
+/// Where the main window's own maximise button is, for Windows 11's snap layouts (snap_win.rs):
+/// x, y, width and height in physical pixels of the window, or `None` when it isn't shown.
+/// Nothing on macOS, whose window keeps its traffic lights.
+#[tauri::command]
+fn window_max_button(window: tauri::WebviewWindow, rect: Option<(i32, i32, i32, i32)>) {
+    #[cfg(windows)]
+    snap_win::set_max_button(&window, rect);
+    #[cfg(not(windows))]
+    let _ = (window, rect);
+}
+
 pub fn run() {
     // Windows' app has no console for a panic's message: it goes to crash.log instead (with
     // panic = "abort", the hook still runs first).
@@ -252,12 +276,21 @@ pub fn run() {
                 });
         }));
     }
+    let context = tauri::generate_context!();
+    // One copy per session, settled on Windows before the cache, the history or the recorder are
+    // touched: a second copy hands its arguments over here and exits (single_instance_win.rs).
+    // The plugin below is the channel it hands over through.
+    #[cfg(windows)]
+    if shares_instance_lock() {
+        single_instance_win::claim(&context.config().identifier);
+    }
     let root = cache::load_root();
     let mut builder = tauri::Builder::default();
     // Started again (any second launch on Windows; open -n on macOS), the open copy's window
-    // comes to the front instead. First, as it must be. Not in a debug build, so make dev runs
-    // beside the installed app.
-    if !cfg!(debug_assertions) {
+    // comes to the front instead. First, as it must be. On Windows the plugin's own check comes
+    // too late to be relied on (its mutex is taken before its window exists, and a copy started
+    // in between runs on), so `claim` above has settled it by now and this is the hand-over.
+    if shares_instance_lock() {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             tray::show_main(app)
         }));
@@ -323,6 +356,7 @@ pub fn run() {
             updates::update_install,
             updates::update_later,
             updates::update_skip,
+            window_max_button,
         ])
         .setup(move |app| {
             stamp("setup() start");
@@ -458,6 +492,16 @@ pub fn run() {
                         }
                     });
                 }
+                // No native title bar on Windows either: the page draws the window's buttons
+                // (src/WindowControls.tsx) and its bars drag it. Here rather than in
+                // tauri.windows.conf.json, which would have to repeat both windows whole (a
+                // platform file replaces the windows list, it doesn't merge into it). The shadow
+                // first, so the resize borders Tauri adds for an undecorated window know of it.
+                #[cfg(windows)]
+                {
+                    let _ = w.set_shadow(true);
+                    let _ = w.set_decorations(false);
+                }
                 #[cfg(not(target_os = "macos"))]
                 if !quiet {
                     let _ = w.show();
@@ -481,7 +525,7 @@ pub fn run() {
             stamp("setup() done");
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app, ev| {
             // No CLI answering a question outlives the app.

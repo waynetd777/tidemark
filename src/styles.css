@@ -180,8 +180,9 @@ pre,
   font-size: 12px;
 }
 
-/* Chrome: sidebar + content. The sidebar's top padding leaves room for the traffic lights, on
-   macOS only: Windows' window has a title bar of its own. */
+/* Chrome: sidebar + content, with no title bar on either system. The sidebar's top padding leaves
+   room for the traffic lights on macOS; on Windows the window's buttons sit at the top right
+   instead (.winctl). */
 .app {
   display: grid;
   grid-template-columns: 212px 1fr;
@@ -464,6 +465,52 @@ pre,
   background: var(--panel);
   min-height: 52px;
 }
+/* On Windows the bar keeps clear of the window's buttons (.winctl: three of 46px). */
+.win .topbar {
+  padding-right: 156px;
+}
+
+/* The window's own buttons on Windows (WindowControls.tsx): as wide as the native ones and as
+   tall as the top bar above its divider, the glyph centred and the hover filling the button.
+   Over every screen, drawer and dialog, as the native ones are, under the tooltips. Close turns
+   Windows' red. */
+.winctl {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 75;
+  display: flex;
+}
+.winctl button {
+  width: 46px;
+  height: 51px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+/* .hover: the pointer is on the snap-layout window over maximise (src-tauri/src/snap_win.rs). */
+.winctl button:hover,
+.winctl button.hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.winctl button:active {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+.winctl button.close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+.winctl button.close:active {
+  background: rgb(196 43 28 / 85%);
+  color: #fff;
+}
+
 /* Back / forward, like Finder's. */
 .navbtns {
   display: inline-flex;
@@ -1298,6 +1345,12 @@ pre,
 }
 .ask[hidden] {
   display: none;
+}
+/* On Windows the drawers open under the top bar, so their close buttons never sit beside the
+   window's. */
+.win .ask,
+.win .help {
+  top: 52px;
 }
 .ask-head {
   display: flex;

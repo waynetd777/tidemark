@@ -116,6 +116,7 @@ Tidemark works the same on Windows 10 and 11 (64-bit), with these differences:
 | | On Windows |
 |---|---|
 | Install | `Tidemark_x64-setup.exe` from the [latest release](https://github.com/waynetd777/tidemark/releases/latest), for you alone, with no administrator password. It isn't code-signed, so SmartScreen warns: **More info**, then **Run anyway**. Updates download and install quietly with a progress window, and reopen the app |
+| Window | No title bar, as on a Mac: minimise, maximise and close are at the top right, where Windows puts them, and the top bar and sidebar drag the window (double-click to maximise or restore). Hovering over maximise offers Windows 11's snap layouts. Ask and Help open under the top bar. Starting Tidemark while it runs brings its window forward |
 | Shortcuts | Ctrl in place of ⌘, as the app and its help show them; Ctrl+? opens the help anywhere in the main window |
 | Notification area | In place of the menu bar, by the clock. The icon is Tidemark's own, with an amber dot when something needs attention; its window opens above it. There's no Dock: with the window closed, Tidemark is only there. With no app menu, its window has **Tidemark Help** and **Check for Updates…**, and Settings has **Website** and **Check for Updates…** at its foot |
 | Your data | In `%LOCALAPPDATA%\com.wayned.tidemark`. Uninstalling in Windows Settings › Apps with **Delete the application data** ticked removes the history |

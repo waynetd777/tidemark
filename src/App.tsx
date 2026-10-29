@@ -19,6 +19,7 @@ import HelpDrawer from "./Help";
 import QuitDialog from "./Quit";
 import UpdateDialog from "./Update";
 import Tooltips from "./Tooltips";
+import WindowControls from "./WindowControls";
 import { describeView } from "./context";
 import { useAssistant } from "./assistant";
 import { hideSplash } from "./splash";
@@ -41,9 +42,11 @@ import {
 } from "./util";
 import { cmdKey, DENIED, FILES_APP, isMac, MACHINE, shortcut, UNREACHED } from "./keys";
 
-/// The window is dragged by its top bar and sidebar on macOS, whose window has no title bar of
-/// its own. Windows' window has one, and a drag area there takes the clicks that would scroll.
-const DRAG = isMac ? "deep" : undefined;
+/// The window has no title bar of its own (macOS's has its traffic lights over the sidebar,
+/// Windows' its buttons from WindowControls at the top right), so it is dragged by its top bar
+/// and sidebar: anywhere in them but their buttons and fields, which keep their clicks. Neither
+/// scrolls, so a drag area takes nothing from a scrollbar.
+const DRAG = "deep";
 
 const RELOAD_ICON = (
   <svg
@@ -1209,6 +1212,7 @@ export default function App() {
         onClose={() => setHelpOpen(false)}
         onAsk={askAbout}
       />
+      <WindowControls />
       <Tooltips />
       <UpdateDialog />
       <QuitDialog />
