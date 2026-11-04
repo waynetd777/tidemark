@@ -38,11 +38,11 @@ tauri-plugin-updater = "2"
 # The scan: one rayon task per directory, work-stealing across all cores.
 rayon = "1"
 # The history: one SQLite file, compiled in so nothing on the Mac is assumed.
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 # The battery controller's report (ioreg -a output is a plist).
 plist = "1"
 # CPU, memory, swap, network and per-process use for the performance monitor.
-sysinfo = { version = "0.39", default-features = false, features = ["system", "network"] }
+sysinfo = { version = "0.40", default-features = false, features = ["system", "network"] }
 
 # statfs for the volume's capacity and free space; sysctl for memory pressure; the helper's
 # signals; Ask ends a CLI and everything it started by signalling its process group.
