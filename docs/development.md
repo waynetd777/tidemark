@@ -22,7 +22,7 @@ make install-app      # signed build, copied to /Applications
 |---|---|
 | `make dev` | Run with hot reload (Open at Login and the helper need the installed app) |
 | `make install-app` | Build the signed app and replace the copy in /Applications. It quits a running Tidemark without reopening it, and stops and restarts the background helper if it is loaded |
-| `make dmg` | Build the installer, `dist-release/Tidemark.dmg`, and the updater's files beside it (`Tidemark.app.tar.gz`, its `.sig`, `latest.json`). The first run asks to let the terminal control Finder, which lays out the window |
+| `make dmg` | Build the installer, `dist-release/Tidemark.dmg`, and the updater's files beside it (`Tidemark.app.tar.gz`, its `.sig`, `latest.json`). The first run asks to let the terminal control Finder, which lays out the window. macOS 27's Finder shows a disk image's dot-named items (`.background`, `.fseventsd`) and moves the icons down to make room for them, so the script flags them invisible and its layout puts them outside the window. Before uploading a DMG, open it and check the window: only the app, the arrow and Applications, level with each other. |
 | `make release NOTES="…"` | Publish a release: bump, `make dmg`, commit, push, GitHub release, install (`tools/release.py`) |
 | `make check` | Lint, Rust tests and TypeScript type-check |
 | `make lint` | rustfmt, clippy, ESLint, Prettier, ruff and shellcheck; fails on any warning |

@@ -66,6 +66,13 @@ tell application "Finder"
     set position of item "Tidemark.app" of w to {{165, 230}}
     set position of item "Applications" of w to {{495, 230}}
     set extension hidden of item "Tidemark.app" of w to true
+    -- macOS 27's Finder draws a disk image's hidden items too, flags and all, and moves
+    -- the icons down to make room for them: they're put out of the window's sight.
+    repeat with n in {{".background", ".fseventsd", ".VolumeIcon.icns"}}
+      try
+        set position of item n of w to {{{x_out}, 160}}
+      end try
+    end repeat
     set the bounds of w to {{200, 120, {right}, {bottom}}}
     update without registering applications
     delay 2
@@ -113,8 +120,19 @@ def main():
         try:
             mount = Path(f"/Volumes/{VOLUME}")
             run("SetFile", "-a", "C", str(mount))
+            # Hidden by their flag as well as their dot, and the app's .app hidden (unless
+            # the viewer shows every extension): macOS 27's Finder shows dot-named items in a
+            # disk image's window.
+            for item in (".background", ".VolumeIcon.icns", ".fseventsd"):
+                if (mount / item).exists():
+                    run("SetFile", "-a", "V", str(mount / item))
+            run("SetFile", "-a", "E", str(mount / APP.name))
             time.sleep(1)
-            run("osascript", "-e", LAYOUT.format(volume=VOLUME, right=200 + W, bottom=120 + H + 28))
+            run(
+                "osascript",
+                "-e",
+                LAYOUT.format(volume=VOLUME, right=200 + W, bottom=120 + H + 28, x_out=W + 400),
+            )
             run("sync")
         finally:
             run("hdiutil", "detach", dev)
